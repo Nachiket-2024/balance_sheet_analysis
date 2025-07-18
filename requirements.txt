@@ -1,0 +1,25 @@
+# Core Framework
+fastapi
+uvicorn
+
+# Database
+sqlalchemy
+psycopg2-binary
+alembic
+
+# Env vars
+python-dotenv
+
+# Validation
+pydantic
+
+# Google OAuth 2.0
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
+
+# JWT
+python-jose[cryptography]
+
+yfinance

@@ -1,0 +1,32 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.sqlite3
+*.db
+.env
+*.env
+.pytest_cache
+
+# --- Virtual Envs ---
+venv/
+env/
+.venv/
+
+# --- Alembic Migrations ---
+alembic/versions/
+
+# --- Google OAuth tokens & credentials ---
+token.json
+
+# --- Node (React/Vite) ---
+node_modules/
+dist/
+
+# --- Editor / OS ---
+.vscode/
+.DS_Store
+
+# --- Logs ---
+logs/
+*.log

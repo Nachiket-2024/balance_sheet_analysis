@@ -1,0 +1,3 @@
+@tailwind base;        /* Loads Tailwind's base styles: Normalize + sensible defaults */
+@tailwind components;  /* Loads any reusable component classes (e.g., buttons, forms) */
+@tailwind utilities;   /* Loads Tailwind's utility classes (e.g., text-center, mt-4) */
