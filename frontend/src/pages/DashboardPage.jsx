@@ -3,32 +3,41 @@ import { useNavigate } from "react-router-dom"; // React Router hook to navigate
 import axios from "axios";
 
 export default function Dashboard() {
-  const navigate = useNavigate(); // For redirecting the user
-  const [user, setUser] = useState(null); // Holds current user info
-  const [loading, setLoading] = useState(true); // Tracks loading state for user info
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch user info from /auth/me endpoint
     const fetchUserInfo = async () => {
-      const token = localStorage.getItem("access_token"); // Get JWT token from localStorage
+      // First, try to get token from the URL
+      const token = new URLSearchParams(window.location.search).get("access_token");
 
-      if (!token) {
-        // If no token exists, navigate to login page
-        navigate("/login");
+      if (token) {
+        // Store token in localStorage to persist it across page reloads
+        localStorage.setItem("access_token", token);
+        navigate("/dashboard"); // Redirect to dashboard once token is stored
+        return; // Early return to prevent further processing
+      }
+
+      // If token doesn't exist in URL, try to get it from localStorage
+      const storedToken = localStorage.getItem("access_token");
+
+      if (!storedToken) {
+        navigate("/login"); // Redirect to login page if no token is found
         return;
       }
 
       try {
         const response = await axios.get("http://localhost:8000/auth/me", {
           headers: {
-            Authorization: `Bearer ${token}`, // Send the token in the Authorization header
+            Authorization: `Bearer ${storedToken}`,
           },
         });
-        setUser(response.data); // Store user info in state
+        setUser(response.data);
       } catch (err) {
-        setUser(null); // Nullify user if any error occurs
+        setUser(null);
       } finally {
-        setLoading(false); // End loading state
+        setLoading(false);
       }
     };
 
@@ -40,18 +49,15 @@ export default function Dashboard() {
 
     if (token) {
       try {
-        await axios.post(
-          "http://localhost:8000/auth/logout", // Call logout API
-          {},
-          {
-            headers: {
-              Authorization: `Bearer ${token}`, // Send token for logout
-            },
-          }
-        );
-        localStorage.removeItem("access_token"); // Remove token from localStorage on logout
-        setUser(null); // Clear user info from state
-        navigate("/login?logged_out=true", { replace: true }); // Redirect to login page
+        await axios.post("http://localhost:8000/auth/logout", {}, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        localStorage.removeItem("access_token");
+        setUser(null);
+        navigate("/login?logged_out=true", { replace: true });
       } catch (err) {
         console.error("Logout failed:", err);
       }
@@ -65,11 +71,9 @@ export default function Dashboard() {
       <h1 className="text-2xl font-bold mb-2">Welcome to the Balance Sheet Dashboard!</h1>
       <p>You are successfully logged in for Balance Sheet analysis.</p>
 
-      {/* User details */}
       <p className="mt-4">👤 <strong>{user.name}</strong></p>
       <p>{user.email}</p>
 
-      {/* Logout button */}
       <button
         onClick={handleLogout}
         className="mt-6 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
@@ -77,25 +81,22 @@ export default function Dashboard() {
         Logout
       </button>
 
-      {/* Button to navigate to Companies analysis page */}
       <button
-        onClick={() => navigate("/companies")} // Navigate to Companies page
+        onClick={() => navigate("/companies")}
         className="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
       >
         Manage Companies
       </button>
 
-      {/* Button to navigate to Financial indicators page */}
       <button
-        onClick={() => navigate("/financials")} // Navigate to Financial indicators page
+        onClick={() => navigate("/financials")}
         className="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
       >
         Financial Analysis
       </button>
 
-      {/* Button to navigate to Balance Sheet History page */}
       <button
-        onClick={() => navigate("/history")} // Navigate to Balance Sheet history page
+        onClick={() => navigate("/history")}
         className="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
       >
         Balance Sheet History

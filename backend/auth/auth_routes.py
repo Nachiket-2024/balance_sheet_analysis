@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from fastapi import Request
 from dotenv import load_dotenv
-from jose import JWTError, jwt
+from jose import JWTError
 from fastapi.security import OAuth2PasswordBearer
 
 from .auth_utils import authenticate_with_google, create_jwt_token, verify_jwt_token
@@ -39,50 +39,48 @@ async def login_with_google(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Google OAuth2 Authentication Failed: {str(e)}")
 
-# OAuth2 route to handle the redirect from Google after successful authentication
+# Callback route for Google OAuth2
 @router.get("/callback")
 async def google_callback(code: str, db: Session = Depends(get_db)):
     """
     Handle the Google OAuth2 callback and exchange the authorization code for a JWT token.
     """
     try:
-        # Use the authorization code to authenticate the user and fetch user info
+        # Step 1: Use the authorization code to authenticate the user and fetch user info
         user_info = authenticate_with_google(code, db)
 
-        # Check if the user is an admin by looking up their email in the Admin table
+        # Step 2: Check if the user is an admin by looking up their email in the Admin table
         admin = db.query(Admin).filter(Admin.email == user_info['email']).first()
 
-        # Assign role as 'admin' only if found in Admin table, otherwise check in User table
+        # Step 3: Assign role as 'admin' if found in Admin table, otherwise check in User table
         if admin:
             role = "admin"
         else:
-            # Check if the user already exists in the User table
+            # Check if the user exists in the User table
             user = db.query(User).filter(User.email == user_info['email']).first()
-
-            if not user:
-                # If the user doesn't exist, assign as "analyst" by default
-                role = "analyst"
-                # Create the user with default role
-                new_user = User(
-                    name=user_info['name'],
-                    email=user_info['email'],
-                    role=role,
-                )
-                db.add(new_user)
-                db.commit()
-                db.refresh(new_user)
-                user = new_user  # Use the newly created user
+            if user:
+                role = user.role  # Use the role stored in the database
             else:
-                role = user.role  # Only use the role stored in the database, without any default
+                role = "analyst"  # Default to analyst if the user is not found
 
-        # Create a JWT token with user info and role
+        # Step 4: Create a JWT token with user info and role
         jwt_token = create_jwt_token(user_info)
 
-        # Return the JWT token and the user's role in the response
-        return JSONResponse(content={"access_token": jwt_token, "token_type": "bearer", "role": role})
+        # Step 5: Define your frontend URL
+        frontend_url = "http://localhost:5173/dashboard"  # Replace with your actual frontend URL
+
+        # Step 6: Redirect the user to the frontend with JWT token and role as query parameters
+        redirect_url = f"{frontend_url}?access_token={jwt_token}&role={role}"
+
+        # Debugging: Print out the constructed redirect URL to verify it's correct
+        print(f"Redirecting to: {redirect_url}")
+
+        # Step 7: Return a RedirectResponse to the frontend URL
+        return RedirectResponse(url=redirect_url)
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Google OAuth2 Authentication Failed: {str(e)}")
+
 
 # Route to get current user info (protected)
 @router.get("/me")

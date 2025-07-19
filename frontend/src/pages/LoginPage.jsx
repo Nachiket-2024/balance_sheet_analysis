@@ -1,11 +1,17 @@
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 function LoginPage() {
-  const location = useLocation();
   const navigate = useNavigate();
 
-  const wasLoggedOut = new URLSearchParams(location.search).get("logged_out") === "true";
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+
+    if (token) {
+      // If the token is already in localStorage, redirect directly to the dashboard
+      navigate("/dashboard");
+    }
+  }, [navigate]);
 
   const handleLogin = () => {
     // Redirect the user to the backend Google login route
@@ -15,13 +21,6 @@ function LoginPage() {
   return (
     <div style={{ textAlign: "center", marginTop: "50px" }}>
       <h1>Login to Balance Sheet Analysis App</h1>
-
-      {/* Show success message after logout */}
-      {wasLoggedOut && (
-        <p style={{ color: "green" }}>
-          You have been logged out successfully.
-        </p>
-      )}
 
       {/* Login Button → Redirect to backend auth route */}
       <button
