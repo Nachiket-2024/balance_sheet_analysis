@@ -1,332 +1,112 @@
-# FastAPI tools to define routes (`APIRouter`), access incoming requests (`Request`),
-# raise structured HTTP errors (`HTTPException`), and use dependency injection (`Depends`)
-from fastapi import APIRouter, Request, HTTPException, Depends
-
-# Used to send 302 redirect responses — useful for Google login and frontend redirection
-from fastapi.responses import RedirectResponse
-
-# A tool to extract a Bearer token from the Authorization header.
-# Not used here directly (we use cookies), but defined for future compatibility.
+import os
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy.orm import Session
+from fastapi import Request
+from dotenv import load_dotenv
+from jose import JWTError, jwt
 from fastapi.security import OAuth2PasswordBearer
 
-# Provides ORM access to the database, allowing you to query and persist objects
-from sqlalchemy.orm import Session
-
-# `jwt.decode()` decodes JWTs with a given secret and algorithm.
-# `JWTError` is raised when the token is invalid, malformed, or expired.
-from jose import jwt, JWTError
-
-# Used to send HTTP requests to Google's OAuth2 endpoints (for token exchange, userinfo, etc.)
-import requests
-
-# Helper to encode query parameters into a safe URL string (e.g., for Google's login URL)
-from urllib.parse import urlencode
-
-# `cast` tells the type checker what type we're expecting (helps with IDEs, type safety).
-# `Annotated` allows attaching metadata (like `Depends` or `Cookie`) to type hints.
-from typing import cast, Annotated
-
-# Used to declare generator-type dependencies, such as for yielding DB sessions
-from collections.abc import Generator
-
-# JSONResponse is used to return structured JSON output (e.g., in `/refresh` or `/logout`)
-from fastapi.responses import JSONResponse
-
-# Generic Response object — can be used to return redirects, plain responses, etc.
-from fastapi import Response
-
-# Allows reading cookies from HTTP requests (e.g., `access_token` or `refresh_token`)
-from fastapi import Cookie
-
-# Secret keys and Google OAuth credentials pulled from secure config
-from .auth_config import (
-    JWT_SECRET,
-    GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET,
-    GOOGLE_REDIRECT_URI,
-    ADMIN_EMAILS,
-)
-
-# Access token expiry time (minutes) and algorithm used to sign JWTs (e.g., HS256)
-from .settings import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM
-
-# Function to create a new SQLAlchemy session bound to the current DB
-from ..db.session import SessionLocal
-
-# ORM model representing a user row in the database
+from .auth_utils import authenticate_with_google, create_jwt_token, verify_jwt_token
 from ..models.user_model import User
+from ..models.admin_model import Admin
+from ..db.session import get_db
 
-# Schema to return both tokens in a structured format (used in OpenAPI docs)
-from .token_schema import Token
+# Load environment variables from the .env file
+load_dotenv()
 
-# Pydantic models to validate responses from Google's token and userinfo APIs
-from .auth_schema import GoogleTokenResponse, GoogleUserInfo
-
-# Internal utility functions for generating and decoding JWTs
-from .jwt_handler import create_access_token, create_refresh_token, decode_token
-
-# How long refresh tokens remain valid (in days)
-from .settings import REFRESH_TOKEN_EXPIRE_DAYS
-
-# Create a router to group all /auth endpoints together
-router = APIRouter(tags=["Auth"])
-
-# Optional: defines how to extract bearer tokens from headers (not used in this file)
+# OAuth2PasswordBearer is used to extract the token from Authorization header
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+# Create FastAPI router for authentication related routes
+router = APIRouter(
+    prefix="/auth",  # Prefix for all authentication-related routes
+    tags=["Authentication"],  # Tags to categorize the routes in the docs
+)
 
-def get_db() -> Generator[Session, None, None]:
+# OAuth2 route for login via Google
+@router.get("/login")
+async def login_with_google(request: Request, db: Session = Depends(get_db)):
     """
-    Provides a database session to routes that require DB access.
-    Uses a generator pattern to ensure the session is closed after the request finishes.
+    Initiates the Google OAuth2 flow.
+    Redirects the user to the Google authentication page.
     """
-    db = SessionLocal()
     try:
-        yield db
-    finally:
-        db.close()
+        google_oauth_url = "https://accounts.google.com/o/oauth2/v2/auth"
+        # Build the URL to redirect the user to Google's OAuth2 authorization endpoint
+        auth_url = f"{google_oauth_url}?response_type=code&client_id={os.getenv('GOOGLE_CLIENT_ID')}&redirect_uri={os.getenv('GOOGLE_REDIRECT_URI')}&scope=openid%20email"
+        return RedirectResponse(url=auth_url)  # Redirect user to Google's OAuth2 page
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Google OAuth2 Authentication Failed: {str(e)}")
 
-
-@router.get("/auth/login")
-def login() -> RedirectResponse:
+# OAuth2 route to handle the redirect from Google after successful authentication
+@router.get("/callback")
+async def google_callback(code: str, db: Session = Depends(get_db)):
     """
-    Begins the OAuth2 flow by redirecting the user to Google's login page.
-    Requests user's email and profile info, with 'offline' access for refresh tokens.
+    Handle the Google OAuth2 callback and exchange the authorization code for a JWT token.
     """
-
-    query_params: dict[str, str] = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": GOOGLE_REDIRECT_URI,
-        "response_type": "code",        # Google will return an authorization code
-        "scope": "openid email profile",  # We want identity, email, and profile
-        "access_type": "offline",       # Needed to receive a refresh token
-        "prompt": "consent",            # Always ask the user for permission
-    }
-
-    # Encode the params into a full Google login URL
-    auth_url: str = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(query_params)}"
-
-    # Redirect the user to Google
-    return RedirectResponse(auth_url)
-
-
-@router.get("/auth/callback", response_model=Token)
-def auth_callback(request: Request, db: Annotated[Session, Depends(get_db)]) -> Response:
-    """
-    Handles Google's redirect after user authentication.
-    - Exchanges the authorization `code` for access/refresh tokens from Google.
-    - Fetches the user's email/profile info from Google.
-    - Checks if user exists in local DB or creates a new one.
-    - Sets the access and refresh tokens in secure HttpOnly cookies.
-    """
-    code: str | None = request.query_params.get("code")
-    if not code:
-        raise HTTPException(status_code=400, detail="Missing authorization code")
-
-    # Exchange code for tokens from Google
-    token_data = {
-        "code": code,
-        "client_id": GOOGLE_CLIENT_ID,
-        "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": GOOGLE_REDIRECT_URI,
-        "grant_type": "authorization_code",
-    }
-
-    token_response = requests.post("https://oauth2.googleapis.com/token", data=token_data)
-    if not token_response.ok:
-        raise HTTPException(status_code=400, detail="Failed to fetch token")
-
-    token_json = cast(GoogleTokenResponse, token_response.json())
-
-    # Use access token to get user info
-    userinfo_response = requests.get(
-        "https://www.googleapis.com/oauth2/v2/userinfo",
-        headers={"Authorization": f"Bearer {token_json['access_token']}"},
-    )
-    if not userinfo_response.ok:
-        raise HTTPException(status_code=400, detail="Failed to fetch user info")
-
-    user_info = cast(GoogleUserInfo, userinfo_response.json())
-    email = user_info.get("email")
-    if not email:
-        raise HTTPException(status_code=400, detail="Email not found in Google response")
-
-    google_id = user_info.get("id")
-    if not google_id:
-        raise HTTPException(status_code=400, detail="Google ID not found in Google response")
-
-    name = user_info.get("name", "")
-
-    # Check if user already exists
-    user = db.query(User).filter(User.email == email).first()
-
-    if not user:
-        role = "admin" if email in ADMIN_EMAILS else "user"
-        user = User(google_id=google_id, email=email, name=name, role=role)
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
-    else:
-        # Ensure role is updated if email is now in admin list
-        new_role = "admin" if email in ADMIN_EMAILS else "user"
-        if user.role != new_role:
-            user.role = new_role
-            db.commit()
-
-    # Create access and refresh tokens
-    access_token = create_access_token({"sub": str(user.id)})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
-
-    # Redirect to frontend after login
-    response = RedirectResponse(url="http://localhost:5173/dashboard", status_code=302)
-
-    # Set secure HttpOnly access token cookie
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
-
-    # Set secure HttpOnly refresh token cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-    )
-
-    return response
-
-
-def get_current_user_from_cookie(
-    db: Annotated[Session, Depends(get_db)],
-    access_token: Annotated[str | None, Cookie()] = None,
-) -> User:
-    """
-    Dependency that extracts the current logged-in user from the `access_token` cookie.
-    - Verifies and decodes the token.
-    - Extracts user ID (`sub`) and looks up the user in the database.
-    - Raises 401 Unauthorized if anything is invalid.
-    """
-    if access_token is None:
-        raise HTTPException(status_code=401, detail="Access token missing")
-
-    credentials_exc = HTTPException(
-        status_code=401,
-        detail="Invalid or expired token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
     try:
-        # Decode the JWT using secret and algorithm
-        payload = jwt.decode(access_token, JWT_SECRET, algorithms=[ALGORITHM])
+        # Use the authorization code to authenticate the user and fetch user info
+        user_info = authenticate_with_google(code, db)
 
-        # Extract user ID from the token payload
-        sub = payload.get("sub")
+        # Check if the user is an admin by looking up their email in the Admin table
+        admin = db.query(Admin).filter(Admin.email == user_info['email']).first()
 
-        # Ensure the ID is valid
-        if not isinstance(sub, str):
-            raise credentials_exc
+        # Assign role as 'admin' only if found in Admin table, otherwise check in User table
+        if admin:
+            role = "admin"
+        else:
+            # Check if the user already exists in the User table
+            user = db.query(User).filter(User.email == user_info['email']).first()
 
-        user_id = int(sub)  # Convert to integer for DB lookup
+            if not user:
+                # If the user doesn't exist, assign as "analyst" by default
+                role = "analyst"
+                # Create the user with default role
+                new_user = User(
+                    name=user_info['name'],
+                    email=user_info['email'],
+                    role=role,
+                )
+                db.add(new_user)
+                db.commit()
+                db.refresh(new_user)
+                user = new_user  # Use the newly created user
+            else:
+                role = user.role  # Only use the role stored in the database, without any default
 
-    except (JWTError, ValueError):
-        raise credentials_exc
+        # Create a JWT token with user info and role
+        jwt_token = create_jwt_token(user_info)
 
-    # Query the user from DB
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise credentials_exc
+        # Return the JWT token and the user's role in the response
+        return JSONResponse(content={"access_token": jwt_token, "token_type": "bearer", "role": role})
 
-    return user
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Google OAuth2 Authentication Failed: {str(e)}")
 
-
-@router.get("/auth/me")
-def get_me(current_user: Annotated[User, Depends(get_current_user_from_cookie)]) -> dict[str, str | int | None]:
+# Route to get current user info (protected)
+@router.get("/me")
+async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """
-    Returns the authenticated user's public profile (id, email, name).
-    Uses the access token cookie to identify the user.
+    Get current authenticated user's information based on the JWT token.
     """
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "name": current_user.name,
-    }
-
-
-@router.post("/auth/refresh")
-def refresh_token(
-    refresh_token: Annotated[str | None, Cookie()] = None,
-) -> JSONResponse:
-    """
-    Refreshes the access token using a valid refresh token stored in the cookie.
-    - Validates the refresh token.
-    - Issues a new access token and sets it in the cookie.
-    """
-    if refresh_token is None:
-        raise HTTPException(status_code=401, detail="Refresh token missing")
-
     try:
-        # Decode and validate the token
-        payload = decode_token(refresh_token)
+        payload = verify_jwt_token(token)
+        user = db.query(User).filter(User.email == payload["sub"]).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"email": user.email, "name": user.name, "role": user.role}
 
-        # Ensure it's a refresh token
-        if payload.get("type") != "refresh":
-            raise HTTPException(status_code=401, detail="Invalid token type")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-        user_id = payload.get("sub")
-        if not isinstance(user_id, str):
-            raise HTTPException(status_code=401, detail="Invalid user ID in token")
-
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
-    # Generate a new access token
-    new_access_token = create_access_token({"sub": user_id})
-
-    # Send it in a new cookie
-    response = JSONResponse(content={"message": "Token refreshed"})
-    response.set_cookie(
-        key="access_token",
-        value=new_access_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
-
-    return response
-
-
-@router.post("/auth/logout")
-def logout(_: Annotated[User, Depends(get_current_user_from_cookie)]) -> JSONResponse:
+# Route for user logout (client-side action, token invalidation)
+@router.post("/logout")
+async def logout():
     """
-    Logs the user out by deleting both the access_token and refresh_token cookies.
-    Requires the user to be currently logged in.
+    Logout the user. Since JWT is stateless, this will simply remove the token from the client side.
+    The frontend should delete the token from localStorage/sessionStorage.
     """
-
-    response = JSONResponse(content={"message": "Logged out successfully"})
-
-    # Remove access token cookie
-    response.delete_cookie(
-        key="access_token",
-        httponly=True,
-        secure=True,
-        samesite="lax",
-    )
-
-    # Remove refresh token cookie
-    response.delete_cookie(
-        key="refresh_token",
-        httponly=True,
-        secure=True,
-        samesite="lax",
-    )
-
-    return response
+    return JSONResponse(content={"message": "Successfully logged out. Please delete the token from your client(frontend)."})

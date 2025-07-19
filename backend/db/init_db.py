@@ -8,6 +8,9 @@ from .base import Base
 
 # Import the User model class for the same reason — it must be registered to create its table.
 from ..models.user_model import User
+from ..models.company_model import Company
+from ..models.vertical_model import Vertical
+from ..models.balance_sheet_model import BalanceSheet
 
 
 def init_db() -> None:

@@ -1,16 +1,16 @@
-# Import the standard `os` module for accessing environment variables
+# Import the standard `os` module for accessing environment variables and the typing module
 import os
+from typing import Generator
 
 # Import SQLAlchemy's engine and session utilities for ORM-based DB access
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
 # Import dotenv utilities to load environment variables from a .env file
 from dotenv import load_dotenv
 
 # Import `Path` for cross-platform file system path handling
 from pathlib import Path
-
 
 # --- Load environment variables from the project root ---
 
@@ -37,9 +37,6 @@ if SQLALCHEMY_DATABASE_URL is None:
 # Extract the database name from the URL
 db_name = SQLALCHEMY_DATABASE_URL.split('/')[-1]
 
-# Print only the database name
-print(f"Loaded DATABASE_NAME: {db_name} (Remove this when in production)")
-
 # --- SQLAlchemy Engine and Session setup ---
 
 # Create the SQLAlchemy engine instance
@@ -51,3 +48,11 @@ engine = create_engine(SQLALCHEMY_DATABASE_URL)
 # - `autoflush=False`: ORM changes aren't auto-flushed to DB unless manually done.
 # - `bind=engine`: Ties this session to our database engine.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Dependency to get the database session
+def get_db() -> Generator[Session, None, None]:
+    db = SessionLocal()  # Create a new session
+    try:
+        yield db  # Yield the session for use in route
+    finally:
+        db.close()  # Ensure the session is closed after request

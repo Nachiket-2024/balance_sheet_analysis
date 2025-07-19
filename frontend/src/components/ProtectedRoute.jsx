@@ -8,9 +8,22 @@ export default function ProtectedRoute({ children }) {
   const [checkingAuth, setCheckingAuth] = useState(true); // Track if auth check is in progress
 
   useEffect(() => {
-    // On mount: check auth status by calling /auth/me
+    // Get the token from localStorage (or sessionStorage)
+    const token = localStorage.getItem("access_token");
+
+    // If no token exists, redirect to login page
+    if (!token) {
+      navigate("/login", { replace: true });
+      return;
+    }
+
+    // On mount: check auth status by calling /auth/me with JWT token
     axios
-      .get("http://localhost:8000/auth/me", { withCredentials: true }) // Send cookies with request
+      .get("http://localhost:8000/auth/me", {
+        headers: {
+          Authorization: `Bearer ${token}`, // Send the JWT token in the Authorization header
+        },
+      })
       .then(() => {
         setCheckingAuth(false); // User is authenticated
       })

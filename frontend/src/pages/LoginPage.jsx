@@ -1,32 +1,39 @@
-import { useLocation } from "react-router-dom";  // Hook for accessing URL query params
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
-// Login screen shown at /login
 function LoginPage() {
-  const location = useLocation();  // Grab current location object from React Router
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  // Check if redirected here after logout
   const wasLoggedOut = new URLSearchParams(location.search).get("logged_out") === "true";
 
-  // Trigger backend login redirect to Google
   const handleLogin = () => {
-    window.location.replace("http://localhost:8000/auth/login");  // FastAPI → Google OAuth flow
+    // Redirect the user to the backend Google login route
+    window.location.href = "http://localhost:8000/auth/login";  // Adjust with your backend login endpoint
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
-      <h1 className="text-3xl font-bold mb-6">Login to Doctor Agentic App</h1>
+    <div style={{ textAlign: "center", marginTop: "50px" }}>
+      <h1>Login to Balance Sheet Analysis App</h1>
 
       {/* Show success message after logout */}
       {wasLoggedOut && (
-        <p className="mb-4 text-green-700 font-semibold">
+        <p style={{ color: "green" }}>
           You have been logged out successfully.
         </p>
       )}
 
-      {/* Login Button → Redirects to Google */}
+      {/* Login Button → Redirect to backend auth route */}
       <button
         onClick={handleLogin}
-        className="bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-blue-700 transition"
+        style={{
+          padding: "10px 20px",
+          backgroundColor: "blue",
+          color: "white",
+          border: "none",
+          borderRadius: "5px",
+          cursor: "pointer",
+        }}
       >
         Login with Google
       </button>
@@ -34,4 +41,4 @@ function LoginPage() {
   );
 }
 
-export default LoginPage;  // Export for use in router
+export default LoginPage;

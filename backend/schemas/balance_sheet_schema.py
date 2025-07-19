@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class BalanceSheetBase(BaseModel):
     ticker: str  # Stock ticker (e.g., AAPL, TSLA)
@@ -73,5 +73,5 @@ class BalanceSheetBase(BaseModel):
     cash_equivalents: float | None = None
     cash_financial: float | None = None
 
-    class Config:
-        orm_mode = True
+    class Config(ConfigDict):
+        from_attributes = True
