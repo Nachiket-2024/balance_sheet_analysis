@@ -22,4 +22,8 @@ google-api-python-client
 # JWT
 python-jose[cryptography]
 
+# For Balance Sheet data
 yfinance
+
+# For using local llm Ollama
+ollama

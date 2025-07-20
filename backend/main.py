@@ -1,40 +1,58 @@
-# --- Environment setup ---
+# ---------------------- Environment Setup ----------------------
+
 from dotenv import load_dotenv                      # Load environment variables from .env
-from pathlib import Path                            # Work with paths in an OS-agnostic way
+from pathlib import Path                            # For working with file paths in an OS-independent way
 
-# Calculate base directory of the project
+# Calculate the base directory (root of the project)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-_ = load_dotenv(dotenv_path=BASE_DIR / ".env")     # Load .env variables
 
-# --- FastAPI setup ---
-from fastapi import FastAPI
+# Load environment variables from .env file located at project root
+_ = load_dotenv(dotenv_path=BASE_DIR / ".env")
 
-# --- CORS setup ---
-from fastapi.middleware.cors import CORSMiddleware  # Import CORS middleware for cross-origin requests
+# ---------------------- FastAPI Setup ----------------------
 
-# Import route modules
-from .auth import auth_routes
-from .api import balance_sheet_routes
+from fastapi import FastAPI  # Import FastAPI app constructor
 
-# Create FastAPI instance
+# ---------------------- CORS Setup ----------------------
+
+from fastapi.middleware.cors import CORSMiddleware  # CORS middleware to allow frontend/backend interaction
+
+# ---------------------- Route Imports ----------------------
+
+# Import your custom route files
+from .auth import auth_routes                      # Authentication routes (OAuth, login)
+from .api import balance_sheet_routes, llm_routes  # Routes for balance sheet and LLM chat
+
+# ---------------------- FastAPI App Initialization ----------------------
+
+# Create a FastAPI app instance
 app = FastAPI()
 
-# Add CORS middleware — essential for frontend-backend communication
+# Add CORS middleware — allows React frontend to access this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Frontend URL during development
+    allow_origins=["http://localhost:5173"],  # Allow requests from your frontend dev server
     allow_credentials=True,
-    allow_methods=["*"],                      # Includes GET, POST, OPTIONS, etc.
-    allow_headers=["*"],                      # Includes Authorization, Content-Type, etc.
+    allow_methods=["*"],                      # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],                      # Allow all headers (Authorization, Content-Type, etc.)
 )
 
-# Include authentication-related routes
+# ---------------------- Route Registration ----------------------
+
+# Include authentication routes under /auth/*
 app.include_router(auth_routes.router)
 
-# Include balance sheet–related API routes
+# Include balance sheet routes under /balance-sheet/*
 app.include_router(balance_sheet_routes.router)
 
-# Basic root endpoint for health check
+# Include LLM routes under /llm/*
+app.include_router(llm_routes.router)
+
+# ---------------------- Root Endpoint ----------------------
+
 @app.get("/")
 async def root():
+    """
+    Basic root endpoint to confirm the API is running.
+    """
     return {"message": "Welcome to the Balance Sheet Analysis API!"}
