@@ -87,18 +87,39 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
 async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """
     Get current authenticated user's information based on the JWT token.
+    Checks both User and Admin tables.
     """
     try:
+        # Decode token and extract email
         payload = verify_jwt_token(token)
-        user = db.query(User).filter(User.email == payload["sub"]).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        return {"email": user.email, "name": user.name, "role": user.role}
+        email = payload["sub"]
+
+        # Check in User table first
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            return {
+                "email": user.email,
+                "name": user.name,
+                "role": user.role
+            }
+
+        # If not found in User, check in Admin table
+        admin = db.query(Admin).filter(Admin.email == email).first()
+        if admin:
+            return {
+                "email": admin.email,
+                "name": admin.name,
+                "role": "admin"  # Hardcoded since Admin table may not have role column
+            }
+
+        # If not found in either table
+        raise HTTPException(status_code=404, detail="User not found")
 
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # Route for user logout (client-side action, token invalidation)
 @router.post("/logout")

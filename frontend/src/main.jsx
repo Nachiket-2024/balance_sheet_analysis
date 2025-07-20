@@ -24,7 +24,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         {/* Public route for login */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Protected route for authenticated areas (with nested routes inside Layout) */}
+        {/* PUBLIC Dashboard route — it handles its own token logic */}
+        <Route path="/dashboard" element={<Dashboard />} />
+
+        {/* Layout with nested protected routes */}
         <Route
           path="/"
           element={
@@ -33,12 +36,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             </ProtectedRoute>
           }
         >
-          {/* Default redirect from `/` to `/dashboard` */}
+          {/* Redirect base / to dashboard */}
           <Route index element={<Navigate to="/dashboard" replace />} />
 
-          {/* Actual dashboard page */}
-          <Route path="dashboard" element={<Dashboard />} />
-
+          {/* Example nested routes under layout */}
+          {/* These should be protected */}
+          {/* <Route path="companies" element={<CompaniesPage />} />
+          <Route path="financials" element={<FinancialsPage />} /> */}
         </Route>
       </Routes>
     </Router>
