@@ -1,5 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Float
 from ..db.base import Base
 
 class BalanceSheet(Base):
@@ -71,7 +70,7 @@ class BalanceSheet(Base):
     receivables = Column(Float, nullable=True)
     other_receivables = Column(Float, nullable=True)
     accounts_receivable = Column(Float, nullable=True)
-    cash_and_cash_equivalents_and_short_term_investments = Column(Float, nullable=True)
+    cash_cash_equivalents_and_short_term_investments = Column(Float, nullable=True)
     other_short_term_investments = Column(Float, nullable=True)
     cash_and_cash_equivalents = Column(Float, nullable=True)
     cash_equivalents = Column(Float, nullable=True)

@@ -1,9 +1,13 @@
+# Import the BaseModel class and ConfigDict for model configuration
 from pydantic import BaseModel, ConfigDict
 
+# Base schema for balance sheet data, reused for input/output
 class BalanceSheetBase(BaseModel):
+    # Required fields
     ticker: str  # Stock ticker (e.g., AAPL, TSLA)
     year: int  # Reporting year (e.g., 2024, 2023)
 
+    # Optional financial fields (can be null)
     treasury_shares_number: float | None = None
     ordinary_shares_number: float | None = None
     share_issued: float | None = None
@@ -67,11 +71,37 @@ class BalanceSheetBase(BaseModel):
     receivables: float | None = None
     other_receivables: float | None = None
     accounts_receivable: float | None = None
-    cash_and_cash_equivalents_and_short_term_investments: float | None = None
+    cash_cash_equivalents_and_short_term_investments: float | None = None
     other_short_term_investments: float | None = None
     cash_and_cash_equivalents: float | None = None
     cash_equivalents: float | None = None
     cash_financial: float | None = None
+
+    # Config for Pydantic to enable ORM mode using SQLAlchemy attributes
+    class Config(ConfigDict):
+        from_attributes = True
+
+
+# Schema for returning a balance sheet, includes primary key
+class BalanceSheetOut(BalanceSheetBase):
+
+    class Config(ConfigDict):
+        from_attributes = True
+
+
+# Schema for returning company details
+class CompanyOut(BaseModel):
+    name: str  # Ticker used as company name
+    industry: str | None = None  # Optional industry info
+
+    class Config(ConfigDict):
+        from_attributes = True
+
+
+# Schema for returning a company with its associated balance sheets
+class CompanyWithBalanceSheets(BaseModel):
+    company: CompanyOut  # Company info
+    balance_sheets: list[BalanceSheetOut]  # List of balance sheet entries
 
     class Config(ConfigDict):
         from_attributes = True

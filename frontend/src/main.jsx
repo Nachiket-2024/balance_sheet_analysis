@@ -1,8 +1,8 @@
-// Import core React runtime and rendering logic
+// --- Import React core ---
 import React from "react";
 import ReactDOM from "react-dom/client";
 
-// React Router components for routing and navigation
+// --- Import React Router for client-side routing ---
 import {
   BrowserRouter as Router,
   Routes,
@@ -10,39 +10,42 @@ import {
   Navigate,
 } from "react-router-dom";
 
-// Custom components
-import ProtectedRoute from "./components/ProtectedRoute"; // Guards private routes
-import Layout from "./components/Layout";                 // Shared layout with nav + meta
-import LoginPage from "./pages/LoginPage";                // Public login screen
-import Dashboard from "./pages/DashboardPage";            // Main user dashboard
+// --- Import your custom page and component files ---
+import ProtectedRoute from "./components/ProtectedRoute";     // Component to guard protected routes
+import Layout from "./components/Layout";                     // Layout wrapper for protected pages
+import LoginPage from "./pages/LoginPage";                    // Public login screen
+import Dashboard from "./pages/DashboardPage";                // Dashboard page shown after login
+import BalanceSheetPage from "./pages/BalanceSheetPage";      // Page for viewing balance sheets
+import BalanceSheetDetails from "./pages/BalanceSheetDetails"; // Page for viewing details of a specific balance sheet
 
-// Mount the root app
+// --- Mount the root React app into the DOM ---
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode> {/* Helps detect potential problems in development */}
-    <Router>
+  <React.StrictMode> {/* Enable additional checks and warnings in development */}
+    <Router> {/* Set up routing with React Router */}
       <Routes>
-        {/* Public route for login */}
+        {/* Public login route (does not require authentication) */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* PUBLIC Dashboard route — it handles its own token logic */}
-        <Route path="/dashboard" element={<Dashboard />} />
-
-        {/* Layout with nested protected routes */}
+        {/* Layout component wraps protected routes; only accessible when logged in */}
         <Route
           path="/"
           element={
-            <ProtectedRoute>
-              <Layout />
+            <ProtectedRoute> {/* This checks if user is authenticated */}
+              <Layout />      {/* Layout provides navigation/header/sidebar */}
             </ProtectedRoute>
           }
         >
-          {/* Redirect base / to dashboard */}
+          {/* Redirect from "/" to dashboard by default */}
           <Route index element={<Navigate to="/dashboard" replace />} />
 
-          {/* Example nested routes under layout */}
-          {/* These should be protected */}
-          {/* <Route path="companies" element={<CompaniesPage />} />
-          <Route path="financials" element={<FinancialsPage />} /> */}
+          {/* Dashboard route (inside protected layout) */}
+          <Route path="dashboard" element={<Dashboard />} />
+
+          {/* Balance sheet viewing route (inside protected layout) */}
+          <Route path="balance-sheet" element={<BalanceSheetPage />} />
+
+          {/* Balance sheet details route (inside protected layout) */}
+          <Route path="/balance-sheet/:ticker/:year" element={<BalanceSheetDetails />} />
         </Route>
       </Routes>
     </Router>

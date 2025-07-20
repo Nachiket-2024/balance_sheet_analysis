@@ -104,24 +104,10 @@ export default function Dashboard() {
       {/* Navigation buttons */}
       <div className="mt-6 space-x-4">
         <button
-          onClick={() => navigate("/companies")}
+          onClick={() => navigate("/balance-sheet")}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
         >
-          Manage Companies
-        </button>
-
-        <button
-          onClick={() => navigate("/financials")}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Financial Analysis
-        </button>
-
-        <button
-          onClick={() => navigate("/history")}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Balance Sheet History
+          View Balance Sheets
         </button>
       </div>
     </div>

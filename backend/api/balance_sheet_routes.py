@@ -1,149 +1,223 @@
+# ---------------------- Imports ----------------------
+
+# FastAPI imports for route handling, dependency injection, and HTTP errors
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from ..models.balance_sheet_model import BalanceSheet
-from ..schemas.balance_sheet_schema import BalanceSheetBase
-from ..models.company_model import Company
-from ..models.admin_model import Admin
+# External library used to fetch stock data, including balance sheets
+import yfinance as yf
+
+# SQLAlchemy models
+from ..models.balance_sheet_model import BalanceSheet  # DB model for balance sheet data
+from ..models.company_model import Company  # DB model for company data
+from ..models.admin_model import Admin  # DB model for admin (used in role-checking)
+
+# Pydantic response schemas
+from ..schemas.balance_sheet_schema import CompanyWithBalanceSheets, BalanceSheetOut, CompanyOut
+
+# Dependency for getting the database session
 from ..db.session import get_db
+
+# Role-based access control dependency
 from ..auth.auth_user_check import admin_only
 
-# Create FastAPI router for balance sheet related routes with prefix and tags
+# External mapping from yfinance keys → DB fields
+from ..utils.yfinance_field_map import YFINANCE_TO_DB_FIELDS
+
+# Utility to sanitize input dictionaries (removes NaNs, None, infs, etc.)
+from ..utils.sanitize_fields import sanitize_dict
+
+# ---------------------- Create Router ----------------------
+
+# Initialize API router with a URL prefix and tag for grouping in docs
 router = APIRouter(
-    prefix="/balance-sheet",  # Prefix for all routes in this router
-    tags=["Balance Sheet"],    # Tags to categorize the routes in the docs
+    prefix="/balance-sheet",
+    tags=["Balance Sheet"]
 )
 
-# Route to get the balance sheet for a company by ticker and year
-@router.get("/{ticker}/{year}")
+# ---------------------- GET: Fetch Specific Balance Sheet ----------------------
+
+@router.get("/{ticker}/{year}", response_model=BalanceSheetOut)
 async def get_balance_sheet(ticker: str, year: int, db: Session = Depends(get_db)):
-    """
-    Get the balance sheet of a company for a given year by its ticker.
-    """
-    try:
-        balance_sheet = db.query(BalanceSheet).filter(BalanceSheet.ticker == ticker, BalanceSheet.year == year).first()
-        
-        if not balance_sheet:
-            raise HTTPException(status_code=404, detail="Balance sheet not found for the given ticker and year.")
-        
-        return balance_sheet
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+    # Query DB for balance sheet matching ticker and year
+    balance_sheet = db.query(BalanceSheet).filter(
+        BalanceSheet.ticker == ticker,
+        BalanceSheet.year == year
+    ).first()
 
-# Route to create a balance sheet entry (Admin only)
+    if not balance_sheet:
+        raise HTTPException(status_code=404, detail="Balance sheet not found for the given ticker and year.")
+
+    # Return Pydantic schema, ORM mode converts SQLAlchemy model to JSON
+    return balance_sheet
+
+# ---------------------- POST: Create Balance Sheet Entry ----------------------
+
 @router.post("/{ticker}/{year}")
-async def create_balance_sheet(ticker: str, year: int, balance_data: BalanceSheetBase, db: Session = Depends(get_db), admin: Admin = Depends(admin_only)):
+async def create_balance_sheet(
+    ticker: str,
+    year: int,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_only)  # Requires admin access
+):
     """
-    Create a new balance sheet entry for a company.
-    If the company doesn't exist, it will be created.
+    Create a new balance sheet using data fetched from yfinance.
+    If the company doesn't exist, it is created.
     """
     try:
-        # Check if the company exists in the company table based on the ticker
-        company = db.query(Company).filter(Company.name == ticker).first()
+        # Prevent duplicate creation
+        existing = db.query(BalanceSheet).filter(
+            BalanceSheet.ticker == ticker,
+            BalanceSheet.year == year
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Balance sheet for the given year already exists.")
 
+        # Fetch and transpose balance sheet from yfinance
+        stock = yf.Ticker(ticker)
+        bs = stock.balance_sheet
+        bs = bs.T if not bs.empty else None
+
+        # If data is missing or does not contain the target year
+        if bs is None or year not in [d.year for d in bs.index]:
+            raise HTTPException(status_code=404, detail="No balance sheet data found for the given year from yfinance.")
+
+        # Extract year-specific row
+        bs_year = None
+        for idx in bs.index:
+            if idx.year == year:
+                bs_year = bs.loc[idx]
+                break
+
+        # Final check if year's data was found
+        if bs_year is None:
+            raise HTTPException(status_code=404, detail="Year not available in balance sheet data.")
+
+        # Create a dictionary to hold DB-ready fields using mapped keys
+        raw_field_mapping = {}
+        for yahoo_field, db_field in YFINANCE_TO_DB_FIELDS.items():
+            value = bs_year.get(yahoo_field)
+            if value is not None and hasattr(BalanceSheet, db_field):
+                raw_field_mapping[db_field] = value
+
+        # Add required fields
+        raw_field_mapping["ticker"] = ticker
+        raw_field_mapping["year"] = year
+
+        # Sanitize the field mapping using utility
+        clean_fields = sanitize_dict(raw_field_mapping)
+
+        # Ensure company exists in DB
+        company = db.query(Company).filter(Company.name == ticker).first()
         if not company:
-            # If company doesn't exist, create a new company
-            company = Company(name=ticker, industry="Unknown")  # Assuming default industry as "Unknown"
+            company = Company(name=ticker)
             db.add(company)
             db.commit()
             db.refresh(company)
 
-        # Check if the balance sheet for the ticker and year already exists
-        existing_balance_sheet = db.query(BalanceSheet).filter(BalanceSheet.ticker == ticker, BalanceSheet.year == year).first()
-        
-        if existing_balance_sheet:
-            raise HTTPException(status_code=400, detail="Balance sheet for the given year already exists.")
-        
-        # Create a new balance sheet entry
-        new_balance_sheet = BalanceSheet(
-            ticker=ticker,
-            year=year,
-            **balance_data.dict()  # Map Pydantic fields to the SQLAlchemy model
-        )
-
-        db.add(new_balance_sheet)
+        # Create balance sheet DB row
+        new_balance = BalanceSheet(**clean_fields)
+        db.add(new_balance)
         db.commit()
-        db.refresh(new_balance_sheet)
+        db.refresh(new_balance)
 
-        return {"message": "Balance sheet created successfully.", "balance_sheet": new_balance_sheet}
-    
+        return {
+            "message": "Balance sheet created successfully from yfinance.",
+            "balance_sheet": new_balance
+        }
+
     except IntegrityError:
-        db.rollback()  # Rollback in case of any integrity issues (like duplicate keys)
-        raise HTTPException(status_code=400, detail="Error creating balance sheet entry due to database constraint.")
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Constraint error while creating balance sheet.")
     except Exception as e:
         db.rollback()
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
-# Route to update an existing balance sheet entry (Admin only)
-@router.put("/{ticker}/{year}")
-async def update_balance_sheet(ticker: str, year: int, balance_data: BalanceSheetBase, db: Session = Depends(get_db), admin: Admin = Depends(admin_only)):
-    """
-    Update the balance sheet entry for a company by ticker and year.
-    """
-    try:
-        # Check if the balance sheet exists
-        balance_sheet = db.query(BalanceSheet).filter(BalanceSheet.ticker == ticker, BalanceSheet.year == year).first()
-        
-        if not balance_sheet:
-            raise HTTPException(status_code=404, detail="Balance sheet not found for the given ticker and year.")
-        
-        # Update fields of the existing balance sheet
-        for field, value in balance_data.model_dump(exclude_unset=True).items():
-            setattr(balance_sheet, field, value)
-        
-        db.commit()
-        db.refresh(balance_sheet)
-        
-        return {"message": "Balance sheet updated successfully.", "balance_sheet": balance_sheet}
-    
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+# ---------------------- DELETE: Delete a Balance Sheet ----------------------
 
-# Route to delete a balance sheet entry (Admin only)
 @router.delete("/{ticker}/{year}")
-async def delete_balance_sheet(ticker: str, year: int, db: Session = Depends(get_db), admin: Admin = Depends(admin_only)):
+async def delete_balance_sheet(
+    ticker: str,
+    year: int,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_only)
+):
     """
-    Delete the balance sheet entry for a company by ticker and year.
+    Delete a balance sheet entry by ticker and year.
+    Only accessible to admins.
     """
     try:
-        balance_sheet = db.query(BalanceSheet).filter(BalanceSheet.ticker == ticker, BalanceSheet.year == year).first()
+        # Locate the balance sheet
+        balance_sheet = db.query(BalanceSheet).filter(
+            BalanceSheet.ticker == ticker,
+            BalanceSheet.year == year
+        ).first()
 
         if not balance_sheet:
             raise HTTPException(status_code=404, detail="Balance sheet not found for the given ticker and year.")
 
         db.delete(balance_sheet)
         db.commit()
-        
+
         return {"message": "Balance sheet deleted successfully."}
-    
+
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
-# Route to get all companies with balance sheets
-@router.get("/companies")
+# ---------------------- GET: All Companies with Their Balance Sheets ----------------------
+
+@router.get("/companies", response_model=list[CompanyWithBalanceSheets])
 async def get_all_companies(db: Session = Depends(get_db)):
     """
-    Get all companies listed in the company table, along with their associated balance sheets.
+    Get all companies along with their balance sheet records.
     """
     try:
         companies = db.query(Company).all()
+
         if not companies:
             raise HTTPException(status_code=404, detail="No companies found.")
 
-        companies_with_balance_sheets = []
-        
+        companies_with_balance_sheets: list[CompanyWithBalanceSheets] = []
+
+        # Loop through companies and fetch associated balance sheets
         for company in companies:
-            balance_sheets = db.query(BalanceSheet).filter(BalanceSheet.ticker == company.name).all()
-            companies_with_balance_sheets.append({
-                "company": company,
-                "balance_sheets": balance_sheets
-            })
-        
+            if not company.name:
+                continue
+
+            balance_sheets = db.query(BalanceSheet).filter(
+                BalanceSheet.ticker == company.name
+            ).all()
+
+            companies_with_balance_sheets.append(
+                CompanyWithBalanceSheets(
+                    company=CompanyOut(
+                        name=company.name,
+                        industry=company.industry if hasattr(company, "industry") else None
+                    ),
+                    balance_sheets=[
+                        BalanceSheetOut(
+                            ticker=bs.ticker,
+                            year=bs.year,
+                            **{
+                                k: getattr(bs, k)
+                                for k in BalanceSheetOut.model_fields.keys()
+                                if k not in {"ticker", "year"} and hasattr(bs, k)
+                            }
+                        )
+                        for bs in balance_sheets
+                    ]
+                )
+            )
+
         return companies_with_balance_sheets
-    
+
+    except HTTPException as e:
+        raise e
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
