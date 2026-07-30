@@ -1,0 +1,46 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# Deliberately not "ALL": rules picked for correctness and real bug classes
+# (unused imports/vars, bugbear footguns, unsorted imports) rather than
+# stylistic-only categories (EXE shebang requirements, docstring rules,
+# etc.) that would produce churn with no behavioral payoff on a codebase
+# that predates this config.
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
+ignore = [
+    "E501",   # line length is enforced by line-length above, not E501 (which double-counts noqa-able edge cases)
+    "B008",   # FastAPI's Depends(...) as a default arg is the framework's own idiom, not a real footgun
+    "UP042",  # str+Enum (not StrEnum) is deliberate here for broader compatibility; not a bug
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "mystic_auth"]
+
+[tool.ruff.lint.per-file-ignores]
+# Interactive CLI entrypoint (invoked directly via `python -m`, never inside
+# a running event loop doing concurrent work); input()/getpass() blocking
+# is the correct, intended behavior here, not a footgun.
+"mystic_auth/scripts/create_system_user.py" = ["ASYNC250"]
+"mystic_auth/scripts/create_rbac_policies.py" = ["ASYNC250"]
+
+[tool.mypy]
+python_version = "3.11"
+# sqlalchemy.ext.mypy.plugin: needed alongside pydantic's for accurate
+# ORM-attribute types (declarative Mapped[]/mapped_column() models) and for
+# recognizing DeclarativeBase-generated __init__ signatures.
+plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+
+[tool.bandit]
+# B105 (hardcoded_password_string) fires on any string literal assigned to a
+# name/dict-key containing "password": here that's only ever event-name
+# constants (e.g. PASSWORD_RESET_REQUESTED), a Redis key template, a URL, and
+# `hashed_password: None` for OAuth-only accounts. No actual secret is
+# hardcoded anywhere in this codebase; this rule is disabled project-wide
+# rather than `#nosec`-annotated at each of its several call sites.
+skips = ["B105"]

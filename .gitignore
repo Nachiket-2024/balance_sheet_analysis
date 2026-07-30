@@ -1,32 +1,92 @@
-# --- Python ---
+# ---------------------------- Python ----------------------------
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
-*.sqlite3
-*.db
+*.pyd
 .env
-*.env
-.pytest_cache
-
-# --- Virtual Envs ---
+.env.*
+!.env.example
+*.venv/
 venv/
+.envrc
+.Python
+*.sqlite3
+
+# ---------------------------- Conda ----------------------------
+# Ignore Conda environment directories
 env/
-.venv/
+envs/
+.conda/
+.condarc
+*.conda
 
-# --- Alembic Migrations ---
-alembic/versions/
-
-# --- Google OAuth tokens & credentials ---
-token.json
-
-# --- Node (React/Vite) ---
-node_modules/
-dist/
-
-# --- Editor / OS ---
+# ---------------------------- IDEs / Editors ----------------------------
 .vscode/
-.DS_Store
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
 
-# --- Logs ---
+# ---------------------------- macOS / Linux ----------------------------
+.DS_Store
+Thumbs.db
+*.swp
+
+# ---------------------------- Docker ----------------------------
+docker-compose.override.yml
+*.pid
+*.sock
+*.cache
+
+# ---------------------------- Backend ----------------------------
+backend/__pycache__/
+backend/*.pyc
+backend/*.db
+
+# ---------------------------- Frontend ----------------------------
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.DS_Store
+frontend/.cache/
+frontend/coverage/
+
+# ---------------------------- Testing / Coverage ----------------------------
+.coverage
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.cache/
+.pytest_cache/
+__pypackages__/
+
+# ---------------------------- Linting / Type-checking ----------------------------
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# ---------------------------- Celery ----------------------------
+celerybeat-schedule
+celerybeat.pid
+
+# ---------------------------- Redis ----------------------------
+redis-data/
+dump.rdb
+*.rdb
+
+# ---------------------------- Logs ----------------------------
 logs/
 *.log
+
+# ---------------------------- Database backups ----------------------------
+backups/
+
+# ---------------------------- AI Assistant / Development Tools ----------------------------
+.claude/
+AGENTS.md
+CLAUDE.md

@@ -1,0 +1,14 @@
+# Scripts
+
+Everything under [`scripts/`](../../scripts/) is a standalone operational
+helper; none of it runs automatically as part of the app itself (`docker
+compose up` covers migrations and baseline-policy seeding on its own, these
+are for the workflows Compose doesn't handle).
+
+| Script | What it does | Why you'd run it |
+|---|---|---|
+| `dev-up.sh` / `dev-up.ps1` / `dev-up.cmd` | Starts the full stack, waits for every service to actually report healthy (not just "created"), then tails only `backend`/`frontend`/`taskiq_worker` logs instead of every service's full startup noise. One shell-specific entry point (`.sh` for Git Bash/WSL/Linux/macOS, `.ps1` for PowerShell, `.cmd` for Command Prompt, which just wraps the `.ps1`). | The day-to-day alternative to plain `docker compose up`: use it when you want a real startup failure to fail loudly instead of scrolling past in a wall of interleaved logs. Plain `docker compose up` is still there for when you want everything's logs interleaved (e.g. debugging Postgres/Bugsink startup itself). |
+| `sync-upstream.sh` | Pulls in updates from the upstream mystic-auth template repo: a whole-tree squash merge on the first run, an incremental three-way diff/apply on every run after that (tracked via `.mystic-auth-sync-state`). | On-demand only; nothing runs this automatically. Use it when mystic-auth ships a new release you want (a security fix, a new feature) and you want it merged into `backend/mystic_auth/`, `frontend/src/mystic_auth/`, `docs/mystic_auth/`, etc. without touching this app's own code. See [Syncing Upstream Template Updates](../mystic_auth/template-usage/syncing-upstream.md). |
+| `test-sync-upstream.sh` | Regression test for `sync-upstream.sh`, run against throwaway fake "upstream"/"consumer" repos under a temp directory. Never touches this repo's own history. | Run manually after editing `sync-upstream.sh` itself, to confirm both sync strategies (first-sync squash, incremental diff/apply) and their conflict handling still work before trusting it against this real repo. |
+| `db_backup.sh` | Dumps the Postgres database running in the `postgres` Compose service to a timestamped `.sql` file under `backups/`. Reads `POSTGRES_USER`/`POSTGRES_DB` from `.env`. Accepts an optional compose-file argument (defaults to `docker-compose.yml`; pass `docker-compose.prod.yml` for a production stack). | Before a migration, an upgrade, or anything else you'd want a rollback point for. |
+| `db_restore.sh` | Restores a `.sql` dump (produced by `db_backup.sh`) into the `postgres` Compose service. Destructive: overwrites existing rows/tables the dump also defines, so it asks for confirmation unless `-y`/`--yes` is passed. | Recovering from a bad migration or bad data, or standing up a fresh environment from a known-good backup. |

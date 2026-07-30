@@ -1,0 +1,34 @@
+# Force LF line endings for everything text-based, regardless of a
+# contributor's local core.autocrlf setting. Without this, cloning/checking
+# out on a Windows machine with core.autocrlf=true silently converts every
+# text file to CRLF on checkout — harmless for most source files, but fatal
+# for shell scripts (a CRLF shebang line makes the kernel report "cannot
+# execute: required file not found") and for docker-compose.yml's embedded
+# multi-line `command: |` shell blocks. This is exactly what broke
+# docker/postgres-init/init-bugsink-db.sh and blocked a clean `docker
+# compose up` after this repo's line endings got corrupted that way once.
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.py text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+Dockerfile text eol=lf
+
+# Binary assets — never touch line endings.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

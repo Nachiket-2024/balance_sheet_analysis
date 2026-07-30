@@ -1,0 +1,77 @@
+{
+  // Scoped to test files rather than folded into tsconfig.app.json, so the
+  // app project's type-checking doesn't pull in test-only ambient types
+  // (vitest globals, jest-dom matchers). Extends tsconfig.app.json so
+  // module resolution, JSX, and the "@" alias stay in sync with the app
+  // and with vitest.config.ts.
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "types": ["vitest/globals"],
+    "paths": {
+      "@/*": ["./src/mystic_auth/*"],
+      "@app/*": ["./src/app/*"],
+      // react/react-dom ship no inline .d.ts of their own — their types
+      // live in the separate @types/react(-dom) packages, which
+      // TypeScript normally finds via its own automatic lookup. The
+      // generic "*" fallback below (needed for tests/frontend's other
+      // bare imports) would otherwise shadow that automatic lookup and
+      // resolve "react" straight to the untyped JS package instead, once
+      // a .tsx component (e.g. LoginForm.tsx) is pulled into the
+      // compilation. Exact-match entries take priority over "*", so
+      // these route react-family imports to their real @types package
+      // for every file in this compilation — test files under
+      // tests/frontend and any .tsx/.ts they transitively import from src.
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*"],
+      // react-router ships its own inline types, but via a conditional
+      // "exports" map (react-server/module-sync/default branches) rather
+      // than a flat root .d.ts. The "*" wildcard below does a naive
+      // ./node_modules/<name> substitution that doesn't evaluate that
+      // map, so it can't find the types on its own. Same shape of fix as
+      // the react/react-dom entries above, pointed at the same file
+      // "exports" itself resolves to for a plain (non-RSC) import.
+      "react-router": ["./node_modules/react-router/dist/production/index.d.ts"],
+      // Explicit entries so jest-dom's `declare module 'vitest'` matcher
+      // augmentation (imported by setup.ts) merges onto the exact same
+      // module identities vitest's own type chain uses internally
+      // (vitest -> @vitest/expect -> chai, for the Assertion/.not types),
+      // rather than each resolving independently through the "*" fallback
+      // below — a subtly different resolution path for the same package
+      // breaks TypeScript's declaration merging even when both paths
+      // point at physically identical files.
+      "vitest": ["./node_modules/vitest"],
+      "chai": ["./node_modules/chai"],
+      "@vitest/expect": ["./node_modules/@vitest/expect"],
+      "@vitest/spy": ["./node_modules/@vitest/spy"],
+      "@vitest/runner": ["./node_modules/@vitest/runner"],
+      "@vitest/utils": ["./node_modules/@vitest/utils"],
+      "@vitest/utils/*": ["./node_modules/@vitest/utils/*"],
+      "@vitest/snapshot": ["./node_modules/@vitest/snapshot"],
+      // Test files under ../tests/frontend sit outside the normal
+      // node_modules walk-up (they're a sibling of frontend/, not a
+      // descendant), so bare-specifier type lookups (vitest,
+      // axios-mock-adapter, etc.) fail without this. This is TypeScript's
+      // own documented fallback pattern for that situation — deliberately
+      // generic instead of enumerating each remaining package one by one.
+      // Paths must be relative (leading "./") since no "baseUrl" is set.
+      "*": ["./node_modules/*"]
+    }
+  },
+  // vite-env.d.ts is listed explicitly since it's not imported by anything
+  // (it's an ambient declaration file) but is needed for import.meta.env
+  // typings. "src" itself doesn't need to be listed — .ts/.tsx files under
+  // src get pulled into the compilation transitively via whatever test
+  // files actually import (directly through "@/", or indirectly through a
+  // component like LoginForm.tsx). setup.ts is listed explicitly for the
+  // same reason as vite-env.d.ts: nothing imports it (Vitest loads it via
+  // `test.setupFiles`, not a TS import), but its
+  // `import "@testing-library/jest-dom/vitest"` side effect is what
+  // augments Vitest's Assertion type with jest-dom's matchers — without
+  // it in this compilation, `tsc` never sees that augmentation and
+  // `.not`/`.toBeInTheDocument()` etc. type-check as missing.
+  "include": ["../tests/frontend", "src/mystic_auth/vite-env.d.ts", "src/mystic_auth/__tests__/setup.ts"]
+}

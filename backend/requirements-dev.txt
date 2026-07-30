@@ -1,0 +1,6 @@
+# Static analysis tools only, never installed in the runtime image (see
+# docker/backend.Dockerfile, which installs only requirements.txt). Config
+# for all three lives in backend/pyproject.toml.
+ruff==0.16.0
+mypy==2.3.0
+bandit==1.9.4

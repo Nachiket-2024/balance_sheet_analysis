@@ -1,0 +1,383 @@
+services:
+
+  postgres:
+    image: postgres:15
+    restart: always
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Runs once against a fresh volume : creates the separate "bugsink" DB
+      # the Bugsink service uses, on this same Postgres server. See
+      # docker/postgres-init/init-bugsink-db.sh for the already-initialized-volume fallback.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Non-default host port to avoid colliding with other local Postgres
+      # instances; containers still reach it at postgres:5432 internally.
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7
+    restart: always
+    # Empty REDIS_PASSWORD (local-dev default) makes --requirepass a no-op;
+    # set it in .env to require auth (must also be in REDIS_URL : see .env.example).
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-}"]
+    ports:
+      # Non-default host port, same rationale as postgres above.
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"${REDIS_PASSWORD:-}\" --no-auth-warning ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    working_dir: /app
+    env_file:
+      - ./.env
+    # Waits for bugsink-seed to write SENTRY_DSN into the shared bugsink_dsn
+    # volume, only when Bugsink is configured (BUGSINK_SUPERUSER_EMAIL set :
+    # see .env.example). Bounded at ~10s, covers a warm restart, not
+    # reliably a fresh boot (Bugsink's own first-boot migrations can take
+    # 20+s). `error_monitoring/sentry_service.py`'s watch_for_late_dsn()
+    # is the real fallback for that case, see its own docstring.
+    command: |
+      sh -c "if [ -n \"$$BUGSINK_SUPERUSER_EMAIL\" ]; then
+        for i in $$(seq 1 20); do
+          [ -f /shared/bugsink-dsn/backend.env ] && . /shared/bugsink-dsn/backend.env && break
+          sleep 0.5
+        done
+      fi
+      exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app --reload-dir mystic_auth --access-log"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully   # Don't serve traffic on a schema the migration hasn't applied yet
+      seed-base-policies:
+        condition: service_completed_successfully   # Don't serve traffic before the ready-to-assign role policies exist
+    volumes:
+      - ./backend:/app
+      # Docker-managed volume, not a host bind mount, specifically for
+      # /app/logs : see backend.Dockerfile's own comment on why: it needs
+      # ownership that comes from the image (baked in at build time), not
+      # from whatever the host's checkout happens to be owned by.
+      - backend_logs:/app/logs
+      # Whole repo root, additionally : lets `docker compose exec -w /repo
+      # backend pytest tests/backend/...` run the top-level test suite
+      # (imports as `backend.app...`/`backend.mystic_auth...`) from inside
+      # the Docker network, reaching Postgres/Redis via container hostnames.
+      - .:/repo
+      # Same named volume as /app/logs above, mounted a second time at the
+      # path logging_config.py resolves to when the package is imported as
+      # `backend.mystic_auth...` (i.e. running tests via -w /repo above)
+      # rather than as `mystic_auth...` (i.e. running the app normally via
+      # /app) : LOG_DIR is computed relative to `__file__`, so which of these
+      # two bind-mounted views the code is reached through changes where it
+      # resolves to. Both need the same "ownership comes from the image, not
+      # the host checkout" fix, or only one of app/tests actually works.
+      - backend_logs:/repo/backend/logs
+      # Read-only: only bugsink-seed writes here (see that service below).
+      - bugsink_dsn:/shared/bugsink-dsn:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      # Defined here (not in the shared Dockerfile) since taskiq_worker/alembic
+      # use the same image but serve no HTTP. Hits /health/ready, which checks
+      # DB + Redis connectivity, not just the static "/" welcome route.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      # retries: 10 + start_period: 30s (~130s total budget) rather than a
+      # tighter 5/10s (~60s) : the backend's own startup already spends up to
+      # ~10s waiting on the Bugsink DSN file (see the command above) before
+      # uvicorn even starts, and a genuinely cold first boot (fresh image
+      # pull/build, no warm layer cache) on modest or shared hardware can
+      # still be mid-startup at 60s without anything being wrong. Confirmed
+      # too tight in practice: GitHub Actions' shared 2-vCPU runners hit this
+      # exact timeout on a cold `docker compose up --build` even though the
+      # same command succeeds comfortably on typical dev hardware.
+      retries: 10
+      start_period: 30s
+
+  frontend:
+    # Explicit, dev-specific tag : without it, Compose defaults to the same
+    # image name docker-compose.prod.yml's frontend resolves to, so building
+    # one after the other would silently overwrite the other's image.
+    image: mystic-auth-frontend:dev
+    # Only service here with both `image:` and `build:` set. Without
+    # `pull_policy: build`, Compose attempts a pull of `image:` first on
+    # every run, which always fails ("pull access denied...") since this
+    # tag is never published, before falling back to building anyway.
+    # Harmless but noisy on every startup; this skips straight to building.
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      target: dev
+    working_dir: /app
+    env_file:
+      - ./.env
+    # Same DSN-wait rationale as the backend service above : bounded wait,
+    # gated on BUGSINK_SUPERUSER_EMAIL so an unconfigured boot is unaffected.
+    command: |
+      sh -c "if [ -n \"$$BUGSINK_SUPERUSER_EMAIL\" ]; then
+        for i in $$(seq 1 20); do
+          [ -f /shared/bugsink-dsn/frontend.env ] && . /shared/bugsink-dsn/frontend.env && break
+          sleep 0.5
+        done
+      fi
+      exec npm run dev -- --host"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - bugsink_dsn:/shared/bugsink-dsn:ro
+      # vitest.config.ts resolves test files at ../tests/frontend relative
+      # to /app, so it expects tests/frontend as a sibling of /app : without
+      # this mount `npm run test` reports "No test files found".
+      - ./tests/frontend:/tests/frontend
+      # Whole repo root, additionally : `npm run lint`'s `cd .. && eslint
+      # frontend tests/frontend` expects frontend/ and tests/frontend/ as
+      # siblings under a repo root. Run lint via
+      # `docker compose exec frontend sh -c "cd /repo/frontend && npm run lint"`,
+      # not from /app. Mirrors the backend service's `.:/repo` mount.
+      - .:/repo
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  taskiq_worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    working_dir: /app
+    env_file:
+      - ./.env
+    command: sh -c "taskiq worker mystic_auth.taskiq_tasks.email_tasks:broker"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - PYTHONPATH=/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully   # Don't process jobs against a schema the migration hasn't applied yet
+    volumes:
+      - ./backend:/app
+      # Same reasoning as the backend service's identical volume above.
+      - backend_logs:/app/logs
+    # Override backend.Dockerfile's inherited HEALTHCHECK, which curls
+    # localhost:8000/health/ready : taskiq_worker shares that image but
+    # serves no HTTP at all, so the inherited check always fails and
+    # reports this container as permanently "unhealthy" even when the
+    # worker itself is running fine. This checks the actual worker process
+    # via /proc directly : this slim image has neither `pgrep` nor `ps`.
+    healthcheck:
+      test: ["CMD-SHELL", "for p in /proc/[0-9]*/cmdline; do grep -aq taskiq \"$$p\" 2>/dev/null && exit 0; done; exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  alembic:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    working_dir: /app
+    env_file:
+      - ./.env
+    command: alembic upgrade head
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PYTHONPATH=/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      # Same fix as the backend service's identical volume, and for the same
+      # reason: importing mystic_auth (alembic/env.py does, to reach both
+      # sets of models) creates /app/logs at import time via
+      # logging_config.py, which the non-root `app` user can't do inside a
+      # plain bind-mounted ./backend on a real Linux host (its ownership
+      # comes from the host checkout, not the image) : this only ever
+      # slipped through on Docker Desktop for Windows/macOS, whose bind
+      # mounts don't enforce the same POSIX permissions, and surfaced as a
+      # real CI failure (PermissionError) the first time this ran on a
+      # native Linux runner.
+      - backend_logs:/app/logs
+
+  # Runs once after migrations, then exits: creates this app's own baseline
+  # RBAC-shaped policies (see app/seed/seed_base_policies.py) so a fresh
+  # install has ready-to-assign policies from the very first boot, not just
+  # mystic_auth's own self_service/user_administration/system_superuser.
+  # Same one-shot pattern as the alembic service above; idempotent by name,
+  # so reruns on every `docker compose up` are safe.
+  seed-base-policies:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    working_dir: /app
+    env_file:
+      - ./.env
+    command: python -m app.seed.seed_base_policies
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PYTHONPATH=/app
+    depends_on:
+      alembic:
+        condition: service_completed_successfully
+    volumes:
+      - ./backend:/app
+      # See the alembic service's identical volume/comment above: same
+      # import-time /app/logs creation, same fix.
+      - backend_logs:/app/logs
+
+  # Self-hosted error monitoring (Sentry-SDK-compatible : see
+  # docs/mystic_auth/error-monitoring/overview.md). Starts by default with `docker
+  # compose up`. SENTRY_DSN (backend settings, frontend .env.example) is
+  # what actually turns error reporting on; it stays unset regardless of
+  # whether this container is running.
+  bugsink:
+    image: bugsink/bugsink:2
+    restart: always
+    env_file:
+      - ./.env
+    environment:
+      SECRET_KEY: ${BUGSINK_SECRET_KEY}
+      CREATE_SUPERUSER: ${BUGSINK_SUPERUSER_EMAIL}:${BUGSINK_SUPERUSER_PASSWORD}
+      PORT: "8000"
+      # Same Postgres server, separate database : avoids a second Postgres
+      # container just for Bugsink (see postgres's init-bugsink-db.sh above).
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/bugsink
+      BEHIND_HTTPS_PROXY: "false"
+      BASE_URL: ${BUGSINK_BASE_URL:-http://localhost:8010}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # Non-default host port, distinct from the backend's own 8000.
+      - "8010:8000"
+    # Same pipeline as the image's own default CMD (`docker inspect
+    # bugsink/bugsink:2 --format '{{json .Config.Cmd}}'`), plus `--timeout
+    # 60` on gunicorn: the image ships no request timeout, so a worker can
+    # hit Gunicorn's 30s default under ordinary host CPU contention. Must
+    # be a YAML list, not a string: Compose doesn't shell-interpret
+    # `command:`, so a string truncates at the first `&&`/`|||` (monofy
+    # interprets those, not a shell). `$$PORT` escapes Compose's own
+    # `$VAR` interpolation so the literal reaches monofy/gunicorn.
+    command:
+      - monofy
+      - bugsink-show-version
+      - "&&"
+      - bugsink-manage
+      - check
+      - --deploy
+      - --fail-level
+      - WARNING
+      - "&&"
+      - bugsink-manage
+      - migrate
+      - snappea
+      - --database=snappea
+      - "&&"
+      - bugsink-manage
+      - migrate
+      - "&&"
+      - bugsink-manage
+      - prestart
+      - "&&"
+      - gunicorn
+      - --config
+      - gunicorn.docker.conf.py
+      - --timeout
+      - "60"
+      - --bind=0.0.0.0:$$PORT
+      - --access-logfile
+      - "-"
+      - bugsink.wsgi
+      - "|||"
+      - bugsink-runsnappea
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import requests; requests.get('http://localhost:8000/health/ready').raise_for_status()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # Runs once against a healthy bugsink, then exits : creates Bugsink's
+  # team/project (idempotent via get_or_create, so reruns never duplicate)
+  # and writes the resulting DSNs into the bugsink_dsn volume, which
+  # backend/frontend read at startup. This avoids a manual "create a
+  # project, copy the DSN" step (see docs/mystic_auth/error-monitoring/overview.md).
+  bugsink-seed:
+    image: bugsink/bugsink:2
+    # Root only for this one-shot container: the default non-root "bugsink"
+    # user can't write into a fresh named volume (Docker creates those
+    # root-owned by default), needed to write the DSN files below.
+    user: root
+    env_file:
+      - ./.env
+    environment:
+      SECRET_KEY: ${BUGSINK_SECRET_KEY}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/bugsink
+      BASE_URL: ${BUGSINK_BASE_URL:-http://localhost:8010}
+    depends_on:
+      bugsink:
+        condition: service_healthy
+    volumes:
+      - bugsink_dsn:/shared/bugsink-dsn
+    command: |
+      sh -c "bugsink-manage shell -c \"
+      import os
+      from django.contrib.auth import get_user_model
+      from teams.models import Team, TeamMembership, TeamRole
+      from projects.models import Project
+
+      User = get_user_model()
+      user = User.objects.get(username=os.environ['BUGSINK_SUPERUSER_EMAIL'])
+
+      team, _ = Team.objects.get_or_create(name='MysticAuth')
+      TeamMembership.objects.get_or_create(team=team, user=user, defaults={'role': TeamRole.ADMIN, 'accepted': True})
+      project, _ = Project.objects.get_or_create(team=team, name='MysticAuth')
+
+      key = project.sentry_key.hex
+      os.makedirs('/shared/bugsink-dsn', exist_ok=True)
+      with open('/shared/bugsink-dsn/backend.env', 'w') as f:
+          f.write('export SENTRY_DSN=http://' + key + '@bugsink:8000/' + str(project.id) + chr(10))
+      with open('/shared/bugsink-dsn/frontend.env', 'w') as f:
+          f.write('export VITE_SENTRY_DSN=http://' + key + '@localhost:8010/' + str(project.id) + chr(10))
+      print('Seeded Bugsink project ' + str(project.id) + ', key ' + key)
+      \""
+
+volumes:
+  postgres_data:
+  # Shared between bugsink-seed (writer) and backend/frontend (readers) :
+  # see the bugsink-seed service above for why this exists.
+  bugsink_dsn:
+  # Docker-managed, not a host bind mount : see backend/taskiq_worker's
+  # identical comment on why: /app/logs needs ownership that comes from the
+  # image, not from whatever owns the host's checkout.
+  backend_logs:

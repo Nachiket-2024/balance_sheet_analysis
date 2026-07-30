@@ -1,12 +1,18 @@
-# React + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + TypeScript SPA built with Vite, Chakra UI v3, Zustand, and TanStack Query.
 
-Currently, two official plugins are available:
+This is one piece of the MysticAuth template — see the repository root [`README.md`](../README.md) for the full quickstart (Docker and local setup), and [`docs/mystic_auth/architecture/frontend.md`](../docs/mystic_auth/architecture/frontend.md) for the module layout, routing, and state-management conventions used here.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Scripts
 
-## Expanding the ESLint configuration
+```bash
+npm run dev         # Vite dev server
+npm run build        # tsc -b && vite build (production build)
+npm run typecheck    # tsc --noEmit across app/node/test tsconfigs
+npm run lint         # eslint over frontend/ and tests/frontend/
+npm run test          # vitest run (no coverage)
+npm run test:coverage # vitest run --coverage (thresholds enforced)
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+See [`docs/mystic_auth/testing/overview.md`](../docs/mystic_auth/testing/overview.md) for what each suite covers.
