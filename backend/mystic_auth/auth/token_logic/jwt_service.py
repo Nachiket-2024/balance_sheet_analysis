@@ -2,7 +2,6 @@ import asyncio
 import traceback
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import cast
 
 import jwt
 
@@ -12,92 +11,112 @@ from ...redis.client import redis_client
 
 logger = get_logger(__name__)
 
-# Redis key template for a user's refresh-token registry (a jti -> expiry Hash).
-# Deliberately NOT named "user:{email}:refresh_tokens": that name was used
-# pre-jti-migration for a Redis SET of raw tokens. Reusing the same key name
-# for an incompatible type (Set -> Hash) would make HSET/HGETALL/HDEL raise
-# WRONGTYPE against any Redis instance that still holds the old Set from
-# before this change, breaking login/refresh/logout-all for every
-# already-authenticated user until an operator manually deletes the key. A
-# fresh key name sidesteps the collision entirely; old Set-typed keys are
-# simply never touched again (they were never given a TTL either, so a
-# deployment migrating this template into a live app with existing session
-# data should still plan an explicit cleanup of the old key pattern).
-REFRESH_TOKEN_REGISTRY_KEY = "refresh_token_registry:{email}"
+# Redis key for a user's account-wide token version: every access/refresh
+# token embeds the version that was current when it was minted (see
+# create_access_token/create_refresh_token), and is rejected the moment
+# that number no longer matches. Bumping this one integer (bump_account_version)
+# is what "logout everywhere" actually is - no per-token bookkeeping, no
+# iterating anything: every token on the account, minted before the bump,
+# stops matching in one atomic INCR. Never expires: it has to keep meaning
+# the same thing for as long as the account exists, since a token minted
+# long after the last bump must still match it correctly.
+ACCOUNT_VERSION_KEY = "account_ver:{email}"
+
+# Redis key for one login's version, scoped to its chain_id (see
+# create_refresh_token's own docstring for what a chain is). Bumping this
+# (bump_chain_version) ends exactly that one session - logout, a targeted
+# Manage Sessions revoke, or reuse-detection containing a compromised
+# chain - without touching any other session on the account. TTL'd to the
+# refresh-token lifetime on bump: once that elapses, nothing could still be
+# validly using this chain_id anyway (a fresh login never reuses an old
+# chain_id), so the key can safely disappear instead of accumulating one
+# per revoked session forever.
+CHAIN_VERSION_KEY = "chain_ver:{email}:{chain_id}"
 
 
 class JWTService:
     """
     Creates, verifies, and revokes access/refresh JWTs.
 
-    Revocation and session tracking are keyed by the token's "jti" claim rather
-    than the raw JWT string. Keying off the raw token would mean every valid,
-    unexpired refresh token sits in Redis in cleartext (in the per-user session
-    set), so anyone with read access to Redis (a backup, a misconfigured replica,
-    a compromised monitoring tool) could lift a token straight out and use it
-    without ever touching the database or the JWT secret. A jti is a random,
-    otherwise-meaningless identifier: it lets us blacklist/track a specific
-    token without Redis ever holding a credential that's usable on its own.
+    Revocation is version-based, not identity-based: a token is valid only
+    if its own embedded account_ver and chain_ver still match Redis's
+    current values (see ACCOUNT_VERSION_KEY/CHAIN_VERSION_KEY above).
+    Rotation replay protection (a refresh token must only ever be redeemed
+    once) is a separate, narrower concern - see claim_jti_for_rotation -
+    solved by a short-lived per-jti marker, since versioning alone can't
+    tell "already used once" from "still current."
     """
 
-    async def create_access_token(self, email: str) -> str:
-        expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    async def create_access_token(self, email: str, chain_id: str) -> str:
+        now = datetime.now(UTC)
+        expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         jti = uuid.uuid4().hex
 
-        # The "type" claim lets verify_token tell access and refresh tokens
-        # apart; the "jti" claim gives revocation/session tracking something to
-        # key off of other than the raw token string.
-        payload = {"email": email, "type": "access", "jti": jti, "exp": expire}
+        account_ver, chain_ver = await asyncio.gather(
+            self.get_account_version(email), self.get_chain_version(email, chain_id)
+        )
+
+        # "iat" is a float (now.timestamp()), not the datetime object
+        # itself: PyJWT truncates a datetime-valued exp/iat/nbf claim to
+        # whole seconds while encoding (calendar.timegm() drops the
+        # microseconds). Nothing here actually compares "iat" anymore
+        # (revocation is purely version-based), but callers/tests still
+        # read it as "when was this minted", so it keeps real precision
+        # rather than silently losing it for no reason.
+        payload = {
+            "email": email,
+            "type": "access",
+            "jti": jti,
+            "chain": chain_id,
+            "account_ver": account_ver,
+            "chain_ver": chain_ver,
+            "iat": now.timestamp(),
+            "exp": expire,
+        }
 
         return await asyncio.to_thread(jwt.encode, payload, settings.SECRET_KEY, settings.JWT_ALGORITHM)
 
-    async def create_refresh_token(self, email: str) -> str:
-        expire = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+    async def create_refresh_token(self, email: str, chain_id: str) -> str:
+        """
+        chain_id identifies one continuous login, unchanged across every
+        rotation of it: a fresh login mints a new random one (see
+        login_service.py/oauth2_service.py), while refresh_token_service.
+        refresh_tokens() passes the old token's own chain_id back in so its
+        successor stays part of the same chain. This is what lets a
+        targeted revoke (logout, Manage Sessions, reuse-detection) end
+        exactly this one session via bump_chain_version, without touching
+        any other session on the account - see
+        docs/mystic_auth/authentication/session-management.md.
+        """
+        now = datetime.now(UTC)
+        expire = now + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
         jti = uuid.uuid4().hex
 
-        payload = {"email": email, "type": "refresh", "jti": jti, "exp": expire}
+        account_ver, chain_ver = await asyncio.gather(
+            self.get_account_version(email), self.get_chain_version(email, chain_id)
+        )
 
-        token = await asyncio.to_thread(jwt.encode, payload, settings.SECRET_KEY, settings.JWT_ALGORITHM)
+        payload = {
+            "email": email,
+            "type": "refresh",
+            "jti": jti,
+            "chain": chain_id,
+            "account_ver": account_ver,
+            "chain_ver": chain_ver,
+            "iat": now.timestamp(),
+            "exp": expire,
+        }
 
-        # Record jti -> expiry (epoch seconds) in the user's refresh-token
-        # registry, never the raw token itself.
-        registry_key = REFRESH_TOKEN_REGISTRY_KEY.format(email=email)
-        await redis_client.hset(registry_key, jti, int(expire.timestamp()))
-
-        # A jti is only ever removed from this hash by an explicit
-        # revoke/rotation/logout-all: a refresh token that's simply never
-        # used again (the common case: a session that quietly goes stale)
-        # left its entry here forever, growing this hash without bound over
-        # a deployment's lifetime. Piggybacking a sweep on every new token
-        # mint (login/refresh, the exact moments that grow the hash) keeps
-        # it bounded to roughly the user's active session count instead of
-        # every refresh token ever issued to them.
-        await self._prune_expired_registry_entries(registry_key)
-
-        return token
-
-    async def _prune_expired_registry_entries(self, registry_key: str) -> None:
-        try:
-            registry = await redis_client.hgetall(registry_key)
-            if not registry:
-                return
-
-            now = datetime.now(UTC).timestamp()
-            expired_jtis = [jti for jti, exp in registry.items() if float(exp) <= now]
-
-            if expired_jtis:
-                await redis_client.hdel(registry_key, *expired_jtis)
-
-        except Exception:
-            # Best-effort hygiene: must never block minting a new token.
-            logger.warning("Failed to prune expired refresh-token registry entries:\n%s", traceback.format_exc())
+        return await asyncio.to_thread(jwt.encode, payload, settings.SECRET_KEY, settings.JWT_ALGORITHM)
 
     async def create_verification_token(self, email: str, expires_minutes: int | None = None) -> str:
         """type="verify" (rather than "access") scopes this token to the
         verify-account endpoint only: every protected route requires
         expected_type="access" via verify_token, so a verification token is
         rejected everywhere else in the app even if it leaks (e.g. via an
-        email log or forward).
+        email log or forward). Single-use is enforced by its own Redis key
+        (account_verification_service's "verify:{token}"), not by anything
+        in this class - it carries no account_ver/chain_ver/jti of its own.
 
         expires_minutes must match the caller's own single-use Redis key TTL
         and the expiry stated in the verification email. Previously this
@@ -138,6 +157,9 @@ class JWTService:
             if await self.is_token_revoked_by_jti(payload.get("jti")):
                 return None
 
+            if not await self.is_current_version(payload):
+                return None
+
             if expected_type is not None and payload.get("type") != expected_type:
                 logger.warning(
                     "Token type mismatch: expected '%s', got '%s'",
@@ -176,64 +198,26 @@ class JWTService:
         except jwt.PyJWTError:
             return None
 
-    async def revoke_token(self, token: str, email: str | None = None) -> bool:
-        try:
-            # Reuses the same canonical decode path as is_token_revoked, rather
-            # than re-decoding with a second, separately-maintained jwt.decode call.
-            payload = await self.decode_payload(token)
-
-            if not payload:
-                logger.warning("Cannot revoke token: decode failed")
-                return False
-
-            jti = payload.get("jti")
-            exp = payload.get("exp")
-
-            if not jti:
-                logger.warning("Cannot revoke token without a jti claim")
-                return False
-
-            return await self.revoke_token_by_jti(jti, exp, email)
-
-        except Exception:
-            logger.warning("Failed to revoke token:\n%s", traceback.format_exc())
-            return False
-
-    async def revoke_token_by_jti(self, jti: str, exp: int | float | None, email: str | None = None) -> bool:
-        try:
-            # Minimum of 1 second, since Redis requires a positive expiry and an
-            # already-expired token still needs its blacklist entry to exist at
-            # least momentarily.
-            ttl = 1
-            if exp is not None:
-                ttl = max(1, int(exp - datetime.now(UTC).timestamp()))
-
-            await redis_client.set(f"revoked:{jti}", "true", ex=ttl)
-
-            if email:
-                await redis_client.hdel(REFRESH_TOKEN_REGISTRY_KEY.format(email=email), jti)
-
-            return True
-
-        except Exception:
-            logger.warning("Failed to revoke jti %s:\n%s", jti, traceback.format_exc())
-            return False
-
     async def claim_jti_for_rotation(self, jti: str, exp: int | float | None, email: str | None = None) -> bool:
         """
-        Atomically revokes jti only if it wasn't already revoked. Returns
-        True only for the call that actually revoked it (safe to proceed
-        with rotation), False if it was already revoked (either a genuine
-        replayed refresh token, or a concurrent request that won the race
-        first).
+        Atomically marks jti as redeemed, only if it wasn't already -
+        refresh tokens are single-use, so this is what actually stops the
+        exact same token being redeemed twice (a genuine replay, or two
+        concurrent requests racing on it), a narrower problem than "is this
+        session still authorized" (account_ver/chain_ver) and not solved by
+        it: a stolen-but-still-current-version token could otherwise be
+        used to mint an unbounded number of new token pairs. Returns True
+        only for the call that actually claimed it (safe to proceed with
+        rotation), False if it was already claimed.
 
-        Unlike revoke_token_by_jti (an unconditional overwrite, correct for
-        logout/logout-all/account-deletion, where "already revoked" is a
-        harmless no-op), this uses SET...NX so the check-and-revoke happen as
-        one atomic Redis operation. A separate is_token_revoked_by_jti-then-
-        revoke_token_by_jti pair left a real gap: two concurrent requests
-        presenting the identical refresh token could both observe "not yet
-        revoked" and both proceed to mint a fresh token pair from one token.
+        SET...NX makes the check-and-claim one atomic Redis operation:
+        a separate is_token_revoked_by_jti-then-mark pair would leave a
+        real gap where two concurrent requests presenting the identical
+        refresh token could both observe "not yet claimed" and both
+        proceed to mint a fresh token pair from one token. `email` is
+        currently unused here (retained for interface symmetry with
+        callers that pass it) - the jti-registry cleanup this used to
+        also perform no longer exists now that revocation is version-based.
         """
         try:
             ttl = 1
@@ -241,9 +225,6 @@ class JWTService:
                 ttl = max(1, int(exp - datetime.now(UTC).timestamp()))
 
             claimed = await redis_client.set(f"revoked:{jti}", "true", nx=True, ex=ttl)
-
-            if claimed and email:
-                await redis_client.hdel(REFRESH_TOKEN_REGISTRY_KEY.format(email=email), jti)
 
             return bool(claimed)
 
@@ -254,34 +235,90 @@ class JWTService:
     async def is_token_revoked_by_jti(self, jti: str | None) -> bool:
         """Returns False (not just when unrevoked) when no jti was given:
         tokens minted outside jwt_service, such as password reset tokens,
-        carry no jti and were never eligible for this revocation mechanism."""
+        carry no jti and were never eligible for this check."""
         if not jti:
             return False
 
         return await redis_client.exists(f"revoked:{jti}") == 1
 
-    async def is_token_revoked(self, token: str) -> bool:
-        """Convenience wrapper for callers (e.g. reuse detection in
-        refresh_token_service) that only have the raw token in hand."""
-        payload = await self.decode_payload(token)
-        jti = payload.get("jti") if payload else None
+    async def get_account_version(self, email: str) -> int:
+        """Current account-wide version, 0 if it has never been bumped
+        (i.e. this account has never had a whole-account revoke)."""
+        try:
+            raw = await redis_client.get(ACCOUNT_VERSION_KEY.format(email=email))
+            return int(raw) if raw is not None else 0
+        except Exception:
+            logger.warning("Failed to read account version for %s:\n%s", email, traceback.format_exc())
+            return 0
 
-        if not jti:
+    async def get_chain_version(self, email: str, chain_id: str) -> int:
+        """Current version for one chain, 0 if it has never been bumped
+        (i.e. this specific session has never been individually revoked)."""
+        try:
+            raw = await redis_client.get(CHAIN_VERSION_KEY.format(email=email, chain_id=chain_id))
+            return int(raw) if raw is not None else 0
+        except Exception:
+            logger.warning(
+                "Failed to read chain version for %s/%s:\n%s", email, chain_id, traceback.format_exc()
+            )
+            return 0
+
+    async def bump_account_version(self, email: str) -> None:
+        """The whole-account revoke: logout-all, password change, account
+        deactivation/purge, and reuse-detection on a token with no chain
+        claim of its own (unknown lineage, so the maximally-safe response).
+        Every token on the account, minted before this call, stops
+        matching on its very next use."""
+        try:
+            await redis_client.incr(ACCOUNT_VERSION_KEY.format(email=email))
+        except Exception:
+            logger.warning("Failed to bump account version for %s:\n%s", email, traceback.format_exc())
+
+    async def bump_chain_version(self, email: str, chain_id: str) -> None:
+        """The single-session revoke: logout (this device only), a
+        targeted Manage Sessions "End session", and reuse-detection scoped
+        to the compromised chain specifically. Every token sharing this
+        chain_id, minted before this call, stops matching on its next use;
+        every other chain on the account is completely unaffected."""
+        try:
+            key = CHAIN_VERSION_KEY.format(email=email, chain_id=chain_id)
+            await redis_client.incr(key)
+            await redis_client.expire(key, settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60)
+        except Exception:
+            logger.warning(
+                "Failed to bump chain version for %s/%s:\n%s", email, chain_id, traceback.format_exc()
+            )
+
+    async def is_current_version(self, payload: dict) -> bool:
+        """False (revoked) if either the token's embedded account_ver or
+        chain_ver has fallen behind Redis's current value. True (including
+        for a token minted before this feature shipped, carrying neither
+        claim) whenever there's nothing to compare - same "nothing to check
+        against, so don't reject" reasoning as the jti-less early return in
+        is_token_revoked_by_jti.
+
+        Public (not just used internally by verify_token): refresh_token_
+        service.refresh_tokens() also calls this directly, since rotation
+        deliberately bypasses verify_token itself (see that method's own
+        comment on why) but must still reject a refresh token that a
+        whole-account or single-chain revoke already invalidated - without
+        this, a stale-but-still-unused refresh token could keep minting
+        fresh sessions indefinitely after logout-all/a password change/a
+        targeted Manage Sessions revoke, since claim_jti_for_rotation alone
+        only catches a token being reused, not one that's simply stale."""
+        email = payload.get("email")
+        if not email:
+            return True
+
+        account_ver = payload.get("account_ver")
+        if account_ver is not None and int(account_ver) != await self.get_account_version(email):
             return False
 
-        return await self.is_token_revoked_by_jti(jti)
-
-    async def get_all_refresh_tokens_for_user(self, email: str) -> dict[str, str]:
-        """Returns the user's jti -> expiry (Unix timestamp, as a string)
-        registry, or an empty dict if they have no active refresh tokens."""
-        # redis-py's hgetall() is typed for both raw-bytes and decoded-str
-        # responses; this client is constructed with decode_responses=True
-        # (see redis/client.py), so the result is always dict[str, str] here.
-        registry = cast(
-            "dict[str, str]", await redis_client.hgetall(REFRESH_TOKEN_REGISTRY_KEY.format(email=email))
+        chain_id = payload.get("chain")
+        chain_ver = payload.get("chain_ver")
+        return not (
+            chain_id and chain_ver is not None and int(chain_ver) != await self.get_chain_version(email, chain_id)
         )
-
-        return registry or {}
 
 
 jwt_service = JWTService()

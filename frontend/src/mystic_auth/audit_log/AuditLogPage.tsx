@@ -1,103 +1,13 @@
 import React from "react";
-import { Badge, Tabs, Text } from "@chakra-ui/react";
+import { Tabs } from "@chakra-ui/react";
 
 import PageContainer from "../ui/PageContainer";
-import DataTable, { type DataTableColumn } from "../ui/DataTable";
 import { IfCan } from "../authorization/IfCan";
 import { PERMISSIONS } from "../authorization/permissions";
-import {
-    useMyAuthorizationAuditLogQuery,
-    useAuthorizationAuditLogQuery,
-    useMySecurityAuditLogQuery,
-    useSecurityAuditLogQuery,
-} from "./auditQueries";
-import type { AuthorizationAuditLogEntryRead, SecurityAuditLogEntryRead } from "../api/audit_api";
-
-function formatTimestamp(iso: string): string {
-    return new Date(iso).toLocaleString();
-}
-
-const authorizationColumns: DataTableColumn<AuthorizationAuditLogEntryRead>[] = [
-    { key: "created_at", header: "When", render: (e) => formatTimestamp(e.created_at) },
-    { key: "user_email", header: "User", render: (e) => e.user_email },
-    { key: "action", header: "Action", render: (e) => e.action },
-    { key: "resource_type", header: "Resource", render: (e) => e.resource_type },
-    {
-        key: "allowed",
-        header: "Result",
-        render: (e) => (
-            <Badge colorPalette={e.allowed ? "green" : "red"}>{e.allowed ? "Allowed" : "Denied"}</Badge>
-        ),
-    },
-];
-
-const securityColumns: DataTableColumn<SecurityAuditLogEntryRead>[] = [
-    { key: "created_at", header: "When", render: (e) => formatTimestamp(e.created_at) },
-    { key: "user_email", header: "User", render: (e) => e.user_email ?? ":" },
-    { key: "event_type", header: "Event", render: (e) => e.event_type },
-    { key: "ip_address", header: "IP", render: (e) => e.ip_address ?? ":" },
-    {
-        key: "success",
-        header: "Result",
-        render: (e) => <Badge colorPalette={e.success ? "green" : "red"}>{e.success ? "Success" : "Failed"}</Badge>,
-    },
-];
-
-const MyAuthorizationLog: React.FC = () => {
-    const { data, isLoading, isError } = useMyAuthorizationAuditLogQuery();
-    return (
-        <DataTable
-            columns={authorizationColumns}
-            rows={data}
-            rowKey={(e) => e.id}
-            isLoading={isLoading}
-            isError={isError}
-            emptyMessage="No authorization decisions recorded yet"
-        />
-    );
-};
-
-const AllAuthorizationLog: React.FC = () => {
-    const { data, isLoading, isError } = useAuthorizationAuditLogQuery();
-    return (
-        <DataTable
-            columns={authorizationColumns}
-            rows={data}
-            rowKey={(e) => e.id}
-            isLoading={isLoading}
-            isError={isError}
-            emptyMessage="No authorization decisions recorded yet"
-        />
-    );
-};
-
-const MySecurityLog: React.FC = () => {
-    const { data, isLoading, isError } = useMySecurityAuditLogQuery();
-    return (
-        <DataTable
-            columns={securityColumns}
-            rows={data}
-            rowKey={(e) => e.id}
-            isLoading={isLoading}
-            isError={isError}
-            emptyMessage="No security events recorded yet"
-        />
-    );
-};
-
-const AllSecurityLog: React.FC = () => {
-    const { data, isLoading, isError } = useSecurityAuditLogQuery();
-    return (
-        <DataTable
-            columns={securityColumns}
-            rows={data}
-            rowKey={(e) => e.id}
-            isLoading={isLoading}
-            isError={isError}
-            emptyMessage="No security events recorded yet"
-        />
-    );
-};
+import MyAuthorizationLog from "./authorization_log/MyAuthorizationLog";
+import AllAuthorizationLogSection from "./authorization_log/AllAuthorizationLogSection";
+import MySecurityLog from "./security_log/MySecurityLog";
+import AllSecurityLogSection from "./security_log/AllSecurityLogSection";
 
 /**
  * AuditLogPage
@@ -110,48 +20,78 @@ const AllSecurityLog: React.FC = () => {
  * The route itself carries no permission requirement: access to each tab
  * is decided per-tab via IfCan, mirroring exactly how the backend splits
  * self vs. admin visibility across these four endpoints.
+ *
+ * Category (Authorization decisions vs. Security events) and scope (My
+ * activity vs. All users) are two independent tab bars rather than one
+ * page with both log types stacked full-height one after another: only one
+ * table renders at a time, so opening the page doesn't dump two full
+ * tables' worth of scroll on you before you've picked what you came to
+ * look at. Every table pages via numbered Pagination (shown above and
+ * below) rather than growing downward, every column header sorts the
+ * whole result set server-side, and a filter bar (select/text controls,
+ * not free-typed sort) narrows it further - all three compose together and
+ * all page/reset state lives client-side while the actual data stays
+ * server-side, so none of this depends on how many rows the log has grown to.
+ *
+ * Split across files by section, grouped into two subfolders matching the
+ * two tabs - everything specific to just one tab lives inside it:
+ * authorization_log/ (MyAuthorizationLog, AllAuthorizationLogSection,
+ * AuthorizationFilterBar, its own columns.tsx/queries.ts/resourceTypes.ts)
+ * and security_log/ (MySecurityLog, AllSecurityLogSection,
+ * SecurityFilterBar, its own columns.tsx/queries.ts/eventTypes.ts, plus
+ * LoginTrendChart.tsx). What's genuinely identical for both tabs stays here
+ * instead of being duplicated into each: auditLogListConfig.ts
+ * (PAGE_SIZE/formatTimestamp/etc.) and auditLogPageResult.ts
+ * (X-Total-Count -> {rows,total} parsing, shared by both queries.ts files).
+ * This file is just the tab shell composing it all, not the ~500-line
+ * single file this used to be.
  */
 const AuditLogPage: React.FC = () => {
     return (
         <PageContainer title="Audit Log" description="Authorization decisions and security events.">
-            <Text fontWeight="semibold" mb={2}>
-                Authorization decisions
-            </Text>
-            <Tabs.Root defaultValue="mine" mb={8}>
+            <Tabs.Root defaultValue="authorization" mb={4} lazyMount unmountOnExit>
                 <Tabs.List>
-                    <Tabs.Trigger value="mine">My activity</Tabs.Trigger>
-                    <IfCan action={PERMISSIONS.POLICIES_READ}>
-                        <Tabs.Trigger value="all">All users</Tabs.Trigger>
-                    </IfCan>
+                    <Tabs.Trigger value="authorization" fontSize="15px">Authorization decisions</Tabs.Trigger>
+                    <Tabs.Trigger value="security" fontSize="15px">Security events</Tabs.Trigger>
                 </Tabs.List>
-                <Tabs.Content value="mine">
-                    <MyAuthorizationLog />
-                </Tabs.Content>
-                <IfCan action={PERMISSIONS.POLICIES_READ}>
-                    <Tabs.Content value="all">
-                        <AllAuthorizationLog />
-                    </Tabs.Content>
-                </IfCan>
-            </Tabs.Root>
 
-            <Text fontWeight="semibold" mb={2}>
-                Security events
-            </Text>
-            <Tabs.Root defaultValue="mine">
-                <Tabs.List>
-                    <Tabs.Trigger value="mine">My activity</Tabs.Trigger>
-                    <IfCan action={PERMISSIONS.SECURITY_AUDIT_READ}>
-                        <Tabs.Trigger value="all">All users</Tabs.Trigger>
-                    </IfCan>
-                </Tabs.List>
-                <Tabs.Content value="mine">
-                    <MySecurityLog />
+                <Tabs.Content value="authorization">
+                    <Tabs.Root defaultValue="mine" lazyMount unmountOnExit>
+                        <Tabs.List>
+                            <Tabs.Trigger value="mine" fontSize="15px">My activity</Tabs.Trigger>
+                            <IfCan action={PERMISSIONS.POLICIES_READ}>
+                                <Tabs.Trigger value="all" fontSize="15px">All users</Tabs.Trigger>
+                            </IfCan>
+                        </Tabs.List>
+                        <Tabs.Content value="mine">
+                            <MyAuthorizationLog />
+                        </Tabs.Content>
+                        <IfCan action={PERMISSIONS.POLICIES_READ}>
+                            <Tabs.Content value="all">
+                                <AllAuthorizationLogSection />
+                            </Tabs.Content>
+                        </IfCan>
+                    </Tabs.Root>
                 </Tabs.Content>
-                <IfCan action={PERMISSIONS.SECURITY_AUDIT_READ}>
-                    <Tabs.Content value="all">
-                        <AllSecurityLog />
-                    </Tabs.Content>
-                </IfCan>
+
+                <Tabs.Content value="security">
+                    <Tabs.Root defaultValue="mine" lazyMount unmountOnExit>
+                        <Tabs.List>
+                            <Tabs.Trigger value="mine" fontSize="15px">My activity</Tabs.Trigger>
+                            <IfCan action={PERMISSIONS.SECURITY_AUDIT_READ}>
+                                <Tabs.Trigger value="all" fontSize="15px">All users</Tabs.Trigger>
+                            </IfCan>
+                        </Tabs.List>
+                        <Tabs.Content value="mine">
+                            <MySecurityLog />
+                        </Tabs.Content>
+                        <IfCan action={PERMISSIONS.SECURITY_AUDIT_READ}>
+                            <Tabs.Content value="all">
+                                <AllSecurityLogSection />
+                            </Tabs.Content>
+                        </IfCan>
+                    </Tabs.Root>
+                </Tabs.Content>
             </Tabs.Root>
         </PageContainer>
     );

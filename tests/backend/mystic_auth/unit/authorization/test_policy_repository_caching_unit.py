@@ -2,7 +2,7 @@
 #
 # Coverage for PolicyRepository's cache-aside wiring around
 # get_active_policies_for_user, and the invalidation hooks in
-# update/delete/assign/remove : claude.md's Authorization Performance
+# update/delete/assign/remove : the authorization performance
 # Layer: "invalidation triggers: policy updates, deletion, assignment,
 # revocation", "no stale data served".
 from unittest.mock import AsyncMock, MagicMock

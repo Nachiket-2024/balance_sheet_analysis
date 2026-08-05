@@ -4,7 +4,7 @@ Revision ID: a3f7c9e1b2d4
 Revises: e2b6c8a4f1d5
 Create Date: 2026-07-13 00:00:00.000000
 
-Per claude.md's Remaining Backend PBAC Production Hardening item #1
+Policy history tracks every policy change and rollback.
 (Policy Versioning and Change History): every policy mutation
 (create/update/delete/rollback) must produce an immutable history entry so
 policy changes are fully traceable and reversible.

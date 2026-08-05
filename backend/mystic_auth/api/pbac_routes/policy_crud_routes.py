@@ -9,8 +9,8 @@ from ...authorization.repositories.policy_repository import policy_repository
 from ...authorization.schemas.policy_schema import PolicyCreate, PolicyRead, PolicyUpdate
 from ...authorization.services.authorization_service import authorization_service
 from ...database.connection import database
-from ..route_helpers import get_or_404
-from .policy_shared import (
+from ..get_or_404 import get_or_404
+from .policy_permissions import (
     CREATE_DEPENDENCY,
     DELETE_DEPENDENCY,
     PROTECTED_POLICY_NAMES,

@@ -1,5 +1,7 @@
 import React from "react";
-import { Button, Dialog, Portal, Text } from "@chakra-ui/react";
+import { Button, Dialog, Portal } from "@chakra-ui/react";
+import { DIALOG_BACKDROP_PROPS, DIALOG_CONTENT_PROPS } from "./styles/dialogStyles";
+import { BRAND_SOLID_HOVER_PROPS, DESTRUCTIVE_SOLID_HOVER_PROPS, SECONDARY_BUTTON_PROPS } from "./styles/buttonStyles";
 
 interface ConfirmDialogProps {
     isOpen: boolean;
@@ -32,23 +34,28 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     return (
         <Dialog.Root open={isOpen} onOpenChange={(details) => !details.open && onCancel()} role="alertdialog">
             <Portal>
-                <Dialog.Backdrop />
+                <Dialog.Backdrop {...DIALOG_BACKDROP_PROPS} />
                 <Dialog.Positioner>
-                    <Dialog.Content>
+                    <Dialog.Content {...DIALOG_CONTENT_PROPS}>
                         <Dialog.Header>
                             <Dialog.Title>{title}</Dialog.Title>
                         </Dialog.Header>
                         <Dialog.Body>
-                            <Text color="fg.muted">{description}</Text>
+                            {/* Dialog.Description (not a plain Text) so Ark UI wires
+                                aria-describedby on the dialog itself : a screen reader
+                                announcing this alertdialog reads the warning text, not
+                                just the title, without a caller having to do it by hand. */}
+                            <Dialog.Description color="fg.muted">{description}</Dialog.Description>
                         </Dialog.Body>
                         <Dialog.Footer>
-                            <Button variant="ghost" onClick={onCancel} disabled={isLoading}>
+                            <Button onClick={onCancel} disabled={isLoading} {...SECONDARY_BUTTON_PROPS}>
                                 Cancel
                             </Button>
                             <Button
                                 colorPalette={isDestructive ? "red" : "brand"}
                                 onClick={onConfirm}
                                 loading={isLoading}
+                                {...(isDestructive ? DESTRUCTIVE_SOLID_HOVER_PROPS : BRAND_SOLID_HOVER_PROPS)}
                             >
                                 {confirmLabel}
                             </Button>

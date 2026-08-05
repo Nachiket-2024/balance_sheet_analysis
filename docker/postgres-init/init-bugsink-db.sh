@@ -13,7 +13,8 @@
 # If you're enabling Bugsink against an ALREADY-INITIALIZED postgres_data
 # volume (this script won't retroactively run), create the database
 # manually instead:
-#   docker compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "CREATE DATABASE bugsink;"
+#   docker compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB \
+#     -c "CREATE DATABASE bugsink;"
 set -e
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL

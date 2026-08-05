@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -22,6 +22,8 @@ function seed(permissions: string[]) {
     role: 'admin',
     permissions,
     has_password: true,
+    created_at: '2026-01-15T00:00:00Z',
+    active_sessions: 1,
   });
 }
 
@@ -213,7 +215,6 @@ describe('PoliciesPage', () => {
   it('prompts to discard unsaved changes when closing a dirty form', async () => {
     seed(['policies:read', 'policies:create']);
     mock.onGet('/authorization/policies').reply(200, []);
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     renderPage();
     const user = userEvent.setup();
@@ -222,10 +223,13 @@ describe('PoliciesPage', () => {
     await user.type(screen.getByPlaceholderText('e.g. document_reviewer'), 'draft_policy');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(confirmSpy).toHaveBeenCalledWith('Discard unsaved changes to this policy?');
-    // window.confirm returned false, so the dialog must still be open with the typed value intact.
-    expect(screen.getByDisplayValue('draft_policy')).toBeInTheDocument();
+    expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument();
 
-    confirmSpy.mockRestore();
+    // Cancelling the discard-confirm dialog must leave the form dialog open with the typed value
+    // intact. Both dialogs are mounted at once here, each with their own "Cancel" button - the
+    // discard-confirm's is the last one rendered.
+    const cancelButtons = screen.getAllByRole('button', { name: 'Cancel' });
+    await user.click(cancelButtons[cancelButtons.length - 1]);
+    expect(screen.getByDisplayValue('draft_policy')).toBeInTheDocument();
   });
 });

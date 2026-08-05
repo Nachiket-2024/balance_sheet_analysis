@@ -1,7 +1,7 @@
 # tests/backend/mystic_auth/security/test_privilege_escalation_security.py
 #
 # Real-DB proof of AuthorizationService.assert_authorized_to_grant
-# (claude.md's privilege-escalation protection): a caller holding only
+# (the privilege-escalation protection): a caller holding only
 # policies:create/update/assign (never system_superuser itself) must never
 # be able to mint, edit, or hand out one of this app's own sensitive
 # actions (Permission's vocabulary) that they don't already hold. Unit

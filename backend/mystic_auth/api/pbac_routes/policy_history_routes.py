@@ -12,8 +12,8 @@ from ...authorization.schemas.policy_history_schema import (
 from ...authorization.schemas.policy_schema import PolicyRead
 from ...authorization.services.authorization_service import authorization_service
 from ...database.connection import database
-from ..route_helpers import get_or_404
-from .policy_shared import PROTECTED_POLICY_NAMES, READ_DEPENDENCY, UPDATE_DEPENDENCY
+from ..get_or_404 import get_or_404
+from .policy_permissions import PROTECTED_POLICY_NAMES, READ_DEPENDENCY, UPDATE_DEPENDENCY
 
 router = APIRouter(prefix="/authorization", tags=["Authorization"])
 

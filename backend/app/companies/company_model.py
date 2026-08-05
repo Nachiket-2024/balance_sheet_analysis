@@ -51,5 +51,5 @@ class Company(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    parent_company: Mapped["Company | None"] = relationship(remote_side=[id], back_populates="subsidiaries")
-    subsidiaries: Mapped[list["Company"]] = relationship(back_populates="parent_company")
+    parent_company: Mapped[Company | None] = relationship(remote_side=[id], back_populates="subsidiaries")
+    subsidiaries: Mapped[list[Company]] = relationship(back_populates="parent_company")

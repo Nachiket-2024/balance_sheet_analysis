@@ -6,18 +6,14 @@
 # deliberately keeps its own inline copy rather than importing from here.
 #
 # These name constants are the reusable part, used to look up and assign the
-# already-seeded policies by name:
-#   - signup_service, which assigns SELF_SERVICE_POLICY_NAME to every new
-#     user ("New users must receive access through default policy
-#     assignment, not default roles" : claude.md)
-#   - scripts/create_system_user.py, which assigns all three to the new
-#     system superuser account
+# already-seeded policies by name.
+#   - signup_service assigns SELF_SERVICE_POLICY_NAME to every new user.
+#   - scripts/create_system_user.py assigns all three to the system superuser.
 #
 # Action identifiers (defined in the migration, not here) match
-# authorization/permissions.py's Permission enum values : that enum remains
-# the action vocabulary (claude.md: "Permissions represent possible actions
-# only"); only the old role -> permission mapping
-# (authorization/role_permissions.py) was RBAC and has been removed.
+# authorization/permissions.py's Permission enum values. That enum remains the
+# action vocabulary; only the old role-permission mapping was RBAC and has been
+# removed.
 
 SELF_SERVICE_POLICY_NAME = "self_service"
 USER_ADMINISTRATION_POLICY_NAME = "user_administration"

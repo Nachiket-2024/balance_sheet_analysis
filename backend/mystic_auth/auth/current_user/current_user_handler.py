@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from ...authorization.repositories.policy_repository import policy_repository
 from ...logging.logging_config import get_logger
 from ...user_crud.user_crud_collector import user_crud
+from ...user_session.session_service import session_service
 from ..token_logic.jwt_service import jwt_service
 
 logger = get_logger(__name__)
@@ -21,7 +22,7 @@ logger = get_logger(__name__)
 class CurrentUserHandler:
     """Resolves the currently authenticated user from an access token."""
 
-    async def get_current_user(self, access_token: str, db) -> dict:
+    async def get_current_user(self, access_token: str, db, include_active_sessions: bool = False) -> dict:
         try:
             if not access_token:
                 raise HTTPException(
@@ -63,6 +64,23 @@ class CurrentUserHandler:
             policies = await policy_repository.get_active_policies_for_user(user.email, db)
             permissions = {action for policy in policies for action in (policy.actions or [])}
 
+            # From the best-effort Postgres mirror (user_sessions), not
+            # Redis: real token validity is governed by version counters
+            # now (jwt_service.py), which have no "list every live session"
+            # operation of their own - a version number says whether ONE
+            # presented token is still current, not how many exist.
+            #
+            # Only computed for GET /auth/me (include_active_sessions=True),
+            # not for this same method's other caller, the shared
+            # get_current_user dependency behind nearly every protected
+            # route: that field is only ever read from the /auth/me
+            # response, so every other route was paying for a query whose
+            # result it never used. See docs/mystic_auth/authentication/
+            # session-management.md#active-session-count-on-authme.
+            active_sessions = (
+                await session_service.count_active_sessions(db, user.email) if include_active_sessions else 0
+            )
+
             # permissions is sorted for a stable, deterministic response; set
             # iteration order is not guaranteed. has_password lets the frontend
             # tell an OAuth-only account (hashed_password is None, see
@@ -74,6 +92,8 @@ class CurrentUserHandler:
                 "role": user.role.value if user.role else None,
                 "permissions": sorted(permissions),
                 "has_password": user.hashed_password is not None,
+                "created_at": user.created_at.isoformat(),
+                "active_sessions": active_sessions,
             }
 
         except SQLAlchemyError as exc:

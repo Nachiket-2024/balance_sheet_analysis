@@ -3,6 +3,9 @@ import { Button, Dialog, Field, Input, Portal, Stack, Textarea } from "@chakra-u
 
 import type { PolicyRead } from "../api/policies_api";
 import FormAlert from "../ui/FormAlert";
+import ConfirmDialog from "../ui/ConfirmDialog";
+import { DIALOG_BACKDROP_PROPS, DIALOG_CONTENT_PROPS } from "../ui/styles/dialogStyles";
+import { BRAND_SOLID_HOVER_PROPS, SECONDARY_BUTTON_PROPS } from "../ui/styles/buttonStyles";
 
 export interface PolicyFormValues {
     name: string;
@@ -90,8 +93,14 @@ const PolicyFormDialog: React.FC<PolicyFormDialogProps> = ({
     const isDirty =
         JSON.stringify([name, description, actionsText, resourceType, conditionsText]) !== initialSnapshot;
 
+    // A themed ConfirmDialog, not window.confirm: the latter is an
+    // unstyled native browser dialog, the only one in an otherwise fully
+    // themed app.
+    const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
     const requestClose = () => {
-        if (isDirty && !window.confirm("Discard unsaved changes to this policy?")) {
+        if (isDirty) {
+            setShowDiscardConfirm(true);
             return;
         }
         onClose();
@@ -121,87 +130,102 @@ const PolicyFormDialog: React.FC<PolicyFormDialogProps> = ({
     };
 
     return (
-        <Dialog.Root open={isOpen} onOpenChange={(details) => !details.open && requestClose()}>
-            <Portal>
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content>
-                        <Dialog.Header>
-                            <Dialog.Title>{policy ? "Edit Policy" : "Create Policy"}</Dialog.Title>
-                        </Dialog.Header>
-                        <Dialog.Body>
-                            <Stack as="form" id="policy-form" onSubmit={handleSubmit} gap={4}>
-                                <Field.Root required>
-                                    <Field.Label>Name</Field.Label>
-                                    <Input
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        placeholder="e.g. document_reviewer"
-                                    />
-                                </Field.Root>
+        <>
+            <Dialog.Root open={isOpen} onOpenChange={(details) => !details.open && requestClose()}>
+                <Portal>
+                    <Dialog.Backdrop {...DIALOG_BACKDROP_PROPS} />
+                    <Dialog.Positioner>
+                        <Dialog.Content {...DIALOG_CONTENT_PROPS}>
+                            <Dialog.Header>
+                                <Dialog.Title>{policy ? "Edit Policy" : "Create Policy"}</Dialog.Title>
+                            </Dialog.Header>
+                            <Dialog.Body>
+                                <Stack as="form" id="policy-form" onSubmit={handleSubmit} gap={4}>
+                                    <Field.Root required>
+                                        <Field.Label>Name</Field.Label>
+                                        <Input
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            placeholder="e.g. document_reviewer"
+                                        />
+                                    </Field.Root>
 
-                                <Field.Root>
-                                    <Field.Label>Description</Field.Label>
-                                    <Input
-                                        value={description}
-                                        onChange={(e) => setDescription(e.target.value)}
-                                        placeholder="What this policy grants and why"
-                                    />
-                                </Field.Root>
+                                    <Field.Root>
+                                        <Field.Label>Description</Field.Label>
+                                        <Input
+                                            value={description}
+                                            onChange={(e) => setDescription(e.target.value)}
+                                            placeholder="What this policy grants and why"
+                                        />
+                                    </Field.Root>
 
-                                <Field.Root required>
-                                    <Field.Label>Actions</Field.Label>
-                                    <Input
-                                        value={actionsText}
-                                        onChange={(e) => setActionsText(e.target.value)}
-                                        placeholder="e.g. documents:view, documents:edit"
-                                    />
-                                    <Field.HelperText>Comma-separated action identifiers</Field.HelperText>
-                                </Field.Root>
+                                    <Field.Root required>
+                                        <Field.Label>Actions</Field.Label>
+                                        <Input
+                                            value={actionsText}
+                                            onChange={(e) => setActionsText(e.target.value)}
+                                            placeholder="e.g. documents:view, documents:edit"
+                                        />
+                                        <Field.HelperText>Comma-separated action identifiers</Field.HelperText>
+                                    </Field.Root>
 
-                                <Field.Root required>
-                                    <Field.Label>Resource type</Field.Label>
-                                    <Input
-                                        value={resourceType}
-                                        onChange={(e) => setResourceType(e.target.value)}
-                                        placeholder='e.g. "documents" or "*" for any'
-                                    />
-                                </Field.Root>
+                                    <Field.Root required>
+                                        <Field.Label>Resource type</Field.Label>
+                                        <Input
+                                            value={resourceType}
+                                            onChange={(e) => setResourceType(e.target.value)}
+                                            placeholder='e.g. "documents" or "*" for any'
+                                        />
+                                    </Field.Root>
 
-                                <Field.Root invalid={!!conditionsError}>
-                                    <Field.Label>Conditions (JSON, optional)</Field.Label>
-                                    <Textarea
-                                        value={conditionsText}
-                                        onChange={(e) => setConditionsText(e.target.value)}
-                                        placeholder='e.g. { "self_only": true }'
-                                        rows={4}
-                                        fontFamily="mono"
-                                    />
-                                    {conditionsError && <Field.ErrorText>{conditionsError}</Field.ErrorText>}
-                                </Field.Root>
+                                    <Field.Root invalid={!!conditionsError}>
+                                        <Field.Label>Conditions (JSON, optional)</Field.Label>
+                                        <Textarea
+                                            value={conditionsText}
+                                            onChange={(e) => setConditionsText(e.target.value)}
+                                            placeholder='e.g. { "self_only": true }'
+                                            rows={4}
+                                            fontFamily="mono"
+                                        />
+                                        {conditionsError && <Field.ErrorText>{conditionsError}</Field.ErrorText>}
+                                    </Field.Root>
 
-                                {errorMessage && <FormAlert status="error">{errorMessage}</FormAlert>}
-                            </Stack>
-                        </Dialog.Body>
-                        <Dialog.Footer>
-                            <Button variant="ghost" onClick={requestClose} disabled={isSaving}>
-                                Cancel
-                            </Button>
-                            <Button
-                                type="submit"
-                                form="policy-form"
-                                colorPalette="brand"
-                                loading={isSaving}
-                                loadingText="Saving..."
-                            >
-                                {policy ? "Save changes" : "Create policy"}
-                            </Button>
-                        </Dialog.Footer>
-                        <Dialog.CloseTrigger />
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Portal>
-        </Dialog.Root>
+                                    {errorMessage && <FormAlert status="error">{errorMessage}</FormAlert>}
+                                </Stack>
+                            </Dialog.Body>
+                            <Dialog.Footer>
+                                <Button onClick={requestClose} disabled={isSaving} {...SECONDARY_BUTTON_PROPS}>
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    form="policy-form"
+                                    colorPalette="brand"
+                                    loading={isSaving}
+                                    loadingText="Saving..."
+                                    {...BRAND_SOLID_HOVER_PROPS}
+                                >
+                                    {policy ? "Save changes" : "Create policy"}
+                                </Button>
+                            </Dialog.Footer>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Content>
+                    </Dialog.Positioner>
+                </Portal>
+            </Dialog.Root>
+
+            <ConfirmDialog
+                isOpen={showDiscardConfirm}
+                title="Discard unsaved changes?"
+                description="Your edits to this policy haven't been saved. Closing now will discard them."
+                confirmLabel="Discard"
+                onConfirm={() => {
+                    setShowDiscardConfirm(false);
+                    onClose();
+                }}
+                onCancel={() => setShowDiscardConfirm(false)}
+            />
+        </>
     );
 };
 

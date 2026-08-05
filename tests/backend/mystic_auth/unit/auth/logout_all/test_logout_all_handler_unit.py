@@ -85,7 +85,7 @@ async def test_logout_all_with_already_revoked_token_still_resolves_email_and_re
 
     response = await logout_all_handler.handle_logout_all("already-revoked-token")
 
-    revoke_mock.assert_awaited_once_with("user@example.com")
+    revoke_mock.assert_awaited_once_with("user@example.com", None)
     assert response.status_code == 200
     headers = _set_cookie_headers(response)
     assert any(h.startswith("access_token=") for h in headers)

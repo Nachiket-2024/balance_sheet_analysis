@@ -71,7 +71,7 @@ class User(Base):
     # is_active=False alone so an admin can tell "deliberately deactivated"
     # apart from "deleted" if that distinction is ever needed, and so
     # reactivation can clear it explicitly. A soft-deleted row is NOT
-    # removed : see user_routes.py's soft-delete vs purge (hard delete)
+    # removed : see user_management_routes.py's soft-delete vs purge (hard delete)
     # routes, and docs/mystic_auth/security/decisions.md for the full rationale.
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

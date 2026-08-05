@@ -23,7 +23,48 @@ export interface UserUpdatePayload {
     current_password?: string;
 }
 
-export const listUsersApi = () => api.get<AdminUserRead[]>("/users/");
+export interface UserStatsRead {
+    total: number;
+    verified: number;
+    unverified: number;
+    inactive: number;
+}
+
+export interface ListUsersParams {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    /** Exact match, one of AdminUserRead['role']'s real values. */
+    role?: string;
+    isVerified?: boolean;
+    /** One of "active" | "inactive" | "deleted" (see UsersPage.tsx's Status badge). */
+    status?: string;
+    /** Column to sort by; must be one of the backend's own allowlisted
+     * sortable columns (see user_base_crud.py's _SORTABLE_COLUMN_NAMES) -
+     * any other value is ignored server-side and falls back to id. */
+    sortBy?: string;
+    sortDir?: "asc" | "desc";
+}
+
+function toApiParams({
+    limit = 1000, offset = 0, search, role, isVerified, status, sortBy, sortDir,
+}: ListUsersParams) {
+    return {
+        limit, offset, search, role, is_verified: isVerified, status, sort_by: sortBy, sort_dir: sortDir,
+    };
+}
+
+// X-Total-Count (total matching rows, ignoring limit/offset) rides the
+// response headers rather than the body: response_model on the backend
+// stays a plain list, and the header is what UsersPage derives its page
+// count from (see userQueries.ts).
+export const listUsersApi = (params: ListUsersParams = {}) =>
+    api.get<AdminUserRead[]>("/users/", { params: toApiParams(params) });
+
+// Aggregate counts (total/verified/unverified/inactive) across the whole
+// table, independent of the main list's current page/filters.
+export const getUserStatsApi = () =>
+    api.get<UserStatsRead>("/users/stats");
 
 export const updateUserApi = (userEmail: string, payload: UserUpdatePayload) =>
     api.put<AdminUserRead>(`/users/${encodeURIComponent(userEmail)}`, payload);

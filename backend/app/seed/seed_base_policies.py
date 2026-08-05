@@ -36,6 +36,7 @@ from ..access.permissions import (
     COMPANY_CREATE,
     COMPANY_DELETE,
     COMPANY_READ,
+    COMPANY_UPDATE,
     LLM_CHAT,
 )
 from ..app_sdk import policy_repository
@@ -51,11 +52,12 @@ BASE_POLICIES: dict[str, tuple[str, list[str]]] = {
         [COMPANY_READ, BALANCE_SHEET_READ, LLM_CHAT],
     ),
     "role_company_manager": (
-        "Full access to every company: everything role_company_viewer has, plus create/delete companies "
+        "Full access to every company: everything role_company_viewer has, plus create/edit/delete companies "
         "and import/delete balance sheet data.",
         [
             COMPANY_READ,
             COMPANY_CREATE,
+            COMPANY_UPDATE,
             COMPANY_DELETE,
             BALANCE_SHEET_READ,
             BALANCE_SHEET_IMPORT,

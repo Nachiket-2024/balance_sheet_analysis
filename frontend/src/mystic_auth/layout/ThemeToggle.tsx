@@ -2,6 +2,7 @@ import React from "react";
 import { IconButton } from "@chakra-ui/react";
 
 import { useThemeStore } from "../store/themeStore";
+import { ICON_BUTTON_PROPS } from "../ui/styles/buttonStyles";
 
 /**
  * Light/dark mode switch, backed by store/themeStore.ts (persists to
@@ -18,8 +19,8 @@ const ThemeToggle: React.FC = () => {
         <IconButton
             aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             onClick={toggleColorMode}
-            variant="ghost"
             size="sm"
+            {...ICON_BUTTON_PROPS}
         >
             {isDark ? "☀️" : "🌙"}
         </IconButton>

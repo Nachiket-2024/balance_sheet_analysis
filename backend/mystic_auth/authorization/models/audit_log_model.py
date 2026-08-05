@@ -10,7 +10,7 @@ from ...database.base import Base
 
 class AuthorizationAuditLog(Base):
     """
-    One row per authorization decision (per claude.md's Remaining PBAC
+    One row per authorization decision (per the PBAC
     Work: "Authorization decisions must be auditable" / "Automatically log
     every authorize() call"). Written by
     AuthorizationService.authorize_detailed, the single choke point every

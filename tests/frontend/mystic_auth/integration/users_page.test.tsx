@@ -22,6 +22,8 @@ function seed(permissions: string[], email = 'admin@example.com') {
     role: 'admin',
     permissions,
     has_password: true,
+    created_at: '2026-01-15T00:00:00Z',
+    active_sessions: 1,
   });
 }
 
@@ -76,6 +78,26 @@ describe('UsersPage', () => {
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
 
+  it('opens a details dialog with the full name/email via the View row action', async () => {
+    seed(['users:list_all']);
+    mock.onGet('/users/').reply(200, SAMPLE_USERS);
+
+    renderPage();
+    const user = userEvent.setup();
+
+    await screen.findByText('Regular User');
+    const viewButtons = screen.getAllByRole('button', { name: 'View' });
+    await user.click(viewButtons[viewButtons.length - 1]);
+
+    expect(await screen.findByText('User details')).toBeInTheDocument();
+    // The dialog's own "Regular User"/"user@example.com" (not the table row's).
+    expect(screen.getAllByText('Regular User').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('user@example.com').length).toBeGreaterThanOrEqual(2);
+
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByText('User details')).toBeNull());
+  });
+
   it('hides the Delete row action when the caller lacks that permission', async () => {
     seed(['users:list_all']);
     mock.onGet('/users/').reply(200, SAMPLE_USERS);
@@ -127,9 +149,15 @@ describe('UsersPage', () => {
     const user = userEvent.setup();
 
     await screen.findByText('Regular User');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Change role for user@example.com' }), 'admin');
+    // StyledSelect's visible trigger button and its hidden native <select>
+    // mirror share the same accessible name (both properly labeled via
+    // Select.Label), so getByRole('combobox', ...) alone is ambiguous -
+    // selectOptions needs the real <select>, found via getByLabelText's
+    // selector option instead.
+    await user.selectOptions(screen.getByLabelText('Change role for user@example.com', { selector: 'select' }), 'admin');
 
-    expect(await screen.findByText(/Change .*role to "admin"/)).toBeInTheDocument();
+    // The dialog capitalizes the role for display ("Admin", not the raw "admin" option value).
+    expect(await screen.findByText(/Change .*role to "Admin"/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Change role' }));
 
     await waitFor(() => expect(mock.history.patch.length).toBe(1));
@@ -207,12 +235,21 @@ describe('UsersPage', () => {
 
     expect(await screen.findByText('self_service')).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Select a policy to assign' }), 'reporting');
+    // StyledSelect's visible trigger button and its hidden native <select>
+    // mirror now share the same accessible name (both properly labeled via
+    // Select.Label), so getByRole('combobox', ...) alone is ambiguous here
+    // - selectOptions needs the real <select>, found via getByLabelText's
+    // selector option instead.
+    await user.selectOptions(screen.getByLabelText('Select a policy to assign', { selector: 'select' }), 'reporting');
     await user.click(screen.getByRole('button', { name: 'Assign' }));
     await waitFor(() => expect(mock.history.post.length).toBe(1));
     expect(JSON.parse(mock.history.post[0].data)).toEqual({ policy_name: 'reporting' });
 
     await user.click(screen.getByRole('button', { name: 'Revoke self_service' }));
+    // Revoking now goes through a ConfirmDialog (it strips access
+    // immediately and irreversibly), matching every other destructive
+    // action in the app - the click above only opens it.
+    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
     await waitFor(() => expect(mock.history.delete.length).toBe(1));
   });
 
@@ -234,5 +271,113 @@ describe('UsersPage', () => {
 
     expect(await screen.findByText(/You cannot revoke your own policies from here/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Revoke self_service' })).toBeDisabled();
+  });
+
+  it('shows numbered pages (from X-Total-Count) and fetches the next page on click', async () => {
+    seed(['users:list_all']);
+    mock.onGet('/users/').reply((config) => {
+      const offset = Number(config.params?.offset ?? 0);
+      if (offset === 0) {
+        return [200, SAMPLE_USERS, { 'x-total-count': '30' }];
+      }
+      return [200, [{ ...SAMPLE_USERS[0], id: 3, name: 'Page Two User', email: 'page2@example.com' }], { 'x-total-count': '30' }];
+    });
+
+    renderPage();
+    const user = userEvent.setup();
+
+    await screen.findByText('Regular User');
+    // 30 users / 25 per page = 2 pages, so page buttons should render.
+    const page2Buttons = screen.getAllByRole('button', { name: 'Page 2' });
+    expect(page2Buttons.length).toBeGreaterThan(0);
+
+    await user.click(page2Buttons[0]);
+
+    expect(await screen.findByText('Page Two User')).toBeInTheDocument();
+    const getRequests = mock.history.get.filter((r) => r.url === '/users/');
+    expect(getRequests[getRequests.length - 1].params).toMatchObject({ offset: 25 });
+  });
+
+  it('searches server-side (debounced) and resets to page 1', async () => {
+    seed(['users:list_all']);
+    mock.onGet('/users/').reply((config) => {
+      if (config.params?.search === 'regular') {
+        return [200, [SAMPLE_USERS[1]], { 'x-total-count': '1' }];
+      }
+      return [200, SAMPLE_USERS, { 'x-total-count': '2' }];
+    });
+
+    renderPage();
+    const user = userEvent.setup();
+
+    await screen.findByText('Regular User');
+    await user.type(screen.getByPlaceholderText('Search by name or email...'), 'regular');
+
+    // Debounced: the filtered result (and the admin row disappearing)
+    // shouldn't show up until after the debounce window.
+    await waitFor(() => expect(screen.queryByText('Admin User')).toBeNull(), { timeout: 2000 });
+    expect(screen.getByText('Regular User')).toBeInTheDocument();
+
+    const lastRequest = mock.history.get[mock.history.get.length - 1];
+    expect(lastRequest.params).toMatchObject({ search: 'regular' });
+  });
+
+  it('filters by role via the Role select and resets to page 1', async () => {
+    seed(['users:list_all']);
+    mock.onGet('/users/').reply((config) => {
+      if (config.params?.role === 'admin') {
+        return [200, [SAMPLE_USERS[0]], { 'x-total-count': '1' }];
+      }
+      return [200, SAMPLE_USERS, { 'x-total-count': '2' }];
+    });
+
+    renderPage();
+    const user = userEvent.setup();
+
+    await screen.findByText('Regular User');
+    // StyledSelect now also renders a (visually hidden) Select.Label for
+    // the visible combobox button itself, so "Filter by role" alone
+    // matches both that button and this hidden native <select> - narrow to
+    // the actual <select> element, which is what selectOptions needs.
+    await user.selectOptions(screen.getByLabelText('Filter by role', { selector: 'select' }), 'admin');
+
+    await waitFor(() => expect(screen.queryByText('Regular User')).toBeNull());
+    expect(screen.getByText('Admin User')).toBeInTheDocument();
+
+    const lastRequest = mock.history.get[mock.history.get.length - 1];
+    expect(lastRequest.params).toMatchObject({ role: 'admin' });
+  });
+
+  it('sorts by clicking the Name column header, toggling direction on a second click', async () => {
+    seed(['users:list_all']);
+    mock.onGet('/users/').reply((config) => {
+      const sortDir = config.params?.sort_dir;
+      const sortBy = config.params?.sort_by;
+      if (sortBy === 'name' && sortDir === 'asc') {
+        return [200, [SAMPLE_USERS[0]], { 'x-total-count': '2' }];
+      }
+      if (sortBy === 'name' && sortDir === 'desc') {
+        return [200, [SAMPLE_USERS[1]], { 'x-total-count': '2' }];
+      }
+      return [200, SAMPLE_USERS, { 'x-total-count': '2' }];
+    });
+
+    renderPage();
+    const user = userEvent.setup();
+
+    await screen.findByText('Regular User');
+    await user.click(screen.getByText('Name'));
+
+    await waitFor(() => {
+      const lastRequest = mock.history.get[mock.history.get.length - 1];
+      expect(lastRequest.params).toMatchObject({ sort_by: 'name', sort_dir: 'asc' });
+    });
+
+    await user.click(screen.getByText('Name'));
+
+    await waitFor(() => {
+      const lastRequest = mock.history.get[mock.history.get.length - 1];
+      expect(lastRequest.params).toMatchObject({ sort_by: 'name', sort_dir: 'desc' });
+    });
   });
 });

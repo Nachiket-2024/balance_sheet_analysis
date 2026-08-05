@@ -2,6 +2,7 @@ import traceback
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...audit_log.audit_log_service import PASSWORD_RESET_REQUESTED, log_security_event
 from ...logging.logging_config import get_logger
@@ -16,7 +17,9 @@ class PasswordResetRequestHandler:
     def __init__(self):
         self.password_reset_service = password_reset_service
 
-    async def handle_password_reset_request(self, email: str, db, request: Request | None = None):
+    async def handle_password_reset_request(
+        self, email: str, db: AsyncSession | None = None, request: Request | None = None
+    ) -> JSONResponse:
         try:
             # Service internally checks if user exists; returns False if not found.
             email_sent = await self.password_reset_service.send_reset_email(email, db)

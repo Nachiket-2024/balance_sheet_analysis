@@ -6,12 +6,24 @@
  * its own re-exports for its own domain code, kept separate so template
  * updates never conflict with app-specific additions here.
  *
- * DashboardPage: not covered by sdk.ts (it re-exports the app shell/PBAC/UI
- * primitives, but not the actual dashboard route content), so re-exported
- * here, since App.tsx renders it directly at "/dashboard" now that Companies has
- * its own permanent sidebar entry (see App.tsx's EXTRA_NAV_ITEMS) and no
- * longer needs an AppDashboardPage wrapper just to host a "View your
- * companies" button.
+ * DashboardPage is not covered by sdk.ts, which only exports app shell, PBAC,
+ * and UI primitives. App.tsx renders it directly at "/dashboard".
  */
 
 export { default as DashboardPage } from "../mystic_auth/dashboard/DashboardPage";
+
+// App buttons reuse mystic_auth hover fixes without each page importing
+// internal UI paths directly.
+export { default as TableActionButton } from "../mystic_auth/ui/TableActionButton";
+export { BRAND_SOLID_HOVER_PROPS, BRAND_OUTLINE_HOVER_PROPS } from "../mystic_auth/ui/styles/buttonStyles";
+
+// Table controls reused by CompaniesPage to match mystic_auth list pages.
+export { default as StatTile } from "../mystic_auth/ui/StatTile";
+export { default as StyledSelect } from "../mystic_auth/ui/StyledSelect";
+export type { StyledSelectOption } from "../mystic_auth/ui/StyledSelect";
+export { SEARCH_INPUT_PROPS } from "../mystic_auth/ui/styles/inputStyles";
+export { useSortState } from "../mystic_auth/ui/hooks/useSortState";
+export type { SortState, SortDirection } from "../mystic_auth/ui/hooks/useSortState";
+export { useDebouncedValue } from "../mystic_auth/ui/hooks/useDebouncedValue";
+export { default as Pagination } from "../mystic_auth/ui/Pagination";
+export { usePageResetOn } from "../mystic_auth/ui/hooks/usePageResetOn";

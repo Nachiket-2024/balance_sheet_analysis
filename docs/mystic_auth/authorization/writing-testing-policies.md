@@ -59,6 +59,8 @@ Every create/update/delete stages an immutable row in `policy_history` in the sa
 - `GET /authorization/policies/{name}/history/compare?from_id=X&to_id=Y`: field-by-field diff between two versions.
 - `POST /authorization/policies/{name}/history/{history_id}/rollback` (requires `policies:update`): restores that version's definition. This creates a **new** `"rolled_back"`-labeled history entry; it never overwrites or deletes the entry being rolled back to. Goes through the exact same guards as a direct `PUT`: a malformed `conditions` block in the restored definition is rejected, a baseline policy can't be rolled back into a renamed/deactivated state, and: since a historical revision can hold actions the policy no longer grants today: the caller must already hold every action the *restored* definition would grant, not just the policy's current ones.
 
+---
+
 ## Local testing approach
 
 **Fastest feedback: unit tests with mocked policies** (no DB needed): see `tests/backend/mystic_auth/unit/authorization/test_policy_evaluator_unit.py` and `authorization/test_authorization_decision_unit.py`. Build a `Policy(...)` instance directly (it's a plain SQLAlchemy model, freely instantiable without a session) and call `PolicyEvaluationEngine.evaluate_detailed` directly:
@@ -78,7 +80,7 @@ def test_my_new_policy_shape_grants_the_right_action():
     assert decision.allowed is True
 ```
 
-**Against a real database** (via `docker compose exec --user root -w /repo backend pytest tests/backend/mystic_auth/integration/`: `--user root` needed on native Linux, see [Troubleshooting](troubleshooting.md): or from the host once `docker compose up -d postgres redis`): create a real user, assign the real policy, log in, and hit a real protected route:
+**Against a real database** (via `scripts/docker/backend-exec.sh pytest tests/backend/mystic_auth/integration/`, see [Troubleshooting](troubleshooting.md): or from the host once `docker compose up -d postgres redis`): create a real user, assign the real policy, log in, and hit a real protected route:
 
 ```python
 @pytest.mark.asyncio
@@ -91,7 +93,9 @@ async def test_assigning_report_viewers_actually_grants_access(client, created_e
     assert resp.status_code == 200
 ```
 
-See `tests/backend/mystic_auth/integration/test_authorization_routes_integration.py` for the full fixture pattern (`_create_verified_user`, `_create_system_user`, `_create_user_with_custom_policy_actions`) and `tests/backend/mystic_auth/security/conftest.py` for the shared reusable version of the same helpers.
+See `tests/backend/mystic_auth/integration/authorization_test_accounts.py` for the full fixture pattern (`create_verified_user`, `create_system_user`, `create_user_with_custom_policy_actions`) and `tests/backend/mystic_auth/security/conftest.py` for the shared reusable version of the same helpers.
+
+---
 
 ## Unit test examples for policies
 

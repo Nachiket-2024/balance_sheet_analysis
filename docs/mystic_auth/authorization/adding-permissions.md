@@ -21,6 +21,8 @@ Every member of `Permission` is treated as one of this app's own **known-sensiti
 - It's subject to the privilege-escalation guard: a caller can never create/update/assign a policy granting this action unless they already hold it themselves.
 - It's meant for **this application's own identity/authorization concerns** (user management, policy management). A downstream project's own business-domain actions (e.g. `"documents:view"`, `"projects:create"`) do **not** need to go in this enum at all: policies can grant arbitrary action strings freely, and only strings actually listed in `Permission` are escalation-guarded. Only add an enum member here if the action is sensitive enough that you want that guard to apply.
 
+---
+
 ## How to update seed policies
 
 The three baseline policies (`self_service`, `user_administration`, `system_superuser`) are seeded by Alembic migrations, **not** read from application code at migration time:
@@ -58,12 +60,16 @@ def downgrade() -> None:
 
 **To add a brand-new (non-baseline) policy**, just use the management API (`POST /authorization/policies`, requires `policies:create`: see [Policy JSON Examples](policy-examples.md)): no migration needed. Only the three seeded baseline policies live in migrations.
 
+---
+
 ## Migration considerations
 
 - Never edit an already-applied migration's seed data in place: write a new migration.
 - A migration that changes a seeded policy's `actions` should also update `downgrade()` symmetrically (restore the previous array) so the migration is safely reversible.
 - If you rename or remove a `Permission` enum member that's referenced by a seeded policy, the seeded row's `actions` array (a plain string array in the database, not a foreign key to the enum) is completely unaffected: but update it via a new migration if the old action string should no longer be granted.
-- Test new fine-grained actions the same way the existing `policies:read/create/update/delete/assign/revoke` split was tested: real-API integration tests proving a caller holding *only* the new action can do the one thing it should, and nothing else (see `tests/backend/mystic_auth/integration/test_authorization_routes_integration.py`'s `_attempt_policy_routes` pattern).
+- Test new fine-grained actions the same way the existing `policies:read/create/update/delete/assign/revoke` split was tested: real-API integration tests proving a caller holding *only* the new action can do the one thing it should, and nothing else (see `tests/backend/mystic_auth/integration/test_policy_action_separation_integration.py`'s `_attempt_policy_routes` pattern).
+
+---
 
 ## Roles vs. policies
 

@@ -11,9 +11,8 @@ def build_authorization_context(request: Request) -> dict:
     conditions against (see conditions/network_condition.py,
     conditions/time_condition.py, conditions/date_range_condition.py,
     conditions/security_context_condition.py for what reads each key).
-    Centralized here so IP/time semantics are defined exactly once, per
-    claude.md's "Every authorization check should use the same context
-    builder" and "Do not trust client supplied values."
+    Centralized here so IP/time semantics are defined exactly once. Every
+    authorization check uses the same trusted server-side context builder.
 
     `ip_address` is resolved via auth/security/client_ip.py: the literal TCP peer
     (request.client.host) by default, or the real client behind
@@ -30,7 +29,7 @@ def build_authorization_context(request: Request) -> dict:
     never represents a real access decision.
 
     `security_context` starts empty: this app does not implement MFA/
-    device-trust infrastructure yet (claude.md), so there is nothing
+    device-trust infrastructure yet, so there is nothing
     trustworthy to populate it with. It exists as a stable, reserved key
     so a future trust-signal layer has exactly one place to feed its
     output into, without changing this function's callers.

@@ -1,6 +1,6 @@
 # tests/backend/mystic_auth/unit/test_batch_authorization_route_unit.py
 #
-# Coverage for POST /authorization/batch-check (claude.md's Batch
+# Coverage for POST /authorization/batch-check (the batch
 # Authorization API): request validation (empty/oversized/malformed
 # batches), that the route builds a real context and delegates to
 # AuthorizationService.authorize_batch, and the security requirement that
@@ -160,7 +160,7 @@ async def test_route_returns_mixed_allowed_and_denied_checks(mocker):
 
 @pytest.mark.asyncio
 async def test_batch_response_never_exposes_matched_rejected_or_failed_conditions(mocker):
-    """claude.md: 'Do not leak matched policies, rejected policies, or
+    """'Do not leak matched policies, rejected policies, or
     failed conditions through normal batch responses.' The response model
     itself has no such fields : this proves the route doesn't smuggle them
     in via extra attributes either."""

@@ -8,7 +8,7 @@ class Permission(str, enum.Enum):
     via authorization.dependencies.authorization_dependency.require_authorization
     or authorization.services.authorization_service.authorize/require.
 
-    Per claude.md: "Permissions represent possible actions only. ...
+    "Permissions represent possible actions only. ...
     Access is granted only when a policy evaluation allows the action."
     This enum is that action vocabulary : nothing more. It carries no
     role -> action mapping (that concept has been removed entirely); the
@@ -52,7 +52,7 @@ class Permission(str, enum.Enum):
 
     # Fine-grained actions for managing the authorization system itself
     # (policies and their assignment to users), see
-    # api/pbac_routes/policy_shared.py. Previously a single coarse
+    # api/pbac_routes/policy_permissions.py. Previously a single coarse
     # "policies:manage" action; split so e.g. a support role could be
     # granted policies:read (to inspect/audit) without also being able to
     # create, edit, delete, or (re)assign policies.

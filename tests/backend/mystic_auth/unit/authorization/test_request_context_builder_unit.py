@@ -2,7 +2,7 @@
 #
 # Unit coverage for build_authorization_context : the one place every real
 # authorization check derives ip_address/current_time/security_context
-# from (claude.md's "Wire Authorization Context Properly": centralized
+# from (the centralized authorization context design: centralized
 # builder, never trust client-supplied values, IP from the connection,
 # time from the server clock).
 from datetime import UTC, datetime

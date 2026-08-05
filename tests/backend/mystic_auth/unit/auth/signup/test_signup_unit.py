@@ -156,7 +156,7 @@ async def test_signup_service_creates_new_unverified_user(mocker):
 async def test_signup_service_assigns_self_service_policy_to_new_user(mocker):
     # PBAC regression guard: a new account's access must come from an
     # explicit default policy assignment, never from its (metadata-only)
-    # role : see claude.md's "Roles" section.
+    # role : see the role-as-metadata invariant.
     mocker.patch(f"{SERVICE_MODULE}.user_crud.get_by_email", return_value=None)
     mocker.patch(f"{SERVICE_MODULE}.password_service.hash_password", return_value="hashed-value")
     mocker.patch(

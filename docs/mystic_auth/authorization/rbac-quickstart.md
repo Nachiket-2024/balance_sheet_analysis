@@ -32,9 +32,13 @@ You don't need a different mechanism for this. This template doesn't ship a sepa
 
 3. **Routes stay identical either way.** `require_authorization("documents:edit", "documents")` doesn't know or care whether the policy that ends up granting it has conditions or not; see [Adding New Permissions](adding-permissions.md) for the route side, which is unaffected by which policy *shape* you choose.
 
+---
+
 ## `users.role` still doesn't grant anything
 
 This pattern doesn't change the one rule the rest of this template's authorization docs already state repeatedly: `users.role` is display/grouping metadata only, never read by the authorization service, evaluator, or condition handlers (see [Adding New Permissions: Roles vs. policies](adding-permissions.md#roles-vs-policies)). "RBAC-shaped" here describes the *policy's* shape (unconditioned, one per role), not a return to role-column checks anywhere in the request path. If you want the UI to visually group users by their intended role, that's exactly what `users.role` remains useful for (e.g. showing "Editor" next to a name); it's just never consulted to decide whether a request is allowed.
+
+---
 
 ## Optional: a CLI script for this
 
@@ -45,6 +49,8 @@ python -m mystic_auth.scripts.create_rbac_policies
 ```
 
 Prompts for a role name, resource type, and a comma-separated action list, then creates one unconditioned policy named `role_<role>`. Idempotent by name: running it again for a role that already has a policy prints the existing action list and makes no changes, rather than silently overwriting it (edit via `PUT /authorization/policies/{id}` or the UI instead). Entirely optional: everything it does is also just one `POST /authorization/policies` call, so skip it if you'd rather create role-policies through the API/UI directly.
+
+---
 
 ## When you actually do want PBAC's conditions
 

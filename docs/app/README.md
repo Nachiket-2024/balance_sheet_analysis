@@ -1,10 +1,10 @@
-# Balance Sheet Analysis: App Docs
+# Balance Sheet Analysis App Docs
 
 This is a ChatGPT-style balance-sheet analysis tool for company analysts and
 top-management, built on the [mystic-auth](https://github.com/Nachiket-2024/mystic-auth)
 template for authentication and Policy-Based Access Control (PBAC). See
 [`../mystic_auth/README.md`](../mystic_auth/README.md) for what the template
-itself provides (login, PBAC, audit logging, Docker, CI/CD); this directory
+itself provides (login, PBAC, audit logging, Docker, CI/CD). This directory
 only documents what this project adds on top of it.
 
 - **[architecture/](architecture/README.md)**: feature-folder layout, the `app/`

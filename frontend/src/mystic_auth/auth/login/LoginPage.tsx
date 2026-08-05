@@ -22,6 +22,10 @@ const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
+    // Always /dashboard, deliberately never "wherever the caller was before"
+    // (ProtectedRoute.tsx no longer carries that through) - a fresh login
+    // should be a clean start, not a bounce back to whatever page a session
+    // happened to die on.
     if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
     const handleLoginSuccess = () => {
@@ -44,7 +48,11 @@ const LoginPage: React.FC = () => {
                         above, so the two don't compete and the page fits a normal
                         laptop viewport without scrolling. */}
                     <Heading size="xl" color="brand.fg">Welcome</Heading>
-                    <Text fontSize="md" color="fg.muted">
+                    {/* fg.default (not fg.muted) for stronger contrast: near-black in
+                        light mode, near-white in dark mode, since this is the page's
+                        primary supporting copy rather than deliberately de-emphasized
+                        metadata. */}
+                    <Text fontSize="md" color="fg.default">
                         Sign in to continue to your dashboard
                     </Text>
 

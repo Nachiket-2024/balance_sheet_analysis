@@ -11,7 +11,7 @@ from ...database.base import Base
 class PolicyHistory(Base):
     """
     One immutable row per policy mutation (create/update/delete/rollback),
-    per claude.md's "Policy Versioning and Change History": policy changes
+    per policy versioning and change history: policy changes
     must be fully traceable and reversible, and rollback must create a new
     version, never overwrite history. Written by PolicyRepository's
     create/update/delete (the only places policies are ever mutated), so no

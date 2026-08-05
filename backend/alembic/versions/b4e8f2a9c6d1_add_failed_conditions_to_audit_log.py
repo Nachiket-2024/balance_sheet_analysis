@@ -4,7 +4,7 @@ Revision ID: b4e8f2a9c6d1
 Revises: a3f7c9e1b2d4
 Create Date: 2026-07-13 00:00:00.000000
 
-Per claude.md's Authorization Decision Explainability: audit logs must be
+audit logs must be
 able to explain *why* access was denied, not just that it was. This adds
 one nullable JSONB column capturing {policy_name: [failed_condition_key,
 ...]} for every candidate policy whose conditions did not pass — see

@@ -79,7 +79,7 @@ async def test_reset_password_succeeds_and_consumes_token(mocker):
     set_mock.assert_not_called()
     # A successful reset must invalidate any session an attacker who stole
     # the account may already hold.
-    revoke_all_mock.assert_awaited_once_with("user@example.com")
+    revoke_all_mock.assert_awaited_once_with("user@example.com", None)
 
 
 @pytest.mark.asyncio

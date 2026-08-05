@@ -1,4 +1,4 @@
-# Features: Implementation Notes
+# Feature Implementation Notes
 
 See [Architecture](architecture/README.md) for the overall `app/`/`mystic_auth/` structure this fits into.
 
@@ -20,22 +20,21 @@ call costs real money/quota against Groq or yfinance respectively.
 
 ## yfinance needs a browser-impersonating, timeout-bounded session
 
-`backend/app/balance_sheets/balance_sheet_crud.py`'s `_fetch_balance_sheet_row_sync`
-builds its own `curl_cffi.requests.Session(impersonate="chrome", timeout=15)`
-and passes it to `yf.Ticker(ticker, session=...)`, rather than letting
-yfinance construct its own default session. Two things forced this, both
-non-obvious from yfinance's own docs:
+`backend/app/balance_sheets/balance_sheet_crud.py` builds a
+`curl_cffi.requests.Session(impersonate="chrome", timeout=15)` and passes it
+to `yf.Ticker(ticker, session=...)` instead of using yfinance's default
+session. Two non-obvious constraints require this:
 
-- **No default timeout.** yfinance has no built-in request timeout at all:
+- **No default timeout.** yfinance has no built-in request timeout:
   a hung/slow Yahoo response would tie up an `asyncio.to_thread` worker
   indefinitely, since this is the one blocking network call in the app run
   off the event loop this way.
-- **Plain `requests`/`urllib3` sessions are rejected outright**, not just
-  unauthenticated. `yfinance/data.py` raises `YFDataException` unless the
+- **Plain `requests`/`urllib3` sessions are rejected outright.**
+  `yfinance/data.py` raises `YFDataException` unless the
   session is specifically a `curl_cffi` session, since Yahoo's API blocks the
   TLS/HTTP fingerprint of a plain Python HTTP client, so yfinance switched to
   `curl_cffi` with Chrome impersonation (`impersonate="chrome"`) to get past
-  that; still true across the 0.2.x -> 1.x line (re-verified against
+  that. This remains true across the 0.2.x to 1.x line, re-verified against
   yfinance 1.5.2). A custom `requests.Session` subclass (the obvious way to
   inject a timeout) fails with `"Yahoo API requires curl_cffi session not
   <class ...>"`, found by

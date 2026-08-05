@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router";
 import { Box, Button, HStack, Input, Stack } from "@chakra-ui/react";
 
 import { PageContainer, DataTable, type DataTableColumn, LoadingState, FormAlert, ConfirmDialog, toaster, IfCan } from "../sdk";
+import { TableActionButton, BRAND_SOLID_HOVER_PROPS, SEARCH_INPUT_PROPS } from "../app_sdk";
 import { APP_PERMISSIONS } from "../access/permissions";
 import { useCompanyQuery } from "./companyQueries";
 import {
@@ -90,9 +91,9 @@ const CompanyDetailPage: React.FC = () => {
             align: "end",
             render: (s) => (
                 <IfCan action={APP_PERMISSIONS.BALANCE_SHEET_DELETE}>
-                    <Button size="xs" variant="outline" colorPalette="red" onClick={() => setDeletingYear(s.year)}>
+                    <TableActionButton colorPalette="red" onClick={() => setDeletingYear(s.year)}>
                         Delete
-                    </Button>
+                    </TableActionButton>
                 </IfCan>
             ),
         },
@@ -105,13 +106,18 @@ const CompanyDetailPage: React.FC = () => {
                 not below it, using the same maxW/centering as PageContainer's own
                 Box so it lines up with the title beneath it. */}
             <Box maxW="container.xl" mx="auto" w="full" mb={2}>
-                <Button size="sm" variant="solid" colorPalette="brand" onClick={() => navigate("/companies")}>
+                <Button
+                    size="sm"
+                    variant="solid"
+                    colorPalette="brand"
+                    onClick={() => navigate("/companies")}
+                    {...BRAND_SOLID_HOVER_PROPS}
+                >
                     ← Back to companies
                 </Button>
             </Box>
 
             <PageContainer title={company.name} description={`Ticker: ${company.ticker}`}>
-                <BalanceSheetChart balanceSheets={balanceSheets ?? []} />
 
                 <IfCan action={APP_PERMISSIONS.BALANCE_SHEET_IMPORT}>
                     <form onSubmit={handleImport}>
@@ -119,16 +125,20 @@ const CompanyDetailPage: React.FC = () => {
                             <Input
                                 placeholder="Fiscal year (e.g. 2024)"
                                 value={importYear}
-                                onChange={(e) => setImportYear(e.target.value)}
-                                type="number"
+                                onChange={(e) => setImportYear(e.target.value.replace(/\D/g, ""))}
+                                type="text"
+                                inputMode="numeric"
                                 w="220px"
+                                {...SEARCH_INPUT_PROPS}
                             />
-                            <Button type="submit" colorPalette="brand" loading={importMutation.isPending}>
+                            <Button type="submit" colorPalette="brand" loading={importMutation.isPending} {...BRAND_SOLID_HOVER_PROPS}>
                                 Import from yfinance
                             </Button>
                         </HStack>
                     </form>
                 </IfCan>
+
+                <BalanceSheetChart balanceSheets={balanceSheets ?? []} />
 
                 <DataTable
                     columns={columns}

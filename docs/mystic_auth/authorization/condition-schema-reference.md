@@ -28,6 +28,8 @@ Ownership check: the resource's `email` field must match the acting user's own e
 **Validation rule:** must be a boolean.
 **Evaluation rule:** denies if no `resource` was supplied at all, since an ownership check with nothing to check ownership against cannot be assumed true.
 
+---
+
 ## `resource_attributes`
 
 Every listed field must equal its expected value on the resource being acted on.
@@ -45,6 +47,8 @@ Every listed field must equal its expected value on the resource being acted on.
 
 > **Modeling a hierarchy (org chart, company group, folder tree) with this flat-equality condition**: see [Common Patterns: scoping access to a hierarchy](common-patterns.md#scoping-access-to-a-hierarchy-org-chart-company-group-folder-tree): the technique is a denormalized ancestor-id column on your own resource table, not a new condition type.
 
+---
+
 ## `context_attributes`
 
 Every listed key must match its expected value in the caller-supplied `context` dict (generic, application-defined signals, e.g. `{"mfa_verified": true}`).
@@ -59,6 +63,8 @@ Every listed key must match its expected value in the caller-supplied `context` 
 
 **Validation rule:** must be a non-empty object.
 **Evaluation rule:** denies if no `context` was supplied.
+
+---
 
 ## `time`
 
@@ -84,6 +90,8 @@ The current wall-clock time (in the given timezone) must fall within `[start, en
 **Evaluation rules:** supports **overnight ranges** where `start > end` (e.g. `"22:00"`-`"06:00"` wraps past midnight). Denies if `start`/`end` are missing or malformed, or the timezone is invalid; it is never silently treated as unconditional.
 **Real-time override for testing/simulation:** if `context["current_time"]` is an ISO 8601 datetime string, it's used instead of the real clock (see `authorization/conditions/clock.py`): this is what lets the `/authorization-check` inspection endpoint answer "what if it were this time?", and what makes this condition deterministically unit-testable.
 
+---
+
 ## `date_range`
 
 The current date (UTC) must fall within `[start, end]`. Used for temporary/contractor access windows and expiring permissions.
@@ -107,6 +115,8 @@ The current date (UTC) must fall within `[start, end]`. Used for temporary/contr
 **Validation rules:** must be an object with at least one of `start`/`end` present; each present bound must parse as an ISO date.
 **Evaluation rules:** denies if *neither* bound is present at all (this can only happen via direct DB manipulation, since the validator blocks it at write time): a `date_range` condition with no recognizable bound must never be treated as unconstrained.
 
+---
+
 ## `network`
 
 The caller's IP (from the real request connection, see [Architecture: Context Builder](architecture.md#authorization-context-builder)) must match one of the listed single IPs or CIDR ranges.
@@ -125,6 +135,8 @@ The caller's IP (from the real request connection, see [Architecture: Context Bu
 
 **Validation rules:** `allowed_ips` must be a non-empty list; every entry must parse as a valid IP address or CIDR network.
 **Evaluation rules:** denies if `allowed_ips` is empty, the context carries no `ip_address` at all, or the caller's IP fails to parse.
+
+---
 
 ## `security_context`
 

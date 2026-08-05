@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { setupAuthInterceptor } from '@/auth/setupAuthInterceptor';
 import { queryClient } from '@/core/queryClient';
 import { useCurrentUserQuery } from '@/auth/current_user/useCurrentUserQuery';
+import { trackSessionRotatingRequest } from '@/auth/sessionRotationGuard';
 
 const mock = new MockAdapter(api);
 
@@ -21,6 +22,7 @@ describe('setupAuthInterceptor', () => {
     useAuthStore.getState().setAuthenticated(true);
     useAuthStore.getState().setProfile({
       name: 'Test User', email: 'test@example.com', role: 'user', permissions: ['documents:view'], has_password: true,
+      created_at: '2026-01-15T00:00:00Z', active_sessions: 1,
     });
   });
 
@@ -89,6 +91,69 @@ describe('setupAuthInterceptor', () => {
     expect(second.status).toBe(200);
     // Two concurrent 401s must share one refresh call, not trigger two.
     expect(refreshCalls).toBe(1);
+  });
+
+  it('waits out an in-flight session-rotating request instead of expiring a request that loses ' +
+    'the race against it (e.g. a query refetch racing the account-settings password change)', async () => {
+    let refreshCalls = 0;
+    mock.onPost('/auth/refresh/').reply(() => {
+      refreshCalls += 1;
+      // First refresh attempt: the old refresh cookie, momentarily stale
+      // because the rotating request's fresh cookies haven't landed yet.
+      // Second attempt (after the rotation settles): the new cookie works.
+      return refreshCalls === 1
+        ? [401, { detail: 'Invalid or revoked refresh token' }]
+        : [200, { message: 'Tokens refreshed successfully' }];
+    });
+
+    let policiesCalls = 0;
+    mock.onGet('/policies/mine').reply(() => {
+      policiesCalls += 1;
+      return policiesCalls === 1 ? [401, { detail: 'Not authenticated' }] : [200, { policies: [] }];
+    });
+
+    // Simulates the password-change mutation: still in flight when the
+    // racing request above hits its first (failed) refresh attempt, and
+    // resolves shortly after.
+    let resolveRotation: () => void = () => {};
+    const rotation = new Promise<void>((resolve) => {
+      resolveRotation = resolve;
+    });
+    trackSessionRotatingRequest(rotation);
+
+    const racingRequest = api.get('/policies/mine');
+    // Let the racing request's first refresh attempt run and fail before the
+    // rotating request settles, to actually exercise the race.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    resolveRotation();
+
+    const res = await racingRequest;
+
+    expect(res.data).toEqual({ policies: [] });
+    expect(refreshCalls).toBe(2);
+    expect(policiesCalls).toBe(2);
+    // Salvaged via the rotation-aware retry : never flagged unauthenticated.
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+
+  it('still expires a session that stays dead after the in-flight rotation settles (a real ' +
+    'logout/deactivation, not just a lost race)', async () => {
+    mock.onPost('/auth/refresh/').reply(401, { detail: 'Invalid or revoked refresh token' });
+    mock.onGet('/policies/mine').reply(401, { detail: 'Not authenticated' });
+
+    let resolveRotation: () => void = () => {};
+    const rotation = new Promise<void>((resolve) => {
+      resolveRotation = resolve;
+    });
+    trackSessionRotatingRequest(rotation);
+
+    const racingRequest = api.get('/policies/mine');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    resolveRotation();
+
+    await expect(racingRequest).rejects.toMatchObject({ response: { status: 401 } });
+
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 
   it('does NOT touch auth state on a 403 : the session is still valid, just missing a permission', async () => {

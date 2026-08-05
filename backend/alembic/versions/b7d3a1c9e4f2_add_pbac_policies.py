@@ -5,7 +5,7 @@ Revises: f2754349a6c7
 Create Date: 2026-07-13 00:00:00.000000
 
 Introduces the real Policy-Based Access Control (PBAC) schema per
-claude.md's target architecture, replacing the role -> permission mapping
+replacing the role -> permission mapping
 that previously lived in application code (authorization/role_permissions.py,
 now removed):
 

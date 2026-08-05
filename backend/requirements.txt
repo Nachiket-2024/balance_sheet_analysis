@@ -13,7 +13,6 @@ SQLAlchemy==2.0.51
 asyncpg==0.31.0
 alembic==1.18.5
 
-pydantic==2.13.4
 python-dotenv==1.2.2
 pydantic-settings==2.14.2
 pydantic[email]==2.13.4
@@ -28,7 +27,7 @@ httpx==0.28.1
 # not a runtime dependency, only pulled in so that one test file stays quiet.
 httpx2==2.9.1
 
-redis==8.0.1
+redis==8.1.0
 
 taskiq[reload]==0.12.4
 taskiq-redis==1.2.3

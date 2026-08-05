@@ -2,6 +2,7 @@
 import pytest
 from backend.mystic_auth.auth.token_logic.token_cookie_handler import token_cookie_handler
 from backend.mystic_auth.auth.token_logic.token_schema import TokenPairResponseSchema
+from backend.mystic_auth.core.settings import settings
 from fastapi.responses import JSONResponse
 
 TOKENS = TokenPairResponseSchema(access_token="access-value", refresh_token="refresh-value")
@@ -43,3 +44,19 @@ def test_both_cookies_keep_secure_flags(cookie_name):
     assert "HttpOnly" in header
     assert "Secure" in header
     assert "samesite=strict" in header.lower()
+
+
+def test_cookie_max_ages_are_derived_from_settings_not_hardcoded():
+    # Regression guard: these used to be hardcoded (3600 / 2592000) instead
+    # of derived from ACCESS_TOKEN_EXPIRE_MINUTES/REFRESH_TOKEN_EXPIRE_MINUTES,
+    # so the cookie's browser-side lifetime could silently diverge from the
+    # JWT's actual expiry (e.g. an operator raising ACCESS_TOKEN_EXPIRE_MINUTES
+    # above 60 would have the cookie deleted before the token itself expired).
+    response = token_cookie_handler.set_tokens_in_cookies(JSONResponse(content={}), TOKENS)
+
+    headers = _set_cookie_headers(response)
+    access_header = next(h for h in headers if h.startswith("access_token="))
+    refresh_header = next(h for h in headers if h.startswith("refresh_token="))
+
+    assert f"Max-Age={settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60}" in access_header
+    assert f"Max-Age={settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60}" in refresh_header

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Cookie, Depends, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth.current_user.current_user_handler import current_user_handler
@@ -6,6 +7,9 @@ from ...auth.login.login_handler import login_handler
 from ...auth.login.login_schema import LoginSchema
 from ...auth.logout.logout_handler import logout_handler
 from ...auth.logout_all.logout_all_handler import logout_all_handler
+from ...auth.manage_sessions.session_list_handler import session_list_handler
+from ...auth.manage_sessions.session_revoke_handler import session_revoke_handler
+from ...auth.manage_sessions.session_schema import SessionRead
 from ...auth.oauth2.oauth2_login_handler import oauth2_login_handler
 from ...auth.password_reset_confirm.password_reset_confirm_handler import password_reset_confirm_handler
 from ...auth.password_reset_confirm.password_reset_confirm_schema import PasswordResetConfirmSchema
@@ -20,6 +24,7 @@ from ...auth.signup.signup_schema import SignupSchema
 from ...auth.verify_account.account_verification_handler import account_verification_handler
 from ...auth.verify_account.verify_account_schema import VerifyAccountRequestSchema, VerifyAccountSchema
 from ...database.connection import database
+from ...user_session.session_events import session_event_stream
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -71,7 +76,39 @@ async def oauth2_callback_google(
 async def get_current_user(
     request: Request, access_token: str = Cookie(None), db: AsyncSession = Depends(database.get_session)
 ):
-    return await current_user_handler.get_current_user(access_token, db=db)
+    return await current_user_handler.get_current_user(access_token, db=db, include_active_sessions=True)
+
+
+@router.get("/session-events")
+async def session_events(
+    request: Request, access_token: str = Cookie(None), db: AsyncSession = Depends(database.get_session)
+):
+    """
+    Server-Sent Events stream: nudges this caller's other open tabs/devices
+    the instant their session is revoked (logout-all, password change, a
+    targeted Manage Sessions revoke, reuse-detection), instead of each one
+    waiting on its next background poll or window-focus refetch to notice.
+    See user_session/session_events.py for what actually gets published/sent.
+
+    Not `@rate_limited`: that decorator is built around short request/
+    response calls within a rolling window, not one connection a client is
+    expected to hold open for its whole session - counting each SSE
+    reconnect as a "request" would make the limit fire on ordinary use, not
+    abuse.
+    """
+    current_user = await current_user_handler.get_current_user(access_token, db=db)
+    return StreamingResponse(
+        session_event_stream(current_user["email"], request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            # Disables response buffering on an nginx-style reverse proxy in
+            # front of this app - otherwise events queue up there instead
+            # of streaming through as they're published.
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/logout")
@@ -86,6 +123,31 @@ async def logout(request: Request, db: AsyncSession = Depends(database.get_sessi
 async def logout_all(request: Request, db: AsyncSession = Depends(database.get_session)):
     refresh_token = request.cookies.get("refresh_token")
     return await logout_all_handler.handle_logout_all(refresh_token, db=db, request=request)
+
+
+@router.get("/sessions", response_model=list[SessionRead])
+@rate_limiter_service.rate_limited("list_sessions")
+async def list_sessions(
+    request: Request,
+    access_token: str = Cookie(None),
+    refresh_token: str = Cookie(None),
+    db: AsyncSession = Depends(database.get_session),
+):
+    return await session_list_handler.list_sessions(access_token, refresh_token, db=db)
+
+
+@router.delete("/sessions/{session_id}")
+@rate_limiter_service.rate_limited("revoke_session")
+async def revoke_session(
+    session_id: int,
+    request: Request,
+    access_token: str = Cookie(None),
+    refresh_token: str = Cookie(None),
+    db: AsyncSession = Depends(database.get_session),
+):
+    return await session_revoke_handler.revoke_session(
+        access_token, refresh_token, session_id, db=db, request=request
+    )
 
 
 @router.post("/password-reset/request")

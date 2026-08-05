@@ -2,6 +2,7 @@ import traceback
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...audit_log.audit_log_service import PASSWORD_RESET_CONFIRMED, log_security_event
 from ...logging.logging_config import get_logger
@@ -20,7 +21,9 @@ class PasswordResetConfirmHandler:
         self.password_reset_service = password_reset_service
         self.login_protection_service = login_protection_service
 
-    async def handle_password_reset_confirm(self, token: str, new_password: str, db, request: Request | None = None):
+    async def handle_password_reset_confirm(
+        self, token: str, new_password: str, db: AsyncSession | None = None, request: Request | None = None
+    ) -> JSONResponse:
         try:
             payload = await self.jwt_service.verify_token(token)
 

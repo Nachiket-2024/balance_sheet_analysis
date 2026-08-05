@@ -3,7 +3,7 @@
 # End-to-end (DB-free) proof that a real request's context : built by
 # build_authorization_context, never client-supplied : actually drives
 # IP-based and time-based policy decisions through the real evaluator.
-# Per claude.md's "Wire Authorization Context Properly": add tests for
+# Per the centralized authorization context design: add tests for
 # IP-based authorization, time-based authorization, and missing-context
 # denial.
 from unittest.mock import MagicMock

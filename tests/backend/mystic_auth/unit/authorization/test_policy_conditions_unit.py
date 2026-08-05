@@ -1,6 +1,6 @@
 # tests/backend/mystic_auth/unit/test_policy_conditions_unit.py
 #
-# Unit coverage for the modular condition framework (claude.md's "Advanced
+# Unit coverage for the modular condition framework (the advanced
 # Policy Conditions"): Authorization Engine -> Condition Evaluation Service
 # -> Condition Handlers. Each handler is tested in isolation (no DB, no
 # evaluator), plus the service's dispatch/AND/fail-safe-on-unknown-key
@@ -10,13 +10,19 @@ from backend.mystic_auth.authorization.conditions.condition_registry import (
     ConditionRegistry,
     default_condition_registry,
 )
-from backend.mystic_auth.authorization.conditions.context_attributes_condition import ContextAttributesCondition
-from backend.mystic_auth.authorization.conditions.date_range_condition import DateRangeCondition
-from backend.mystic_auth.authorization.conditions.network_condition import NetworkCondition
-from backend.mystic_auth.authorization.conditions.resource_attributes_condition import ResourceAttributesCondition
-from backend.mystic_auth.authorization.conditions.security_context_condition import SecurityContextCondition
-from backend.mystic_auth.authorization.conditions.self_only_condition import SelfOnlyCondition
-from backend.mystic_auth.authorization.conditions.time_condition import TimeCondition
+from backend.mystic_auth.authorization.conditions.condition_types.context_attributes_condition import (
+    ContextAttributesCondition,
+)
+from backend.mystic_auth.authorization.conditions.condition_types.date_range_condition import DateRangeCondition
+from backend.mystic_auth.authorization.conditions.condition_types.network_condition import NetworkCondition
+from backend.mystic_auth.authorization.conditions.condition_types.resource_attributes_condition import (
+    ResourceAttributesCondition,
+)
+from backend.mystic_auth.authorization.conditions.condition_types.security_context_condition import (
+    SecurityContextCondition,
+)
+from backend.mystic_auth.authorization.conditions.condition_types.self_only_condition import SelfOnlyCondition
+from backend.mystic_auth.authorization.conditions.condition_types.time_condition import TimeCondition
 
 # ==================================================================
 # SelfOnlyCondition

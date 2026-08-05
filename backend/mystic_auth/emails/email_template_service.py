@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from ..core.settings import settings
 
 # Verification and password-reset emails render the same table-based HTML
@@ -29,16 +31,30 @@ def render_transactional_email(
     """
     support_email = settings.SUPPORT_EMAIL or settings.FROM_EMAIL
 
+    current_year = datetime.now(UTC).year
+
     return f"""\
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Tells clients that respect it (Apple Mail, Outlook.com, newer Gmail) this
+     email is deliberately light-themed, rather than letting them guess and
+     auto-invert colors for a dark-mode inbox - that guesswork is what
+     produces the washed-out/halo look around borders and buttons. -->
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>{heading}</title>
 </head>
 <body style="margin:0; padding:0; background-color:#f4f5f7; font-family:Arial, Helvetica, sans-serif;">
-    <div style="display:none; max-height:0; overflow:hidden; opacity:0;">{preheader}</div>
+    <!-- Inbox preview text: kept in the DOM (never `display:none`, which
+         some clients also strip from the preview they generate) but
+         visually collapsed to nothing, the standard cross-client hidden-
+         preheader pattern. -->
+    <div style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">
+        {preheader}&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;
+    </div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7; padding:24px 0;">
         <tr>
             <td align="center">
@@ -80,7 +96,7 @@ def render_transactional_email(
                     <tr>
                         <td style="background-color:#f4f5f7; padding:20px 32px; border-top:1px solid #e0e0e0;">
                             <p style="font-size:12px; color:#999999; margin:0 0 4px 0;">Need help? Contact us at <a href="mailto:{support_email}" style="color:#666666;">{support_email}</a></p>
-                            <p style="font-size:12px; color:#999999; margin:0;">&copy; {settings.APP_NAME}. This is an automated message.</p>
+                            <p style="font-size:12px; color:#999999; margin:0;">&copy; {current_year} {settings.APP_NAME}. This is an automated message.</p>
                         </td>
                     </tr>
                 </table>

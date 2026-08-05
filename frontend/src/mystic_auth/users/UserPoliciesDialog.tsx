@@ -1,14 +1,18 @@
 import React, { useState } from "react";
-import { Badge, Button, Dialog, HStack, NativeSelect, Portal, Stack, Text, Wrap } from "@chakra-ui/react";
+import { Badge, Box, Button, Dialog, HStack, Portal, Stack, Text, Wrap } from "@chakra-ui/react";
 
 import { useUserPoliciesQuery, usePoliciesQuery } from "../policies/policyQueries";
 import { useAssignPolicyMutation, useRevokePolicyMutation } from "../policies/policyMutations";
-import { toaster } from "../ui/toasterInstance";
+import { toaster } from "../ui/toaster/toasterInstance";
 import LoadingState from "../ui/LoadingState";
 import FormAlert from "../ui/FormAlert";
+import ConfirmDialog from "../ui/ConfirmDialog";
+import StyledSelect from "../ui/StyledSelect";
 import { IfCan } from "../authorization/IfCan";
 import { PERMISSIONS } from "../authorization/permissions";
 import { useAuthStore } from "../store/authStore";
+import { DIALOG_BACKDROP_PROPS, DIALOG_CONTENT_PROPS } from "../ui/styles/dialogStyles";
+import { BRAND_SOLID_HOVER_PROPS, SECONDARY_BUTTON_PROPS } from "../ui/styles/buttonStyles";
 
 interface UserPoliciesDialogProps {
     isOpen: boolean;
@@ -27,6 +31,26 @@ interface UserPoliciesDialogProps {
  */
 const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEmail, onClose }) => {
     const [selectedPolicy, setSelectedPolicy] = useState("");
+    const [revokingPolicy, setRevokingPolicy] = useState<string | null>(null);
+
+    // Reset on every open (same "adjust during render" pattern as
+    // PolicyFormDialog.tsx, not an effect, to avoid an extra render).
+    // Without this, closing the dialog mid-flow - e.g. clicking a policy
+    // into `selectedPolicy` then dismissing via backdrop/Escape without
+    // clicking Assign, or clicking "Revoke" on one user then dismissing
+    // without confirming - leaves that state behind. Reopening for a
+    // DIFFERENT user then either pre-selects a stale policy in the Assign
+    // dropdown, or immediately pops the revoke ConfirmDialog describing
+    // the wrong user with no click needed to summon it.
+    const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+    if (isOpen !== prevIsOpen) {
+        setPrevIsOpen(isOpen);
+        if (isOpen) {
+            setSelectedPolicy("");
+            setRevokingPolicy(null);
+        }
+    }
+
     const currentUserEmail = useAuthStore((s) => s.email);
     // Revoking your OWN policy here has no confirmation and no
     // /auth/me refetch of its own: the Zustand permissions cache (source
@@ -38,7 +62,11 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
     const isSelf = !!userEmail && userEmail === currentUserEmail;
 
     const userPoliciesQuery = useUserPoliciesQuery(userEmail ?? "", isOpen && !!userEmail);
-    const allPoliciesQuery = usePoliciesQuery();
+    // usePoliciesQuery has no enabled guard of its own, and this dialog stays
+    // mounted (just hidden) the whole time UsersPage is open - without gating
+    // it here, every visit to /users fetched the full policies list even if
+    // this dialog was never opened for any user.
+    const allPoliciesQuery = usePoliciesQuery(isOpen);
     const assignMutation = useAssignPolicyMutation();
     const revokeMutation = useRevokePolicyMutation();
 
@@ -61,12 +89,20 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
         );
     };
 
-    const handleRevoke = (policyName: string) => {
+    const handleRevokeConfirm = () => {
+        if (!revokingPolicy) return;
+        const policyName = revokingPolicy;
         revokeMutation.mutate(
             { userEmail, policyName },
             {
-                onSuccess: () => toaster.create({ title: `Revoked "${policyName}"`, type: "success" }),
-                onError: (error) => toaster.create({ title: error.message, type: "error" }),
+                onSuccess: () => {
+                    toaster.create({ title: `Revoked "${policyName}"`, type: "success" });
+                    setRevokingPolicy(null);
+                },
+                onError: (error) => {
+                    toaster.create({ title: error.message, type: "error" });
+                    setRevokingPolicy(null);
+                },
             }
         );
     };
@@ -74,9 +110,9 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
     return (
         <Dialog.Root open={isOpen} onOpenChange={(details) => !details.open && onClose()} size="lg">
             <Portal>
-                <Dialog.Backdrop />
+                <Dialog.Backdrop {...DIALOG_BACKDROP_PROPS} />
                 <Dialog.Positioner>
-                    <Dialog.Content>
+                    <Dialog.Content {...DIALOG_CONTENT_PROPS}>
                         <Dialog.Header>
                             <Dialog.Title>Policies for {userEmail}</Dialog.Title>
                         </Dialog.Header>
@@ -97,7 +133,7 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
                                 ) : (
                                     <Wrap gap={2}>
                                         {(userPoliciesQuery.data?.policies ?? []).map((p) => (
-                                            <Badge key={p.name} colorPalette="brand" variant="subtle" px={2} py={1}>
+                                            <Badge key={p.name} colorPalette="brand" variant="subtle" size="md" px={2} py={1}>
                                                 <HStack gap={2}>
                                                     <Text>{p.name}</Text>
                                                     <IfCan action={PERMISSIONS.POLICIES_REVOKE}>
@@ -105,7 +141,7 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
                                                             size="2xs"
                                                             variant="ghost"
                                                             aria-label={`Revoke ${p.name}`}
-                                                            onClick={() => handleRevoke(p.name)}
+                                                            onClick={() => setRevokingPolicy(p.name)}
                                                             disabled={isSelf}
                                                             title={isSelf ? "You cannot revoke your own policies here" : undefined}
                                                             loading={
@@ -124,27 +160,25 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
 
                                 <IfCan action={PERMISSIONS.POLICIES_ASSIGN}>
                                     <HStack>
-                                        <NativeSelect.Root size="sm" flex={1}>
-                                            <NativeSelect.Field
+                                        <Box flex="1">
+                                            <StyledSelect
+                                                w="full"
                                                 value={selectedPolicy}
-                                                onChange={(e) => setSelectedPolicy(e.target.value)}
-                                                aria-label="Select a policy to assign"
-                                            >
-                                                <option value="">Select a policy to assign...</option>
-                                                {availableToAssign.map((p) => (
-                                                    <option key={p.name} value={p.name}>
-                                                        {p.name}
-                                                    </option>
-                                                ))}
-                                            </NativeSelect.Field>
-                                            <NativeSelect.Indicator />
-                                        </NativeSelect.Root>
+                                                onChange={setSelectedPolicy}
+                                                ariaLabel="Select a policy to assign"
+                                                options={[
+                                                    { value: "", label: "Select a policy to assign..." },
+                                                    ...availableToAssign.map((p) => ({ value: p.name, label: p.name })),
+                                                ]}
+                                            />
+                                        </Box>
                                         <Button
                                             size="sm"
                                             colorPalette="brand"
                                             onClick={handleAssign}
                                             disabled={!selectedPolicy}
                                             loading={assignMutation.isPending}
+                                            {...BRAND_SOLID_HOVER_PROPS}
                                         >
                                             Assign
                                         </Button>
@@ -153,7 +187,7 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
                             </Stack>
                         </Dialog.Body>
                         <Dialog.Footer>
-                            <Button variant="ghost" onClick={onClose}>
+                            <Button onClick={onClose} {...SECONDARY_BUTTON_PROPS}>
                                 Close
                             </Button>
                         </Dialog.Footer>
@@ -161,6 +195,21 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
                     </Dialog.Content>
                 </Dialog.Positioner>
             </Portal>
+
+            {/* Revoking strips access immediately and irreversibly (the user
+                just loses whatever that policy granted, no undo) - every
+                other destructive action in the app (delete/purge a user,
+                delete a policy) already goes through ConfirmDialog, this
+                one-click "✕" button was the odd one out. */}
+            <ConfirmDialog
+                isOpen={!!revokingPolicy}
+                title="Revoke policy"
+                description={`Revoke "${revokingPolicy}" from ${userEmail}? They will immediately lose the permissions it grants.`}
+                confirmLabel="Revoke"
+                isLoading={revokeMutation.isPending}
+                onConfirm={handleRevokeConfirm}
+                onCancel={() => setRevokingPolicy(null)}
+            />
         </Dialog.Root>
     );
 };

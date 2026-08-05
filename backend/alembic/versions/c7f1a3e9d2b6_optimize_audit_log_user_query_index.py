@@ -4,7 +4,7 @@ Revision ID: c7f1a3e9d2b6
 Revises: b4e8f2a9c6d1
 Create Date: 2026-07-13 00:00:00.000000
 
-Per claude.md's Database Optimization task — evidence-based, not
+Evidence-based database optimization, not
 speculative. Analysis performed directly against the Docker PostgreSQL
 container (postgres:15) seeded with ~10k users, ~30k policy assignments,
 and ~220k audit log rows (one user seeded with ~20k rows to model a
@@ -43,7 +43,7 @@ showed Postgres's planner declined to use that composite index even when
 it was present, continuing to prefer the existing created_at-backward-
 scan-and-filter plan — i.e. no demonstrated benefit at that table's
 actual usage pattern. That index was therefore NOT added here, per
-claude.md's "add indexes only with demonstrated need" — see this
+the project rule to add indexes only with demonstrated need. See this
 migration's absence of any policy_history change as the direct evidence
 of that finding, not an oversight.
 """

@@ -47,7 +47,7 @@ def validate_conditions(conditions: dict | None) -> None:
         problem found across the whole block, not just the first.
 
     Called from api/pbac_routes/policy_crud_routes.py's create_policy and update_policy
-    *before* any database write (claude.md: "Must happen before database
+    *before* any database write ("Must happen before database
     writes"): an invalid conditions block must never be persisted. This
     is a write-time complement to ConditionEvaluationService's own
     fail-safe deny-on-unknown-key behavior at *evaluation* time (defense in

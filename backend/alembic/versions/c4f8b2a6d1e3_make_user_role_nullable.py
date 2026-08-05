@@ -4,8 +4,8 @@ Revision ID: c4f8b2a6d1e3
 Revises: b7d3a1c9e4f2
 Create Date: 2026-07-13 00:30:00.000000
 
-Per claude.md's PBAC spec, role must be pure metadata (display/grouping)
-and never an authorization mechanism — and the system "must support ...
+role must be pure metadata (display/grouping)
+and never an authorization mechanism, and the system "must support ...
 users without roles". A NOT NULL role column makes that literally
 impossible: every user is forced to carry a role value even though nothing
 in the authorization path (AuthorizationService / PolicyEvaluationEngine)

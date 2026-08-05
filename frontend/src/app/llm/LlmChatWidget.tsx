@@ -3,6 +3,7 @@ import { Box, Button, Stack, Text, Textarea } from "@chakra-ui/react";
 import { useMutation } from "@tanstack/react-query";
 
 import { Card, FormAlert } from "../sdk";
+import { BRAND_SOLID_HOVER_PROPS, SEARCH_INPUT_PROPS } from "../app_sdk";
 import { chatApi } from "../api/llm_api";
 
 interface LlmChatWidgetProps {
@@ -71,10 +72,18 @@ const LlmChatWidget: React.FC<LlmChatWidgetProps> = ({ companyId }) => {
                     <Textarea
                         value={question}
                         onChange={(e) => setQuestion(e.target.value)}
+                        fontSize="md"
                         placeholder="e.g. How has total debt changed over the last few years?"
                         rows={2}
+                        {...SEARCH_INPUT_PROPS}
                     />
-                    <Button type="submit" colorPalette="brand" alignSelf="flex-end" loading={mutation.isPending}>
+                    <Button
+                        type="submit"
+                        colorPalette="brand"
+                        alignSelf="flex-start"
+                        loading={mutation.isPending}
+                        {...BRAND_SOLID_HOVER_PROPS}
+                    >
                         Ask
                     </Button>
                 </Stack>

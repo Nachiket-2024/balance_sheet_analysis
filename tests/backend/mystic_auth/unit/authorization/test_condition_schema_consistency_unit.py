@@ -2,19 +2,25 @@
 #
 # Cross-checks that condition_validator.py (write-time) and the condition
 # handlers (conditions/*.py, evaluation-time) agree on exactly one JSON
-# shape per condition type : claude.md's "Resolve Policy Condition Schema
+# shape per condition type : policy condition schema
 # Consistency": one documented shape, one validator representation, one
 # evaluator representation, per condition. Each canonical payload below
 # must both pass validation and be understood (evaluate to the intended
 # outcome, not silently ignored) by its handler.
+from backend.mystic_auth.authorization.conditions.condition_types.context_attributes_condition import (
+    ContextAttributesCondition,
+)
+from backend.mystic_auth.authorization.conditions.condition_types.date_range_condition import DateRangeCondition
+from backend.mystic_auth.authorization.conditions.condition_types.network_condition import NetworkCondition
+from backend.mystic_auth.authorization.conditions.condition_types.resource_attributes_condition import (
+    ResourceAttributesCondition,
+)
+from backend.mystic_auth.authorization.conditions.condition_types.security_context_condition import (
+    SecurityContextCondition,
+)
+from backend.mystic_auth.authorization.conditions.condition_types.self_only_condition import SelfOnlyCondition
+from backend.mystic_auth.authorization.conditions.condition_types.time_condition import TimeCondition
 from backend.mystic_auth.authorization.conditions.condition_validator import validate_conditions
-from backend.mystic_auth.authorization.conditions.context_attributes_condition import ContextAttributesCondition
-from backend.mystic_auth.authorization.conditions.date_range_condition import DateRangeCondition
-from backend.mystic_auth.authorization.conditions.network_condition import NetworkCondition
-from backend.mystic_auth.authorization.conditions.resource_attributes_condition import ResourceAttributesCondition
-from backend.mystic_auth.authorization.conditions.security_context_condition import SecurityContextCondition
-from backend.mystic_auth.authorization.conditions.self_only_condition import SelfOnlyCondition
-from backend.mystic_auth.authorization.conditions.time_condition import TimeCondition
 
 
 def test_self_only_canonical_shape_is_accepted_by_both_layers():

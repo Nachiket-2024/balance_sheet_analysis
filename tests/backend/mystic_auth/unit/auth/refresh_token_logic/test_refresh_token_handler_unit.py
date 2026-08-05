@@ -5,7 +5,7 @@
 # annotated it as TokenPairResponseSchema and accessed `.access_token` on
 # it directly : a dict has no such attribute, so every successful refresh
 # raised AttributeError and returned 500 instead of the new tokens. Only
-# caught by a real integration test (test_auth_api_integration.py) since
+# caught by a real integration test (test_refresh_token_integration.py) since
 # every unit test in this suite mocked at the service layer, never
 # exercising the handler's consumption of the service's actual return type.
 from unittest.mock import AsyncMock

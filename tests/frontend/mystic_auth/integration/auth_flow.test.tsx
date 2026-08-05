@@ -11,7 +11,6 @@ import api from '@/api/axiosInstance';
 import { useAuthStore } from '@/store/authStore';
 import LoginForm from '@/auth/login/LoginForm';
 import LogoutButton from '@/auth/logout/LogoutButton';
-import LogoutAllButton from '@/auth/logout_all/LogoutAllButton';
 
 const mock = new MockAdapter(api);
 const initialAuthState = useAuthStore.getState();
@@ -90,25 +89,6 @@ describe('auth flow: login', () => {
     expect(useAuthStore.getState().isAuthenticated).toBeNull();
   });
 
-  it('Clear button resets both the form inputs and the login mutation state', async () => {
-    mock.onPost('/auth/login').reply(401, { error: 'Invalid credentials or account locked' });
-
-    renderWithProviders(<LoginForm />);
-
-    const emailInput = screen.getByPlaceholderText('Email') as HTMLInputElement;
-    const passwordInput = screen.getByPlaceholderText('Password') as HTMLInputElement;
-
-    await userEvent.type(emailInput, 'user@example.com');
-    await userEvent.type(passwordInput, 'wrong-password');
-    await userEvent.click(screen.getByRole('button', { name: 'Login' }));
-    expect(await screen.findByText('Invalid credentials or account locked')).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
-
-    expect(emailInput.value).toBe('');
-    expect(passwordInput.value).toBe('');
-    expect(screen.queryByText('Invalid credentials or account locked')).toBeNull();
-  });
 });
 
 describe('auth flow: logout', () => {
@@ -139,44 +119,6 @@ describe('auth flow: logout', () => {
     renderWithProviders(<LogoutButton />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Logout' }));
-
-    expect(await screen.findByText('No refresh token cookie found')).toBeInTheDocument();
-  });
-});
-
-describe('auth flow: logout all devices', () => {
-  beforeEach(() => {
-    mock.reset();
-    useAuthStore.setState(initialAuthState, true);
-  });
-
-  it('a successful backend logout-all surfaces as success and clears the auth store', async () => {
-    mock.onPost('/auth/logout/all').reply(200, { message: 'Logged out from 3 devices' });
-
-    renderWithProviders(<LogoutAllButton />);
-
-    // Ends every session on every device, so it's confirm-gated : see
-    // LogoutAllButton.tsx.
-    await userEvent.click(screen.getByRole('button', { name: 'Logout All Devices' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Logout all' }));
-
-    await waitFor(() => {
-      expect(mock.history.post.filter((r) => r.url === '/auth/logout/all')).toHaveLength(1);
-    });
-
-    await waitFor(() => {
-      expect(useAuthStore.getState().isAuthenticated).toBe(false);
-    });
-    expect(screen.queryByText('Logout all devices failed')).toBeNull();
-  });
-
-  it('logout-all failure surfaces the error without crashing', async () => {
-    mock.onPost('/auth/logout/all').reply(400, { error: 'No refresh token cookie found' });
-
-    renderWithProviders(<LogoutAllButton />);
-
-    await userEvent.click(screen.getByRole('button', { name: 'Logout All Devices' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Logout all' }));
 
     expect(await screen.findByText('No refresh token cookie found')).toBeInTheDocument();
   });

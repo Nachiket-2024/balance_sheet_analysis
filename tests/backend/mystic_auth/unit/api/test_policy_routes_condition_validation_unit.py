@@ -1,7 +1,7 @@
 # tests/backend/mystic_auth/unit/test_policy_routes_condition_validation_unit.py
 #
 # Proves create_policy/update_policy reject a malformed `conditions` block
-# with 422 *before* touching the repository (claude.md: "Must happen
+# with 422 *before* touching the repository ("Must happen
 # before database writes") : and that a valid conditions block passes
 # through untouched.
 from unittest.mock import AsyncMock, MagicMock

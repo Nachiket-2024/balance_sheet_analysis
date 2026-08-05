@@ -6,6 +6,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.local-prod.example
+!.env.prod.example
 *.venv/
 venv/
 .envrc
@@ -44,6 +46,7 @@ backend/*.pyc
 backend/*.db
 
 # ---------------------------- Frontend ----------------------------
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/build/
@@ -86,7 +89,9 @@ logs/
 # ---------------------------- Database backups ----------------------------
 backups/
 
-# ---------------------------- AI Assistant / Development Tools ----------------------------
+# ---------------------------- Local Development Tools ----------------------------
 .claude/
-AGENTS.md
+# Git matching is case-sensitive on Linux CI, unlike Windows and macOS.
+claude.md
 CLAUDE.md
+AGENTS.md

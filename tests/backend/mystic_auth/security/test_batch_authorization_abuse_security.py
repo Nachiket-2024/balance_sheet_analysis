@@ -1,7 +1,7 @@
 # tests/backend/mystic_auth/security/test_batch_authorization_abuse_security.py
 #
 # Real-DB proof of the Batch Authorization API's abuse resistance
-# (claude.md's "batch authorization abuse"): oversized/empty/malformed
+# (batch authorization abuse): oversized/empty/malformed
 # batches rejected before evaluation, and a denied result never leaks
 # which policy was involved.
 import pytest

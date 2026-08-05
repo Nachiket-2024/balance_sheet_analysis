@@ -1,3 +1,5 @@
+from collections.abc import Awaitable, Callable
+
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,7 +9,7 @@ from ..context.request_context_builder import build_authorization_context
 from ..services.authorization_service import authorization_service
 
 
-def require_authorization(action: str, resource_type: str):
+def require_authorization(action: str, resource_type: str) -> Callable[..., Awaitable[dict]]:
     """
     Returns a FastAPI dependency usable as
     `Depends(require_authorization("users:list_all", "users"))` that

@@ -1,4 +1,4 @@
-# API Reference: This App's Endpoints
+# App API Reference
 
 mystic-auth's own endpoints (`/auth/*`, `/users/*`, `/authorization/*`,
 `/audit/*`, `/health/*`) are documented under
@@ -8,7 +8,7 @@ Everything below is defined in `backend/app/`.
 All endpoints require an authenticated session (the `access_token` cookie
 mystic-auth's login sets) and enforce PBAC per
 [Access Control](access-control/overview.md); a company/balance-sheet/LLM request
-outside the caller's scope returns `403`, not a filtered/empty `200`.
+outside the caller's scope returns `403`, not a filtered or empty `200`.
 
 ## Companies (`backend/app/api/company_routes/company_routes.py`)
 

@@ -3,6 +3,7 @@ import { Flex, Heading, Text, VStack, Button } from "@chakra-ui/react";
 import type { StackProps } from "@chakra-ui/react";
 
 import { reportError } from "../core/errorMonitoring";
+import { BRAND_SOLID_HOVER_PROPS } from "./styles/buttonStyles";
 
 interface ErrorBoundaryProps {
     children: React.ReactNode;
@@ -63,6 +64,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
                         // render crash, so a fresh document load is the only
                         // reliably clean recovery.
                         onClick={() => window.location.assign("/")}
+                        {...BRAND_SOLID_HOVER_PROPS}
                     >
                         Reload
                     </Button>

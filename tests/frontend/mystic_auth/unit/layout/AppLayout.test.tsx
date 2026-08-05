@@ -81,9 +81,9 @@ describe('AppLayout', () => {
   });
 
   it('renders app-supplied extraNavItems in the sidebar alongside the built-in links', () => {
-    renderLayout([{ label: 'Projects', to: '/projects' }]);
+    renderLayout([{ label: 'Extra A', to: '/extra-a' }]);
 
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Extra A' })).toBeInTheDocument();
   });
 });

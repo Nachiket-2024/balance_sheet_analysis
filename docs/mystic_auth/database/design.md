@@ -7,6 +7,7 @@ erDiagram
     users ||--o{ user_policies: "assigned via"
     policies ||--o{ user_policies: "assigned via"
     policies ||--o{ policy_history: "change log for"
+    users ||--o{ user_sessions: "tracked by"
 
     users {
         int id PK
@@ -42,6 +43,16 @@ erDiagram
         int id PK
         string user_email "snapshot, not FK: survives purge"
         string event_type
+    }
+    user_sessions {
+        int id PK
+        int user_id FK
+        string current_jti UK
+        string chain_id "nullable, indexed"
+        string user_agent "nullable"
+        string ip_address "nullable"
+        timestamp expires_at
+        timestamp revoked_at "nullable"
     }
 ```
 
@@ -85,9 +96,17 @@ One row per `authorize()`/`authorize_with_decision()`/`authorize_batch()` call: 
 
 Separate audit vocabulary from the table above: login/logout/signup/OAuth2/password-reset/lockout/refresh-token-reuse events, plus the account lifecycle events (`account_deleted`/`account_purged`/`account_reactivated`, see below). Also `user_email` as a nullable **snapshot string**, not a foreign key, for the identical reason: this table must survive a purge. See `backend/mystic_auth/audit_log/audit_log_model.py`.
 
+### `user_sessions`
+
+One row per login session, backing the "Manage Sessions" dashboard card. `current_jti` tracks whichever refresh-token `jti` currently represents the session (updated in place on each rotation, since refresh tokens are single-use and rotate their `jti` on every `/auth/refresh` call); `chain_id` is that session's stable identity across every rotation (unchanged, unlike `current_jti`) and what a targeted revoke actually bumps in Redis (`jwt_service.bump_chain_version`); `id` stays the stable identifier surfaced to and revoked by the client. `user_id` **is** a real foreign key here (`ON DELETE CASCADE`), unlike the two audit tables above: a session has no meaning once its owning user is gone. Deliberately best-effort and independent of the actual Redis-backed version counters that govern real token validity: this table only mirrors that state for display and for choosing which chain to revoke, so a row here going missing or stale never affects login/refresh correctness. See `backend/mystic_auth/user_session/session_model.py` and [Session Management](../authentication/session-management.md).
+
+---
+
 ## Why two audit tables, not one
 
 `authorization_audit_log` answers "was this specific action on this specific resource allowed, and by which policy": a PBAC evaluation record. `security_audit_log` answers "what happened to this account": a broader identity/session timeline (including things that have no policy evaluation at all, like a failed login attempt against a nonexistent email). They're queried by different audiences for different questions and were kept as two focused tables rather than one table with an ever-growing set of nullable, event-type-specific columns.
+
+---
 
 ## Account lifecycle
 
@@ -105,8 +124,10 @@ Three operations, two permissions, deliberately separate:
 
 Both soft-delete and purge write a security audit event (`account_deleted`/`account_purged`) *before or as part of* the operation. For purge specifically, the audit write happens **before** the row is deleted, since the event itself is what makes the irreversible action reviewable afterward.
 
-The system account (`role=UserRole.system`) is excluded from all three operations via the same target-account guard already used for its other admin-route protections (see `backend/mystic_auth/api/user_routes/user_routes.py`).
+The system account (`role=UserRole.system`) is excluded from all three operations via the same target-account guard already used for its other admin-route protections (see `backend/mystic_auth/api/user_routes/user_management_routes.py`).
+
+---
 
 ## Migrations
 
-Every schema change is an Alembic migration under `backend/alembic/versions/`, applied via the dedicated one-shot `alembic` service (`alembic upgrade head`). In `docker-compose.prod.yml`, `backend`/`taskiq_worker` wait for it to complete before starting (`depends_on: ... condition: service_completed_successfully`); the dev `docker-compose.yml` runs the `alembic` service alongside the others without gating startup on it. Data-only migrations (e.g. granting a new permission to a seeded policy, backfilling a default role) follow the same process as schema migrations; see [../authorization/adding-permissions.md](../authorization/adding-permissions.md) for the exact pattern.
+Every schema change is an Alembic migration under `backend/alembic/versions/`, applied via the dedicated one-shot `alembic` service (`alembic upgrade head`). In the production-style Compose files, `backend` and `taskiq_worker` wait for it to complete before starting (`depends_on: ... condition: service_completed_successfully`); the dev `docker-compose.yml` runs the `alembic` service alongside the others without gating startup on it. Data-only migrations (e.g. granting a new permission to a seeded policy, backfilling a default role) follow the same process as schema migrations; see [../authorization/adding-permissions.md](../authorization/adding-permissions.md) for the exact pattern.

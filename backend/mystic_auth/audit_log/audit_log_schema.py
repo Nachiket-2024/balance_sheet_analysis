@@ -24,3 +24,12 @@ class AuditLogEntryRead(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LoginTrendPoint(BaseModel):
+    """One day's worth of login attempts, backing the Audit Log page's
+    login trend chart (audit_log_repository.get_login_trend)."""
+
+    date: str
+    success: int
+    failure: int

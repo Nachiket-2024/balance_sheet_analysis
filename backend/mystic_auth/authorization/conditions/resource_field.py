@@ -1,4 +1,7 @@
-def get_field(obj: dict | object, field: str):
+from typing import Any
+
+
+def get_field(obj: dict | object, field: str) -> Any:
     """
     Reads `field` from a resource, which callers may represent either as a
     plain dict (e.g. ORM-independent test data) or as an attribute-bearing

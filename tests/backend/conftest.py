@@ -4,7 +4,7 @@
 # tests/backend/ (integration/, security/, performance/): an actual
 # PostgreSQL and actual Redis (via `docker compose up -d postgres redis`,
 # migrated with `docker compose run --rm alembic`), not mocks. See
-# claude.md's Testing sections: security-critical flows must be verified
+# the backend testing policy. Security-critical flows must be verified
 # against real DB/Redis state, since mocking either one hides exactly the
 # kind of bug (e.g. a Redis type mismatch, or a missing session-revocation
 # call) these tests exist to catch.
@@ -45,10 +45,21 @@ def _read_env_value(key: str) -> str | None:
     return None
 
 
+# docker-compose.yml deliberately maps these services to non-default host
+# ports (5433, 6380), not their in-container ports (5432, 6379), to avoid
+# colliding with a developer's own local Postgres/Redis. A plain hostname
+# swap (postgres -> localhost) alone would keep the in-container port and
+# connect to whatever else happens to be listening on the real default port
+# on the host, silently wrong instead of failing loudly.
+_LOCAL_POSTGRES_PORT = "5433"
+_LOCAL_REDIS_PORT = "6380"
+
 if "DATABASE_URL" not in os.environ:
     _docker_db_url = _read_env_value("DATABASE_URL")
     if _docker_db_url:
-        os.environ["DATABASE_URL"] = _docker_db_url.replace("@postgres:", "@localhost:")
+        os.environ["DATABASE_URL"] = re.sub(
+            r"@postgres:\d+", f"@localhost:{_LOCAL_POSTGRES_PORT}", _docker_db_url
+        )
 
 if "REDIS_URL" not in os.environ:
     _docker_redis_url = _read_env_value("REDIS_URL")
@@ -56,7 +67,7 @@ if "REDIS_URL" not in os.environ:
         # Use a dedicated logical Redis DB (15) for these test runs so they
         # never collide with whatever a developer has cached in db 0.
         os.environ["REDIS_URL"] = re.sub(
-            r"redis://redis:(\d+)/\d+", r"redis://localhost:\1/15", _docker_redis_url
+            r"redis://redis:\d+/\d+", f"redis://localhost:{_LOCAL_REDIS_PORT}/15", _docker_redis_url
         )
 
 # ---------------------------- Imports (after env overrides above) ----------------------------

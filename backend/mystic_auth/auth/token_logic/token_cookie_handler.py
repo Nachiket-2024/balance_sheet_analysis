@@ -1,5 +1,6 @@
 from fastapi import Response
 
+from ...core.settings import settings
 from .token_schema import TokenPairResponseSchema
 
 
@@ -23,13 +24,20 @@ class TokenCookieHandler:
         access_token = tokens.access_token
         refresh_token = tokens.refresh_token
 
+        # Derived from settings (not hardcoded) so the cookie's browser-side
+        # lifetime can never drift from the JWT's own actual expiry: a
+        # hardcoded value here that outlives the token just wastes a
+        # refresh round-trip on an already-rejected cookie, but one that's
+        # SHORTER than a JWT expiry an operator configures would delete the
+        # cookie and silently log a user out before their token was even
+        # expired.
         response.set_cookie(
             key="access_token",
             value=access_token,
             httponly=True,
             secure=True,
             samesite="strict",
-            max_age=3600
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         )
 
         response.set_cookie(
@@ -38,7 +46,7 @@ class TokenCookieHandler:
             httponly=True,
             secure=True,
             samesite="strict",
-            max_age=2592000,
+            max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60,
             path="/auth"
         )
 

@@ -1,131 +1,17 @@
 # tests/backend/mystic_auth/unit/test_jti_revocation_unit.py
 from unittest.mock import AsyncMock
 
-import jwt as pyjwt
 import pytest
 from backend.mystic_auth.auth.token_logic.jwt_service import jwt_service
-from backend.mystic_auth.core.settings import settings
 
 MODULE = "backend.mystic_auth.auth.token_logic.jwt_service"
 
 
-def _decode(token: str) -> dict:
-    return pyjwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-
-
-# ---------------------------- Registry keys off jti, never the raw token ----------------------------
-
-@pytest.mark.asyncio
-async def test_create_refresh_token_registers_jti_not_raw_token(mocker):
-    hset_mock = mocker.patch(f"{MODULE}.redis_client.hset", new_callable=AsyncMock)
-
-    token = await jwt_service.create_refresh_token(email="user@example.com")
-    payload = _decode(token)
-
-    hset_mock.assert_awaited_once()
-    args, _ = hset_mock.call_args
-    assert args[0] == "refresh_token_registry:user@example.com"
-    assert args[1] == payload["jti"]
-    # The raw token string must never be handed to Redis as the tracked value
-    assert args[1] != token
-    assert int(args[2]) == payload["exp"]
-
-
-@pytest.mark.asyncio
-async def test_get_all_refresh_tokens_for_user_returns_jti_registry(mocker):
-    mocker.patch(
-        f"{MODULE}.redis_client.hgetall",
-        new_callable=AsyncMock,
-        return_value={"jti-1": "1234567890"},
-    )
-
-    registry = await jwt_service.get_all_refresh_tokens_for_user("user@example.com")
-
-    assert registry == {"jti-1": "1234567890"}
-
-
-@pytest.mark.asyncio
-async def test_get_all_refresh_tokens_for_user_empty(mocker):
-    mocker.patch(f"{MODULE}.redis_client.hgetall", new_callable=AsyncMock, return_value={})
-
-    assert await jwt_service.get_all_refresh_tokens_for_user("user@example.com") == {}
-
-
-# ---------------------------- revoke_token / revoke_token_by_jti ----------------------------
-
-@pytest.mark.asyncio
-async def test_revoke_token_blacklists_by_jti_and_clears_registry_entry(mocker):
-    set_mock = mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock)
-    hdel_mock = mocker.patch(f"{MODULE}.redis_client.hdel", new_callable=AsyncMock)
-
-    token = await jwt_service.create_access_token(email="user@example.com")
-    payload = _decode(token)
-
-    result = await jwt_service.revoke_token(token, email="user@example.com")
-
-    assert result is True
-    set_mock.assert_awaited_once()
-    args, kwargs = set_mock.call_args
-    assert args[0] == f"revoked:{payload['jti']}"
-    assert kwargs["ex"] >= 1
-    # The blacklist key must be the jti, never the raw token itself
-    assert token not in args[0]
-    hdel_mock.assert_awaited_once_with("refresh_token_registry:user@example.com", payload["jti"])
-
-
-@pytest.mark.asyncio
-async def test_revoke_token_without_email_skips_registry_cleanup(mocker):
-    mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock)
-    hdel_mock = mocker.patch(f"{MODULE}.redis_client.hdel", new_callable=AsyncMock)
-
-    token = await jwt_service.create_access_token(email="user@example.com")
-    result = await jwt_service.revoke_token(token)
-
-    assert result is True
-    hdel_mock.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_revoke_token_by_jti_uses_minimum_ttl_of_one_for_already_expired_tokens(mocker):
-    set_mock = mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock)
-    mocker.patch(f"{MODULE}.redis_client.hdel", new_callable=AsyncMock)
-
-    # exp far in the past would otherwise compute a negative TTL, which Redis rejects
-    result = await jwt_service.revoke_token_by_jti("some-jti", exp=0, email="user@example.com")
-
-    assert result is True
-    _, kwargs = set_mock.call_args
-    assert kwargs["ex"] == 1
-
-
-@pytest.mark.asyncio
-async def test_revoke_token_without_jti_fails_gracefully(mocker):
-    set_mock = mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock)
-
-    legacy_token = pyjwt.encode(
-        {"email": "user@example.com", "exp": 9999999999}, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-    )
-
-    result = await jwt_service.revoke_token(legacy_token, email="user@example.com")
-
-    assert result is False
-    set_mock.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_revoke_token_rejects_garbage_token_via_decode_payload(mocker):
-    # revoke_token delegates decoding to decode_payload rather than a second,
-    # separately-maintained jwt.decode call: an undecodable token must fail
-    # the same way decode_payload does, not raise.
-    set_mock = mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock)
-
-    result = await jwt_service.revoke_token("not-a-real-token", email="user@example.com")
-
-    assert result is False
-    set_mock.assert_not_called()
-
-
-# ---------------------------- is_token_revoked / is_token_revoked_by_jti ----------------------------
+# ---------------------------- is_token_revoked_by_jti ----------------------------
+# Backs claim_jti_for_rotation's single-use guarantee: verify_token checks
+# this for every token, but in practice only refresh-token jtis ever get an
+# entry here now (via claim_jti_for_rotation) - access tokens are governed
+# purely by version, not by jti.
 
 @pytest.mark.asyncio
 async def test_is_token_revoked_by_jti_checks_redis_key(mocker):
@@ -138,36 +24,78 @@ async def test_is_token_revoked_by_jti_checks_redis_key(mocker):
 @pytest.mark.asyncio
 async def test_is_token_revoked_by_jti_missing_jti_is_not_revoked():
     # Tokens with no jti (e.g. password reset tokens) were never eligible for
-    # this revocation mechanism, so they must not be treated as revoked.
+    # this check.
     assert await jwt_service.is_token_revoked_by_jti(None) is False
 
 
-@pytest.mark.asyncio
-async def test_is_token_revoked_decodes_token_to_find_jti(mocker):
-    mocker.patch(f"{MODULE}.redis_client.hset", new_callable=AsyncMock)
-    exists_mock = mocker.patch(f"{MODULE}.redis_client.exists", new_callable=AsyncMock, return_value=1)
-
-    token = await jwt_service.create_refresh_token(email="user@example.com")
-    payload = _decode(token)
-
-    assert await jwt_service.is_token_revoked(token) is True
-    exists_mock.assert_awaited_once_with(f"revoked:{payload['jti']}")
-
+# ---------------------------- claim_jti_for_rotation (atomic check-and-claim) ----------------------------
+#
+# Regression guard for the refresh-token concurrent double-spend race: two
+# requests presenting the same still-valid refresh token must not both be
+# able to rotate it. claim_jti_for_rotation uses a single atomic Redis
+# SET...NX so only one caller can ever win the claim for a given jti. This
+# is a narrower problem than "is this session still authorized" (the
+# account_ver/chain_ver checks in verify_token) and not solved by it - see
+# jwt_service.py's own module docstring.
 
 @pytest.mark.asyncio
-async def test_is_token_revoked_returns_false_for_garbage_token():
-    assert await jwt_service.is_token_revoked("not-a-real-jwt") is False
+async def test_claim_jti_for_rotation_succeeds_for_an_unclaimed_jti(mocker):
+    set_mock = mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock, return_value=True)
 
+    claimed = await jwt_service.claim_jti_for_rotation("jti-1", 9999999999, "user@example.com")
 
-# ---------------------------- End-to-end: verify_token honors jti revocation ----------------------------
+    assert claimed is True
+    set_mock.assert_awaited_once()
+    args, kwargs = set_mock.call_args
+    assert args[0] == "revoked:jti-1"
+    assert kwargs.get("nx") is True
+
 
 @pytest.mark.asyncio
-async def test_verify_token_rejects_when_jti_is_revoked(mocker):
-    mocker.patch(f"{MODULE}.redis_client.hset", new_callable=AsyncMock)
-    token = await jwt_service.create_refresh_token(email="user@example.com")
-    payload = _decode(token)
+async def test_claim_jti_for_rotation_fails_for_an_already_claimed_jti(mocker):
+    # Redis SET...NX returns None/False when the key already exists, this is
+    # exactly what happens when two concurrent requests race on the same jti:
+    # only the first SET succeeds, the second observes it already set.
+    mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock, return_value=None)
 
-    # Simulate only this jti being blacklisted in Redis
+    claimed = await jwt_service.claim_jti_for_rotation("jti-1", 9999999999, "user@example.com")
+
+    assert claimed is False
+
+
+@pytest.mark.asyncio
+async def test_claim_jti_for_rotation_uses_minimum_ttl_of_one_for_already_expired_tokens(mocker):
+    set_mock = mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock, return_value=True)
+
+    # exp far in the past would otherwise compute a negative TTL, which Redis rejects
+    await jwt_service.claim_jti_for_rotation("jti-1", exp=0, email="user@example.com")
+
+    _, kwargs = set_mock.call_args
+    assert kwargs["ex"] == 1
+
+
+@pytest.mark.asyncio
+async def test_claim_jti_for_rotation_works_without_an_email(mocker):
+    set_mock = mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock, return_value=True)
+
+    claimed = await jwt_service.claim_jti_for_rotation("jti-1", 9999999999, None)
+
+    assert claimed is True
+    set_mock.assert_awaited_once()
+
+
+# ---------------------------- End-to-end: verify_token honors the single-use claim ----------------------------
+
+@pytest.mark.asyncio
+async def test_verify_token_rejects_when_jti_is_already_claimed(mocker):
+    mocker.patch(f"{MODULE}.redis_client.get", new_callable=AsyncMock, return_value=None)
+    token = await jwt_service.create_refresh_token(email="user@example.com", chain_id="chain-1")
+
+    import jwt as pyjwt
+    from backend.mystic_auth.core.settings import settings
+    payload = pyjwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+
+    # Simulate only this jti being claimed in Redis
     async def fake_exists(key):
         return 1 if key == f"revoked:{payload['jti']}" else 0
 
@@ -177,81 +105,89 @@ async def test_verify_token_rejects_when_jti_is_revoked(mocker):
 
 
 # ---------------------------- refresh_token_service.revoke_all_tokens_for_user ----------------------------
+# The whole-account revoke: one Redis INCR (jwt_service.bump_account_version),
+# no per-token iteration - see refresh_token_service.py's own docstring for
+# why this replaced the old per-jti-registry loop entirely.
 
 @pytest.mark.asyncio
-async def test_revoke_all_tokens_for_user_revokes_each_jti_in_registry(mocker):
+async def test_revoke_all_tokens_for_user_bumps_the_account_version(mocker):
     from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import refresh_token_service
 
-    mocker.patch(
-        f"{MODULE}.redis_client.hgetall",
+    bump_mock = mocker.patch(
+        "backend.mystic_auth.auth.refresh_token_logic.refresh_token_service.jwt_service.bump_account_version",
         new_callable=AsyncMock,
-        return_value={"jti-1": "1111111111", "jti-2": "2222222222"},
     )
-    set_mock = mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock)
-    hdel_mock = mocker.patch(f"{MODULE}.redis_client.hdel", new_callable=AsyncMock)
+    mocker.patch(
+        "backend.mystic_auth.auth.refresh_token_logic.refresh_token_service.session_service.count_active_sessions",
+        new_callable=AsyncMock,
+        return_value=2,
+    )
+    mocker.patch(
+        "backend.mystic_auth.auth.refresh_token_logic.refresh_token_service.session_service.revoke_all_sessions",
+        new_callable=AsyncMock,
+    )
+    publish_mock = mocker.patch(
+        "backend.mystic_auth.user_session.session_events.redis_client.publish", new_callable=AsyncMock
+    )
 
-    revoked_count = await refresh_token_service.revoke_all_tokens_for_user("user@example.com")
+    revoked_count = await refresh_token_service.revoke_all_tokens_for_user("user@example.com", db=None)
 
+    bump_mock.assert_awaited_once_with("user@example.com")
+    # Returned purely for the caller's own audit/UX purposes (e.g. logout-
+    # all's "Logged out from N devices"), from the Postgres mirror's count
+    # taken right before the bump - not something the revoke itself needs.
     assert revoked_count == 2
-    assert set_mock.await_count == 2
-    assert hdel_mock.await_count == 2
-    hdel_mock.assert_any_call("refresh_token_registry:user@example.com", "jti-1")
-    hdel_mock.assert_any_call("refresh_token_registry:user@example.com", "jti-2")
+    # Every other open tab/device on the account gets a real-time nudge to
+    # re-check itself, not just wait for its next background poll.
+    publish_mock.assert_awaited_once_with("session_events:user@example.com", mocker.ANY)
 
 
 @pytest.mark.asyncio
-async def test_revoke_all_tokens_for_user_empty_registry_returns_zero(mocker):
+async def test_revoke_all_tokens_for_user_returns_zero_without_a_db(mocker):
+    """count_active_sessions needs the Postgres mirror; without `db` (a
+    test-only convenience, matching every other best-effort session
+    method) there's nothing to count from, so the returned count is just 0
+    - the actual revoke (the version bump) still happens regardless."""
     from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import refresh_token_service
 
-    mocker.patch(f"{MODULE}.redis_client.hgetall", new_callable=AsyncMock, return_value={})
+    bump_mock = mocker.patch(
+        "backend.mystic_auth.auth.refresh_token_logic.refresh_token_service.jwt_service.bump_account_version",
+        new_callable=AsyncMock,
+    )
+    mocker.patch(
+        "backend.mystic_auth.auth.refresh_token_logic.refresh_token_service.session_service.revoke_all_sessions",
+        new_callable=AsyncMock,
+    )
+    mocker.patch("backend.mystic_auth.user_session.session_events.redis_client.publish", new_callable=AsyncMock)
 
-    assert await refresh_token_service.revoke_all_tokens_for_user("user@example.com") == 0
+    revoked_count = await refresh_token_service.revoke_all_tokens_for_user("user@example.com", db=None)
+
+    assert revoked_count == 0
+    bump_mock.assert_awaited_once()
 
 
-# ---------------------------- claim_jti_for_rotation (atomic check-and-revoke) ----------------------------
-#
-# Regression guard for the refresh-token concurrent double-spend race: two
-# requests presenting the same still-valid refresh token must not both be
-# able to rotate it. claim_jti_for_rotation uses a single atomic Redis
-# SET...NX so only one caller can ever win the claim for a given jti.
-
-@pytest.mark.asyncio
-async def test_claim_jti_for_rotation_succeeds_for_an_unclaimed_jti(mocker):
-    set_mock = mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock, return_value=True)
-    hdel_mock = mocker.patch(f"{MODULE}.redis_client.hdel", new_callable=AsyncMock)
-
-    claimed = await jwt_service.claim_jti_for_rotation("jti-1", 9999999999, "user@example.com")
-
-    assert claimed is True
-    set_mock.assert_awaited_once()
-    args, kwargs = set_mock.call_args
-    assert args[0] == "revoked:jti-1"
-    assert kwargs.get("nx") is True
-    hdel_mock.assert_awaited_once_with("refresh_token_registry:user@example.com", "jti-1")
-
+# ---------------------------- refresh_token_service.revoke_chain_for_user ----------------------------
+# The single-session revoke: one Redis INCR scoped to a chain_id, never
+# touching any other session on the account.
 
 @pytest.mark.asyncio
-async def test_claim_jti_for_rotation_fails_for_an_already_claimed_jti(mocker):
-    # Redis SET...NX returns None/False when the key already exists, this is
-    # exactly what happens when two concurrent requests race on the same jti:
-    # only the first SET succeeds, the second observes it already set.
-    mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock, return_value=None)
-    hdel_mock = mocker.patch(f"{MODULE}.redis_client.hdel", new_callable=AsyncMock)
+async def test_revoke_chain_for_user_bumps_only_that_chain(mocker):
+    from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import refresh_token_service
 
-    claimed = await jwt_service.claim_jti_for_rotation("jti-1", 9999999999, "user@example.com")
+    bump_mock = mocker.patch(
+        "backend.mystic_auth.auth.refresh_token_logic.refresh_token_service.jwt_service.bump_chain_version",
+        new_callable=AsyncMock,
+    )
+    revoke_chain_mock = mocker.patch(
+        "backend.mystic_auth.auth.refresh_token_logic.refresh_token_service.session_service.revoke_chain",
+        new_callable=AsyncMock,
+    )
+    publish_mock = mocker.patch(
+        "backend.mystic_auth.user_session.session_events.redis_client.publish", new_callable=AsyncMock
+    )
 
-    assert claimed is False
-    # No registry cleanup for a claim that didn't win; the winning caller's
-    # claim already did that.
-    hdel_mock.assert_not_called()
+    await refresh_token_service.revoke_chain_for_user("user@example.com", "chain-A", db=None)
 
-
-@pytest.mark.asyncio
-async def test_claim_jti_for_rotation_skips_registry_cleanup_without_email(mocker):
-    mocker.patch(f"{MODULE}.redis_client.set", new_callable=AsyncMock, return_value=True)
-    hdel_mock = mocker.patch(f"{MODULE}.redis_client.hdel", new_callable=AsyncMock)
-
-    claimed = await jwt_service.claim_jti_for_rotation("jti-1", 9999999999, None)
-
-    assert claimed is True
-    hdel_mock.assert_not_called()
+    bump_mock.assert_awaited_once_with("user@example.com", "chain-A")
+    revoke_chain_mock.assert_awaited_once_with(None, "chain-A")
+    publish_mock.assert_awaited_once_with("session_events:user@example.com", mocker.ANY)

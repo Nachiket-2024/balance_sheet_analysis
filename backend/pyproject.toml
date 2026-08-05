@@ -1,18 +1,15 @@
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py314"
 
 [tool.ruff.lint]
-# Deliberately not "ALL": rules picked for correctness and real bug classes
-# (unused imports/vars, bugbear footguns, unsorted imports) rather than
-# stylistic-only categories (EXE shebang requirements, docstring rules,
-# etc.) that would produce churn with no behavioral payoff on a codebase
-# that predates this config.
+# Rules focus on correctness and real bug classes. Style-only rule families
+# are avoided to prevent churn in an existing codebase.
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
 ignore = [
-    "E501",   # line length is enforced by line-length above, not E501 (which double-counts noqa-able edge cases)
-    "B008",   # FastAPI's Depends(...) as a default arg is the framework's own idiom, not a real footgun
-    "UP042",  # str+Enum (not StrEnum) is deliberate here for broader compatibility; not a bug
+    "E501",   # line-length above is the source of truth.
+    "B008",   # FastAPI uses Depends(...) as a default argument by design.
+    "UP042",  # str+Enum is kept for broader compatibility.
 ]
 
 [tool.ruff.lint.isort]
@@ -26,10 +23,9 @@ known-first-party = ["app", "mystic_auth"]
 "mystic_auth/scripts/create_rbac_policies.py" = ["ASYNC250"]
 
 [tool.mypy]
-python_version = "3.11"
-# sqlalchemy.ext.mypy.plugin: needed alongside pydantic's for accurate
-# ORM-attribute types (declarative Mapped[]/mapped_column() models) and for
-# recognizing DeclarativeBase-generated __init__ signatures.
+python_version = "3.14"
+# SQLAlchemy's plugin keeps ORM attributes and generated model constructors
+# visible to mypy.
 plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
 ignore_missing_imports = true
 warn_unused_ignores = true

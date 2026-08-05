@@ -96,7 +96,7 @@ async def test_login_or_create_user_rejects_reserved_system_account(mocker):
     # controls a Google account matching the (operator-chosen, potentially
     # real/Google-verifiable) email of the reserved system superuser could
     # sign in as it, entirely bypassing its password. Mirrors the identical
-    # role == UserRole.system guard in user_routes.py's update/delete/
+    # role == UserRole.system guard in user_management_routes.py's update/delete/
     # role-change endpoints.
     system_user = _FakeUser()
     system_user.role = UserRole.system

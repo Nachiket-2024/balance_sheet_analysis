@@ -19,6 +19,7 @@ RESOURCE_LLM = "llm"
 # Company actions
 COMPANY_READ = "company:read"
 COMPANY_CREATE = "company:create"
+COMPANY_UPDATE = "company:update"
 COMPANY_DELETE = "company:delete"
 
 # Balance sheet actions: read is granted to both analysts and

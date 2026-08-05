@@ -4,7 +4,7 @@ Revision ID: e2b6c8a4f1d5
 Revises: d9a1e5c7f3b8
 Create Date: 2026-07-15 00:00:00.000000
 
-Per claude.md's Remaining PBAC Work item #1: the single coarse
+the single coarse
 "policies:manage" action is replaced with fine-grained actions
 (policies:read/create/update/delete/assign/revoke) so a caller could, in
 future, be granted e.g. only policies:read (to inspect/audit) without also

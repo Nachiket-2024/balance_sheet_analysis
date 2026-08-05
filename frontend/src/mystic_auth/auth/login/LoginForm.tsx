@@ -28,12 +28,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
         loginMutation.mutate({ email, password });
     };
 
-    const handleClear = () => {
-        loginMutation.reset();
-        setEmail("");
-        setPassword("");
-    };
-
     return (
         <Stack
             as="form"
@@ -41,13 +35,22 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
             w="full"
             gap={4}
         >
+            {/* bg.canvas (not bg.surface, which matches this form's own Card
+                background) so fields read as recessed into the card instead
+                of just a thin outline floating on an identical fill;
+                colorPalette="brand" gives the focus ring the app's teal
+                instead of Chakra's default gray one. */}
             <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
                 autoComplete="email"
+                bg="bg.canvas"
+                colorPalette="brand"
                 required
+                aria-invalid={loginMutation.isError}
+                aria-describedby={loginMutation.isError ? "login-error" : undefined}
             />
 
             <Input
@@ -56,9 +59,17 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
                 autoComplete="current-password"
+                bg="bg.canvas"
+                colorPalette="brand"
                 required
+                aria-invalid={loginMutation.isError}
+                aria-describedby={loginMutation.isError ? "login-error" : undefined}
             />
 
+            {/* Solid variant's default hover is only colorPalette.solid at 90%
+                opacity - too subtle a shift to read as a hover state.
+                brand.700 (one step past brand.600's solid) gives a real,
+                visible contrast bump instead. */}
             <Button
                 type="submit"
                 colorPalette="brand"
@@ -68,31 +79,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
                 w="full"
                 loading={loginMutation.isPending}
                 loadingText="Logging in..."
+                _hover={{ bg: "brand.700" }}
             >
                 Login
-            </Button>
-
-            {/* Deliberately soft/secondary so it never competes visually with
-                Login. Uses this app's own border/fg tokens explicitly rather
-                than Chakra's built-in gray colorPalette defaults for the
-                outline variant, which in dark mode rendered a border nearly
-                indistinguishable from the card background (border.default's
-                dark value is a deliberately visible step up from
-                bg.surface's dark value, see theme/system.ts). */}
-            <Button
-                type="button"
-                variant="outline"
-                borderColor="border.default"
-                color="fg.muted"
-                _hover={{ bg: "bg.canvas", borderColor: "fg.muted" }}
-                h="10"
-                px={4}
-                fontSize="md"
-                w="full"
-                onClick={handleClear}
-                disabled={loginMutation.isPending}
-            >
-                Clear
             </Button>
 
             <Text
@@ -112,7 +101,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
             </Text>
 
             {loginMutation.isError && (
-                <FormAlert status="error">
+                <FormAlert status="error" id="login-error">
                     {loginMutation.error.message}
                 </FormAlert>
             )}

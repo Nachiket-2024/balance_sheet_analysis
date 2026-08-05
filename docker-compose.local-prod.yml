@@ -1,0 +1,372 @@
+# ---------------------------- Production Compose ----------------------------
+# Run with: docker compose -f docker-compose.local-prod.yml up -d --build
+#
+# Differences from docker-compose.yml (dev):
+#   - No bind mounts. Images are self-contained, code is not shared from host
+#   - No backend or taskiq_worker reload process
+#   - frontend builds docker/frontend.Dockerfile's `production` target
+#     (nginx serving the static Vite build) instead of the Vite dev server
+#   - restart: unless-stopped on long-running services so they recover from
+#     crashes/host reboots without manual intervention
+#   - deploy.resources.limits on every service so a leak/runaway process in
+#     one container can't starve the host or its siblings. `docker compose`
+#     (Compose V2, not Swarm) enforces these directly via the container
+#     runtime. Values are conservative starting points. Tune them against real traffic.
+#
+# Public entrypoint is cloudflared. It opens an outbound tunnel to Cloudflare's
+# edge, where TLS terminates, then routes traffic to frontend:80 on the Docker
+# network. Internet traffic does not need host port forwarding.
+#
+# Default below is a Quick Tunnel: no Cloudflare account or domain needed.
+# Assigns a random https://<words>.trycloudflare.com URL on every container
+# start, which changes on every restart.
+#
+# For a stable URL that survives restarts, switch to a named tunnel using a
+# token from Cloudflare Zero Trust: swap the command below for
+# `tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}`. Requires TUNNEL_TOKEN
+# in .env; see the "Cloudflare Tunnel Config" block in .env.local-prod.example
+# for how to create one and point its public hostname at http://frontend:80.
+#
+# frontend and backend still publish host ports below for local debugging only.
+services:
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    # Quick Tunnel: no Cloudflare account/domain needed. Assigns a random
+    # https://<words>.trycloudflare.com URL on every container start/restart.
+    # Swap for `tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}` once a
+    # domain is added to a Cloudflare account (see file header comment).
+    command: tunnel --no-autoupdate --url http://frontend:80
+    depends_on:
+      frontend:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # See docker-compose.yml's identical mount. It creates the separate
+      # "bugsink" database the Bugsink service below uses, once against a
+      # fresh volume.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    # See docker-compose.yml for the REDIS_PASSWORD rationale. In production
+    # this should always be set.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-}"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"${REDIS_PASSWORD:-}\" --no-auth-warning ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    # Wait up to ~10s for bugsink-seed to write backend SENTRY_DSN, only
+    # when Bugsink is configured. This DSN is container-to-container
+    # (bugsink:8000), so it is not tied to the public Bugsink URL.
+    command: |
+      sh -c "if [ -n \"$$BUGSINK_SUPERUSER_EMAIL\" ]; then
+        for i in $$(seq 1 20); do
+          [ -f /shared/bugsink-dsn/backend.env ] && . /shared/bugsink-dsn/backend.env && break
+          sleep 0.5
+        done
+      fi
+      exec uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully   # Don't serve traffic on a schema the migration hasn't applied yet
+      seed-base-policies:
+        condition: service_completed_successfully   # Don't serve traffic before the ready-to-assign role policies exist
+    volumes:
+      # Read-only: only bugsink-seed writes here (see that service below).
+      - bugsink_dsn:/shared/bugsink-dsn:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      # See docker-compose.yml's identical healthcheck for why this budget
+      # is 10 retries / 30s start_period rather than a tighter 5/10s.
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  frontend:
+    # Explicit, prod-specific tag. See docker-compose.yml's frontend
+    # service for why (avoids clobbering the dev image).
+    image: mystic-auth-frontend:prod
+    # Same reasoning as docker-compose.yml's frontend service: this tag is
+    # never published anywhere, so without this, Compose attempts (and
+    # always fails) a pull of it before falling back to building, on every
+    # single run.
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      target: production                            # nginx + static build, not the Vite dev server
+      # VITE_* vars are baked into the static bundle at build time, so they
+      # must come from the root .env as build args. VITE_SENTRY_DSN must be
+      # the public Bugsink URL, which bugsink-seed cannot infer. Set it
+      # manually once that public route exists.
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_APP_NAME: ${VITE_APP_NAME}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN}
+        VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT}
+    # Stable address used by TRUSTED_PROXY_IPS. nginx.frontend.conf proxies
+    # API prefixes to the backend, so browser API traffic reaches the backend
+    # from this container.
+    networks:
+      default:
+        ipv4_address: 172.28.0.10
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  taskiq_worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    command: sh -c "taskiq worker mystic_auth.taskiq_tasks.email_tasks:broker"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully
+    # Override the backend image healthcheck. This container serves no HTTP,
+    # so check for the taskiq process directly via /proc.
+    healthcheck:
+      test: ["CMD-SHELL", "for p in /proc/[0-9]*/cmdline; do grep -aq taskiq \"$$p\" 2>/dev/null && exit 0; done; exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  # One-shot migration runner. No restart policy because restarting it
+  # would just re-apply an already-applied migration in a loop.
+  alembic:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    env_file:
+      - ./.env
+    command: alembic upgrade head
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # One-shot: creates this app's own baseline RBAC-shaped policies, then
+  # exits. See docker-compose.yml's identical service / app/seed/seed_base_policies.py
+  # for the full explanation. Idempotent by name : safe to re-run on every deploy.
+  seed-base-policies:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    env_file:
+      - ./.env
+    command: python -m app.seed.seed_base_policies
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      alembic:
+        condition: service_completed_successfully
+
+  # Self-hosted error monitoring. See docker-compose.yml's identical
+  # service for the full explanation. Starts by default in production too:
+  #   docker compose -f docker-compose.local-prod.yml up -d --build
+  bugsink:
+    image: bugsink/bugsink:2
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      SECRET_KEY: ${BUGSINK_SECRET_KEY}
+      CREATE_SUPERUSER: ${BUGSINK_SUPERUSER_EMAIL}:${BUGSINK_SUPERUSER_PASSWORD}
+      PORT: "8000"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/bugsink
+      # Unlike dev, this file assumes a reverse proxy/TLS terminator in
+      # front (see header comment above).
+      BEHIND_HTTPS_PROXY: "true"
+      BASE_URL: ${BUGSINK_BASE_URL}
+    # Bound to localhost only. cloudflared tunnels the frontend, not Bugsink,
+    # and the error-monitoring dashboard should not be internet-facing.
+    # Access it via http://localhost:8010, or an SSH tunnel on a real host.
+    ports:
+      - "127.0.0.1:8010:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Same command shape as dev. It must stay a YAML list because `monofy`,
+    # not a shell, interprets && and |||. The 60s timeout gives Gunicorn more
+    # room under CPU limits.
+    command:
+      - monofy
+      - bugsink-show-version
+      - "&&"
+      - bugsink-manage
+      - check
+      - --deploy
+      - --fail-level
+      - WARNING
+      - "&&"
+      - bugsink-manage
+      - migrate
+      - snappea
+      - --database=snappea
+      - "&&"
+      - bugsink-manage
+      - migrate
+      - "&&"
+      - bugsink-manage
+      - prestart
+      - "&&"
+      - gunicorn
+      - --config
+      - gunicorn.docker.conf.py
+      - --timeout
+      - "60"
+      - --bind=0.0.0.0:$$PORT
+      - --access-logfile
+      - "-"
+      - bugsink.wsgi
+      - "|||"
+      - bugsink-runsnappea
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import requests; requests.get('http://localhost:8000/health/ready').raise_for_status()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  # One-shot, idempotent Bugsink project seeder. No restart policy.
+  bugsink-seed:
+    image: bugsink/bugsink:2
+    # Root only for this one-shot container: the default non-root "bugsink"
+    # user can't write into a fresh named volume (Docker creates those
+    # root-owned by default), needed to write the DSN files below.
+    user: root
+    env_file:
+      - ./.env
+    environment:
+      SECRET_KEY: ${BUGSINK_SECRET_KEY}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/bugsink
+      BASE_URL: ${BUGSINK_BASE_URL}
+    depends_on:
+      bugsink:
+        condition: service_healthy
+    volumes:
+      - bugsink_dsn:/shared/bugsink-dsn
+    command: |
+      sh -c "bugsink-manage shell -c \"
+      import os
+      from django.contrib.auth import get_user_model
+      from teams.models import Team, TeamMembership, TeamRole
+      from projects.models import Project
+
+      User = get_user_model()
+      user = User.objects.get(username=os.environ['BUGSINK_SUPERUSER_EMAIL'])
+
+      team, _ = Team.objects.get_or_create(name='MysticAuth')
+      TeamMembership.objects.get_or_create(team=team, user=user, defaults={'role': TeamRole.ADMIN, 'accepted': True})
+      project, _ = Project.objects.get_or_create(team=team, name='MysticAuth')
+
+      key = project.sentry_key.hex
+      os.makedirs('/shared/bugsink-dsn', exist_ok=True)
+      with open('/shared/bugsink-dsn/backend.env', 'w') as f:
+          f.write('export SENTRY_DSN=http://' + key + '@bugsink:8000/' + str(project.id) + chr(10))
+      print('Seeded Bugsink project ' + str(project.id) + ', key ' + key)
+      \""
+
+volumes:
+  postgres_data:
+  # Shared between bugsink-seed (writer) and backend (reader). The production
+  # frontend does not read it because VITE_SENTRY_DSN is a build arg.
+  bugsink_dsn:
+
+networks:
+  # Gives the implicit default network a known subnet so frontend can pin the
+  # TRUSTED_PROXY_IPS address. Other services need no explicit networks key.
+  default:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

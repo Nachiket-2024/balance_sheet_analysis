@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from ...audit_log.audit_log_service import POLICY_ASSIGNED, POLICY_REVOKED, log_security_event
 
 # Authentication-only dependency (no permission required) : used by
 # /users/me/policies, where a user inspects their own assignments regardless
@@ -7,12 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...auth.current_user.current_user_dependency import get_current_user
 from ...authorization.policies.default_policies import SYSTEM_SUPERUSER_POLICY_NAME
 from ...authorization.repositories.policy_repository import policy_repository
-from ...authorization.schemas.policy_schema import PolicyAssignmentRequest, UserPoliciesRead
+from ...authorization.schemas.policy_schema import PolicyAssignmentRequest, PolicyRead, UserPoliciesRead
 from ...authorization.services.authorization_service import authorization_service
 from ...database.connection import database
 from ...user_crud.user_crud_collector import user_crud
-from ..route_helpers import get_or_404
-from .policy_shared import ASSIGN_DEPENDENCY, READ_DEPENDENCY, REVOKE_DEPENDENCY
+from ..get_or_404 import get_or_404
+from .policy_permissions import ASSIGN_DEPENDENCY, READ_DEPENDENCY, REVOKE_DEPENDENCY
 
 router = APIRouter(prefix="/authorization", tags=["Authorization"])
 
@@ -21,6 +23,7 @@ router = APIRouter(prefix="/authorization", tags=["Authorization"])
 async def assign_policy_to_user(
     user_email: str,
     assignment: PolicyAssignmentRequest,
+    request: Request,
     current_user: dict = ASSIGN_DEPENDENCY,
     db: AsyncSession = Depends(database.get_session),
 ):
@@ -49,6 +52,22 @@ async def assign_policy_to_user(
         user_id=user.id, policy_id=policy.id, db=db, assigned_by=current_user["email"],
         user_email=user.email,
     )
+
+    # This is the actual mechanism by which an account gains capability
+    # (see this function's own docstring) - including, potentially,
+    # system_superuser itself - so an unrecorded grant here is a real gap
+    # in the security audit trail, not just a nice-to-have. user_email is
+    # the RECEIVING user (consistent with every other audit entry here
+    # being keyed on whose account was affected); the granting admin is
+    # in metadata, mirroring delete_any_user's assigned_by/deleted_by shape.
+    await log_security_event(
+        POLICY_ASSIGNED,
+        db,
+        user_email=user.email,
+        success=True,
+        request=request,
+        metadata={"assigned_by": current_user["email"], "policy_name": policy.name},
+    )
     return {"detail": f"Policy '{assignment.policy_name}' assigned to {user_email}"}
 
 
@@ -56,6 +75,7 @@ async def assign_policy_to_user(
 async def remove_policy_from_user(
     user_email: str,
     policy_name: str,
+    request: Request,
     current_user: dict = REVOKE_DEPENDENCY,
     db: AsyncSession = Depends(database.get_session),
 ):
@@ -83,6 +103,15 @@ async def remove_policy_from_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"{user_email} does not hold policy '{policy_name}'",
         )
+
+    await log_security_event(
+        POLICY_REVOKED,
+        db,
+        user_email=user.email,
+        success=True,
+        request=request,
+        metadata={"revoked_by": current_user["email"], "policy_name": policy_name},
+    )
     return {"detail": f"Policy '{policy_name}' removed from {user_email}"}
 
 
@@ -105,7 +134,12 @@ async def list_my_policies(
     scoped to the caller.
     """
     policies = await policy_repository.get_policies_for_user(current_user["email"], db)
-    return UserPoliciesRead(user_email=current_user["email"], policies=policies)
+    # Explicit ORM -> schema conversion (unlike the response_model=... routes
+    # in policy_crud_routes.py, which get this for free from FastAPI's own
+    # serialization step) since UserPoliciesRead is constructed directly here.
+    return UserPoliciesRead(
+        user_email=current_user["email"], policies=[PolicyRead.model_validate(p) for p in policies]
+    )
 
 
 @router.get("/users/{user_email}/policies", response_model=UserPoliciesRead)
@@ -119,4 +153,4 @@ async def list_user_policies(
     await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
 
     policies = await policy_repository.get_policies_for_user(user_email, db)
-    return UserPoliciesRead(user_email=user_email, policies=policies)
+    return UserPoliciesRead(user_email=user_email, policies=[PolicyRead.model_validate(p) for p in policies])

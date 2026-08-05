@@ -37,7 +37,12 @@ class AccountVerificationService:
             email_body = render_transactional_email(
                 preheader="Verify your email address to activate your account.",
                 heading="Verify Your Email Address",
-                accent_color="#3498db",
+                # brand.600 - the exact teal every solid colorPalette="brand"
+                # button in the app itself renders as (frontend/src/mystic_auth/
+                # theme/system.ts), not an unrelated generic blue: this is the
+                # first branded touchpoint a lot of users see before ever
+                # reaching the app, so it should already look like it.
+                accent_color="#2c7a7b",
                 intro="Thanks for signing up. Please confirm this is your email address by clicking the button below.",
                 cta_label="Verify Email Address",
                 cta_url=verify_url,

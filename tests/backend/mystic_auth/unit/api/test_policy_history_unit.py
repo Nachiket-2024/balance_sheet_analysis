@@ -1,6 +1,6 @@
 # tests/backend/mystic_auth/unit/test_policy_history_unit.py
 #
-# Unit coverage for policy versioning and rollback (claude.md's "Policy
+# Unit coverage for policy versioning and rollback (the policy
 # History": immutable history, version comparison, rollback support).
 # PolicyRepository's create/update/delete are exercised with the
 # policy_history_repository mocked out (DB boundary); the route-level

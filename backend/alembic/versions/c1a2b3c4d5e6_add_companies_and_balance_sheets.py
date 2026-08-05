@@ -1,7 +1,7 @@
 """add companies and balance_sheets tables
 
 Revision ID: c1a2b3c4d5e6
-Revises: b2c3d4e5f6a7
+Revises: d6e7f8a9b0c1
 Create Date: 2026-07-25 00:00:00.000000
 
 Introduces this app's own domain schema (backend/app/, not
@@ -31,7 +31,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'c1a2b3c4d5e6'
-down_revision: str | Sequence[str] | None = 'b2c3d4e5f6a7'
+down_revision: str | Sequence[str] | None = 'd6e7f8a9b0c1'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

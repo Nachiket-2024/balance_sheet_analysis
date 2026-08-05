@@ -1,0 +1,21 @@
+# Caddy auto-provisions and renews a Let's Encrypt certificate for whatever
+# domain is in the site address below, purely from PUBLIC_DOMAIN pointing at
+# this host's IP in DNS: no manual certbot/ACME setup. Requires a real
+# domain (not "localhost" or a bare IP) reachable on 80/443 from the internet.
+{$PUBLIC_DOMAIN} {
+	tls {$ACME_EMAIL}
+
+	# frontend's nginx already same-origin-proxies /auth, /audit, /users,
+	# /authorization, /health to the backend (docker/nginx.frontend.conf),
+	# so Caddy only ever needs to know about one upstream.
+	reverse_proxy frontend:80
+}
+
+# Optional: uncomment and set BUGSINK_PUBLIC_DOMAIN in .env to expose the
+# Bugsink UI and give the frontend's VITE_SENTRY_DSN a real public route for
+# browser-side error reports. Leave commented if Bugsink stays internal-only
+# (the backend already reaches it over the Docker network either way).
+#
+# {$BUGSINK_PUBLIC_DOMAIN} {
+# 	reverse_proxy bugsink:8000
+# }

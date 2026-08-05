@@ -1,6 +1,6 @@
 # tests/backend/mystic_auth/unit/test_authorization_decision_unit.py
 #
-# Focused coverage for claude.md's Authorization Decision Explainability
+# Focused coverage for authorization decision explainability
 # named test list: allowed-because-matched, denied-because-no-match,
 # denied-because-condition-failed, denied-because-invalid-context,
 # multiple-policies-one-grants-one-fails, plus the security requirement
@@ -112,7 +112,7 @@ def test_multiple_policies_one_grants_and_one_fails():
 
 @pytest.mark.asyncio
 async def test_require_raises_a_generic_error_never_leaking_policy_details(mocker):
-    """claude.md: 'Never expose sensitive policy details to unauthorized
+    """'Never expose sensitive policy details to unauthorized
     users. User-facing errors should remain generic.' require() must
     surface only a generic 403, regardless of how much detail
     AuthorizationDecision carries internally."""

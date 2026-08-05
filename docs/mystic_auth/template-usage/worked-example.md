@@ -32,6 +32,8 @@ async def list_all_projects(
 
 `resource_type`/`action` don't need to be `Permission` enum values; any string works, granted via a policy (see [Writing and Testing Policies](../authorization/writing-testing-policies.md#policy-creation-workflow)). Only add a `Permission` enum member if the action is sensitive enough to need the privilege-escalation guard (see [Adding New Permissions](../authorization/adding-permissions.md)).
 
+---
+
 ## 2. Mount it
 
 ```python
@@ -40,6 +42,8 @@ from .projects.project_routes import router as projects_router
 # ...
 app.include_router(projects_router)
 ```
+
+---
 
 ## 3. Add the migration
 
@@ -50,9 +54,13 @@ alembic -c backend/alembic.ini upgrade head
 
 See [Database Design: migrations](../database/design.md#migrations). No `create_all()`, ever.
 
+---
+
 ## 4. Grant access via a policy, not a role
 
 Nothing above grants anyone access by itself. `require_authorization` only checks whether the caller holds an active policy covering `("projects:read", "projects")`. Create one (via `/policies` in the UI, or the `POST /authorization/policies/` API) and assign it to whichever users/roles should see this data. See [Policy JSON Examples](../authorization/policy-examples.md) if you want a template to start from.
+
+---
 
 ## 5. Frontend: page, route, nav link
 

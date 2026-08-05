@@ -10,9 +10,7 @@ on:
   pull_request:
     branches: [main]
 
-# Least-privilege default: none of these jobs need write access, they only
-# check out code and run tests/builds. Explicit here rather than relying on
-# the repo/org's default GITHUB_TOKEN permissions.
+# None of these jobs need write access.
 permissions:
   contents: read
 
@@ -41,7 +39,7 @@ jobs:
           --health-retries 5
 
       redis:
-        # Same ECR Public mirror reasoning as postgres above.
+        # Same ECR Public mirror reasoning as postgres.
         image: public.ecr.aws/docker/library/redis:7
         ports:
           - 6379:6379
@@ -52,9 +50,8 @@ jobs:
           --health-retries 5
 
     env:
-      # Test-only values, never real secrets. Settings requires every one
-      # of these to be set, so CI provides them directly as environment
-      # variables instead of using a checked-in .env file.
+      # Test-only values, never real secrets. CI provides them directly because
+      # there is no checked-in .env file.
       BACKEND_BASE_URL: http://localhost:8000
       FRONTEND_BASE_URL: http://localhost:5173
 
@@ -97,7 +94,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.14.6"
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
@@ -125,8 +122,7 @@ jobs:
         working-directory: backend
         run: alembic upgrade head
 
-      # Regression guard: fails if a model's columns/indexes drift from what
-      # the migrations actually create.
+      # Fails if model columns or indexes drift from checked-in migrations.
       - name: Verify models match migrations (alembic check)
         working-directory: backend
         run: alembic check
@@ -136,18 +132,15 @@ jobs:
       - name: Run backend unit tests
         run: python -m pytest tests/backend/app tests/backend/mystic_auth/unit -q
 
-      # --cov-append accumulates onto the unit run's coverage data, so the
-      # threshold below gates cumulative unit+integration+security coverage.
+      # --cov-append makes the final gate cumulative across backend suites.
       - name: Run backend integration tests
         run: python -m pytest tests/backend/mystic_auth/integration -q --cov-append
 
-      # Coverage is currently ~89% (see docs/mystic_auth/testing/overview.md); the gate
-      # is a regression alarm a few points below that, not a strict target.
+      # Regression gate. See docs/mystic_auth/testing/overview.md for coverage state.
       - name: Run backend security tests
         run: python -m pytest tests/backend/mystic_auth/security -q --cov-append --cov-fail-under=85
 
-      # Non-blocking: asserts generous regression-alarm thresholds against a
-      # real Postgres/Redis, so timing can be noisy on shared runners.
+      # Non-blocking because timing can be noisy on shared runners.
       - name: Run backend performance tests (non-blocking)
         continue-on-error: true
         run: python -m pytest tests/backend/mystic_auth/performance -q
@@ -185,8 +178,7 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
-      # test:coverage (not plain test) so vitest.config.ts's coverage
-      # thresholds are actually evaluated.
+      # test:coverage evaluates vitest.config.ts coverage thresholds.
       - name: Run tests (with coverage threshold gate)
         working-directory: frontend
         run: npm run test:coverage
@@ -231,13 +223,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Validates both compose files still parse and reference existing
+      # Validates every compose file still parses and references existing
       # service dependencies. Uses .env.example only to satisfy each file's
       # `env_file: ./.env` directive, no real secrets involved.
       - name: Validate docker-compose configs
         run: |
           cp .env.example .env
           docker compose -f docker-compose.yml config > /dev/null
+          docker compose -f docker-compose.local-prod.yml config > /dev/null
           docker compose -f docker-compose.prod.yml config > /dev/null
           rm .env
 

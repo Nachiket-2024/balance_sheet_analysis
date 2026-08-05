@@ -6,7 +6,7 @@ Create Date: 2026-07-13 00:00:00.000000
 
 Adds the persistent audit trail for security-sensitive auth events (login,
 logout, signup, OAuth2 login, password reset, account verification, account
-lockout, refresh-token reuse detection) — per claude.md Phase 8's audit
+lockout, refresh-token reuse detection), per security audit
 logging requirement. Mirrors authorization_audit_log's design: no foreign
 keys to users (user_email is a snapshot, not a reference, so the trail
 survives account deletion), append-only, written best-effort by

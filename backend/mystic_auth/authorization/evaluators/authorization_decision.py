@@ -5,8 +5,7 @@ from dataclasses import dataclass, field
 class AuthorizationDecision:
     """
     The full explanation behind one authorization decision, produced by
-    PolicyEvaluationEngine.evaluate_detailed, per claude.md's Authorization
-    Decision Explainability architecture:
+    PolicyEvaluationEngine.evaluate_detailed:
 
         AuthorizationService -> PolicyEvaluationEngine -> AuthorizationDecision
 

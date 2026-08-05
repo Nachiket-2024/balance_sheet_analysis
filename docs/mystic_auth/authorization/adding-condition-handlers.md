@@ -6,7 +6,7 @@ The condition framework is modular by design:
 flowchart TD
     Engine["Authorization Engine<br/><small>policy_evaluator.py</small>"]
     Service["Condition Evaluation Service<br/><small>condition_evaluation_service.py</small>"]
-    Handlers["Condition Handlers<br/><small>conditions/*.py</small>"]
+    Handlers["Condition Handlers<br/><small>conditions/condition_types/*.py</small>"]
 
     Engine --> Service --> Handlers
 ```
@@ -15,10 +15,10 @@ Adding a new condition type **never** requires touching `PolicyEvaluationEngine`
 
 ## 1. Create the handler class
 
-New file, `backend/mystic_auth/authorization/conditions/device_trust_condition.py` (example: a hypothetical new condition):
+Add a new file beside the other condition implementations, for example `backend/mystic_auth/authorization/conditions/condition_types/device_trust_condition.py`. Do not put condition-specific logic in `condition_registry.py`, `condition_validator.py`, or `condition_evaluation_service.py`; those files are the framework the handlers plug into.
 
 ```python
-from .condition_handler import ConditionHandler
+from ..condition_handler import ConditionHandler
 
 
 class DeviceTrustCondition(ConditionHandler):
@@ -48,17 +48,21 @@ class DeviceTrustCondition(ConditionHandler):
 - **Fail safe.** Malformed condition config, missing required resource/context, or any internal error must result in `False` (deny): wrap risky logic in `try/except`, never let an exception escape past this boundary, and never let an ambiguous case default to `True`.
 - Read only what you need from `resource`/`context`: don't reach into the database or make network calls. The engine calls this synchronously and expects it to be cheap.
 
+---
+
 ## 2. Register it with the registry
 
 Edit `backend/mystic_auth/authorization/conditions/condition_registry.py`:
 
 ```python
-from .device_trust_condition import DeviceTrustCondition
+from .condition_types.device_trust_condition import DeviceTrustCondition
 
 default_condition_registry.register("device_trust", DeviceTrustCondition())
 ```
 
 This is the **only** place a new condition type needs to be wired in for evaluation to work. `ConditionEvaluationService` looks handlers up by key from this registry: it has no other knowledge of what condition types exist.
+
+---
 
 ## 3. Add validation
 
@@ -76,6 +80,8 @@ _VALIDATORS["device_trust"] = _validate_device_trust
 ```
 
 Also add `"device_trust"` to `_SUPPORTED_KEYS` in the same file: an unrecognized key is rejected outright, so forgetting this step means every policy using your new condition gets a 422 at creation time.
+
+---
 
 ## 4. Test the new condition handler
 
@@ -105,6 +111,8 @@ def test_device_trust_rejects_invalid_min_level():
 **Add a schema-consistency test** (see `tests/backend/mystic_auth/unit/authorization/test_condition_schema_consistency_unit.py`) proving the validator and the handler agree on the exact same JSON shape: this is what caught the `date_range` `start`/`end` naming as the one true canonical shape during this project's own condition-schema audit.
 
 **Optionally, a real-DB integration/security test** (see `tests/backend/mystic_auth/security/test_context_spoofing_security.py` for the pattern) proving the condition is enforced end-to-end through a real route, not just the handler in isolation.
+
+---
 
 ## What you should never need to change
 

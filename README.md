@@ -57,58 +57,57 @@ A company group (e.g. Reliance Industries, with verticals like Jio Platforms and
 ## Screenshots
 
 ### Dashboard
-Regular account, holding one of this app's own baseline policies (`role_company_manager` here). Renders mystic-auth's own dashboard, unchanged.
 
-![Dashboard](screenshots/dashboard.png)
+![Dashboard](screenshots/app/dashboard.png)
 
 ---
 
 ### Dashboard (System Superuser)
 The reserved system account, the only one that can reach the Users/Policies admin pages below.
 
-![Dashboard for the reserved system superuser account](screenshots/dashboard_system_superuser.png)
+![Dashboard for the reserved system superuser account](screenshots/app/dashboard_system_superuser.png)
 
 ---
 
 ### Companies
 Every company the signed-in account's policies grant, scoped server-side, not filtered client-side. See [Access Control](docs/app/access-control/README.md).
 
-![Companies list](screenshots/companies.png)
+![Companies list](screenshots/app/companies.png)
 
 ---
 
 ### Company Detail
-Fiscal-year trend chart (Recharts) for one company, plus the balance-sheet table and yfinance import control below it.
+Yfinance import control and fiscal-year trend chart (Recharts) for one company.
 
-![Company detail with assets/liabilities/equity trend chart](screenshots/company_detail_chart.png)
+![Company detail with assets/liabilities/equity trend chart](screenshots/app/company_detail_chart.png)
 
 ---
 
-### Balance Sheet Table (Dark Mode)
-Every fiscal year on file, with per-row delete and the yfinance import form above it.
+### Balance Sheet Table
+Every fiscal year on file, with per-row delete.
 
-![Balance sheet table in dark mode](screenshots/company_detail_dark_mode.png)
+![Balance sheet table](screenshots/app/company_detail.png)
 
 ---
 
 ### LLM Chat
 Grounded in the actual imported balance-sheet figures for that company, not a general-purpose chatbot. See [Features](docs/app/features.md).
 
-![LLM chat answering a question grounded in real balance-sheet data](screenshots/llm_chat.png)
+![LLM chat answering a question grounded in real balance-sheet data](screenshots/app/llm_chat.png)
 
 ---
 
 ### Users
-mystic-auth's own admin page, unmodified.
+mystic-auth's own users page, unmodified.
 
-![Users admin page listing accounts, roles, and status](screenshots/users.png)
+![Users page listing accounts, roles, and status](screenshots/app/users.png)
 
 ---
 
 ### Policies
 This app's two ready-to-assign baseline policies, `role_company_viewer`/`role_company_manager`, sit alongside mystic-auth's own `self_service`/`user_administration`/`system_superuser` rows. See [Baseline Policies](docs/app/access-control/baseline-policies.md).
 
-![Policies admin page listing baseline and app-seeded policies](screenshots/policies.png)
+![Policies admin page listing baseline and app-seeded policies](screenshots/app/policies.png)
 
 ---
 
@@ -135,7 +134,7 @@ This app's two ready-to-assign baseline policies, `role_company_viewer`/`role_co
 - **Authorization:** Policy-Based Access Control (PBAC), mystic-auth's engine, this app's own company-scoped policies on top
 - **Caching & background tasks:** Redis + Taskiq (async email delivery for signup/password-reset, mystic-auth, unchanged)
 - **Error monitoring:** Self-hosted Bugsink, enabled by default alongside everything else
-- **Deployment:** Docker (`docker-compose.yml` for dev, `docker-compose.prod.yml` for production)
+- **Deployment:** Docker (`docker-compose.yml` for dev, `docker-compose.prod.yml`/`docker-compose.local-prod.yml` for production; see [Deployment Guide](docs/mystic_auth/deployment/guide.md) for the difference)
 
 ---
 
@@ -197,17 +196,17 @@ Use the helper script for your shell (see [`docs/app/scripts.md`](docs/app/scrip
 
 ```bash
 # Git Bash, WSL, Linux, macOS
-./scripts/dev-up.sh
+./scripts/docker/dev-up.sh
 ```
 
 ```powershell
 # PowerShell
-.\scripts\dev-up.ps1
+.\scripts\docker\dev-up.ps1
 ```
 
 ```bat
 rem Command Prompt
-scripts\dev-up.cmd
+scripts\docker\dev-up.cmd
 ```
 
 Starts the full stack and waits for every service to actually report healthy, not just "created", then settles into tailing only `backend`/`frontend`/`taskiq_worker` logs (their startup lines, API calls, the frontend dev server, async email-task execution) instead of every service's full startup noise. Postgres/Redis/Bugsink/Alembic startup output stays out of the way; they've already done their job by the time the tail starts. Backend exceptions still go to Bugsink ([http://localhost:8010](http://localhost:8010)), not this terminal. See [Docker Overview](docs/mystic_auth/docker/overview.md#day-to-day-dev-up-helpers) for the full rationale.
@@ -340,7 +339,7 @@ CI (`.github/workflows/ci.yml`, inherited from mystic-auth) already lints, type-
 
 - [`docs/app/`](docs/app/README.md): this project's own docs, architecture, access-control model, API reference, setup
 - [`docs/mystic_auth/`](docs/mystic_auth/README.md): the template's own docs, authentication, PBAC, database, Docker, CI/CD, testing, deployment
-- [`docs/mystic_auth/template-usage/overview.md`](docs/mystic_auth/template-usage/overview.md): how this repo can pull in future mystic-auth updates via `scripts/sync-upstream.sh`
+- [`docs/mystic_auth/template-usage/overview.md`](docs/mystic_auth/template-usage/overview.md): how this repo can pull in future mystic-auth updates via `scripts/upstream-sync/sync-upstream.sh`
 
 For the underlying authentication/authorization system itself, how login, OAuth2, JWT/cookie handling, and Policy-Based Access Control actually work, see [mystic-auth](https://github.com/Nachiket-2024/mystic-auth) and its own documentation.
 

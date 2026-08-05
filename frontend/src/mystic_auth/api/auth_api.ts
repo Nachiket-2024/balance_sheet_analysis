@@ -1,5 +1,14 @@
 import api from "./axiosInstance";
 
+export interface SessionRead {
+    id: number;
+    ip_address: string | null;
+    user_agent: string | null;
+    created_at: string;
+    last_used_at: string;
+    is_current: boolean;
+}
+
 export const signupApi = (payload: { name: string; email: string; password: string }) =>
     api.post("/auth/signup", payload);
 
@@ -24,6 +33,12 @@ export const logoutApi = () =>
 
 export const logoutAllApi = () =>
     api.post("/auth/logout/all");
+
+export const getMySessionsApi = () =>
+    api.get<SessionRead[]>("/auth/sessions");
+
+export const revokeSessionApi = (sessionId: number) =>
+    api.delete(`/auth/sessions/${sessionId}`);
 
 export const passwordResetRequestApi = (payload: { email: string }) =>
     api.post("/auth/password-reset/request", payload);

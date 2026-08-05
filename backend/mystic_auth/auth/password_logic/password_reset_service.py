@@ -40,7 +40,14 @@ class PasswordResetService:
             email_body = render_transactional_email(
                 preheader="Reset your password to regain access to your account.",
                 heading="Reset Your Password",
-                accent_color="#e53e3e",
+                # brand.600 (see account_verification_service.py's identical
+                # comment), not red: an alarming red CTA on a password-reset
+                # email is a classic phishing-email pattern, the opposite of
+                # what a legitimate one should look like, and every other
+                # transactional email in the app already uses this same
+                # brand color - no reason for this one to look like a
+                # different product.
+                accent_color="#2c7a7b",
                 intro="A password reset was requested for your account. Click the button below to create a new password.",
                 cta_label="Reset Your Password",
                 cta_url=reset_url,
@@ -143,7 +150,7 @@ class PasswordResetService:
             # A password reset is frequently done specifically because the
             # account may be compromised, so any session an attacker already
             # holds must not survive it.
-            await refresh_token_service.revoke_all_tokens_for_user(email)
+            await refresh_token_service.revoke_all_tokens_for_user(email, db)
 
             logger.info("Password reset successful for email: %s", email)
             return True

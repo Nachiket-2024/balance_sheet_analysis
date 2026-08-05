@@ -5,7 +5,7 @@ Revises: c4f8b2a6d1e3
 Create Date: 2026-07-14 00:00:00.000000
 
 Adds the persistent audit trail for authorization decisions per
-claude.md's Remaining PBAC Work item #1 ("Authorization decisions must be
+the PBAC audit logging requirement ("Authorization decisions must be
 auditable ... Automatically log every authorize() call"). Every real call
 to AuthorizationService.authorize()/require() (i.e. every protected route
 hit) now writes one row here — see authorization_service.py's

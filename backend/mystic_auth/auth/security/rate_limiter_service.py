@@ -1,6 +1,7 @@
 import traceback
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from functools import wraps
+from typing import Any
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -45,7 +46,11 @@ class RateLimiterService:
         except Exception:
             logger.error("Error resetting rate limiter counter:\n%s", traceback.format_exc())
 
-    def rate_limited(self, endpoint_name: str, account_key_func: Callable[[dict], str | None] | None = None):
+    def rate_limited(
+        self,
+        endpoint_name: str,
+        account_key_func: Callable[[dict], str | None] | None = None,
+    ) -> Callable[[Callable[..., Awaitable[Any]]], Callable[..., Awaitable[Any]]]:
         """
         account_key_func, if given, extracts an account identifier (e.g. email)
         from the endpoint's resolved keyword arguments, since FastAPI always calls the
@@ -59,9 +64,9 @@ class RateLimiterService:
         stay under the per-IP threshold, which a per-IP-only limiter would never
         flag as abuse.
         """
-        def decorator(func):
+        def decorator(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
             @wraps(func)
-            async def wrapper(*args, **kwargs):
+            async def wrapper(*args: Any, **kwargs: Any) -> Any:
                 request: Request | None = None
 
                 for arg in args:

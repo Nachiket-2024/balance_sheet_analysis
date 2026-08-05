@@ -41,7 +41,11 @@ describe('DashboardPage', () => {
       email: 'user@example.com',
       role: 'user',
       permissions: [],
+      has_password: true,
+      created_at: '2026-01-15T00:00:00Z',
+      active_sessions: 2,
     });
+    mock.onGet('/audit/security-log/me').reply(200, []);
 
     renderDashboard();
 
@@ -58,18 +62,43 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('Unable to fetch user details')).toBeInTheDocument();
   });
 
-  it('does not render its own logout controls (session controls live in the app shell/Profile now)', async () => {
+  it('does not render a single-session Logout control (that lives in the app shell)', async () => {
     mock.onGet('/auth/me').reply(200, {
       name: 'Test User',
       email: 'user@example.com',
       role: 'user',
       permissions: [],
+      has_password: true,
+      created_at: '2026-01-15T00:00:00Z',
+      active_sessions: 2,
     });
+    mock.onGet('/audit/security-log/me').reply(200, []);
 
     renderDashboard();
 
     await screen.findByText('Test User');
     expect(screen.queryByRole('button', { name: 'Logout' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Logout All Devices' })).toBeNull();
+  });
+
+  it('shows the stats row and quick actions once the current user loads', async () => {
+    mock.onGet('/auth/me').reply(200, {
+      name: 'Test User',
+      email: 'user@example.com',
+      role: 'user',
+      permissions: [],
+      has_password: true,
+      created_at: '2026-01-15T00:00:00Z',
+      active_sessions: 2,
+    });
+    mock.onGet('/audit/security-log/me').reply(200, []);
+
+    renderDashboard();
+
+    await screen.findByText('Test User');
+    expect(screen.getByText('Jan 15, 2026')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('Active sessions')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Account Settings/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Logout All/i })).toBeInTheDocument();
   });
 });

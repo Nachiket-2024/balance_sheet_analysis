@@ -45,5 +45,5 @@ export const NAV_ITEMS: NavItem[] = [
     // The page itself additionally shows an "All Users" tab gated by
     // policies:read/security_audit:read for callers who hold those.
     { label: "Audit Log", to: "/audit-log", order: 40 },
-    { label: "Profile", to: "/profile", order: 50 },
+    { label: "Account Settings", to: "/account-settings", order: 50 },
 ];

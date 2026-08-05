@@ -74,7 +74,7 @@ class LoginHandler:
                 return self._lockout_response()
 
             tokens: TokenPairResponseSchema | None = await login_service.login(
-                email=email, password=password, db=db
+                email=email, password=password, db=db, request=request
             )
 
             success = tokens is not None

@@ -32,7 +32,7 @@ const VerifyAccountPage: React.FC = () => {
                     Verify Your Account
                 </Heading>
 
-                <Text fontSize="sm" color="fg.muted" mb={6}>
+                <Text fontSize="md" color="fg.muted" mb={6}>
                     Click the button below to verify your account and activate access.
                 </Text>
 

@@ -39,7 +39,7 @@ class BalanceSheet(Base):
     # on the same pattern.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    company: Mapped["Company"] = relationship()
+    company: Mapped[Company] = relationship()
 
     treasury_shares_number: Mapped[float | None]
     ordinary_shares_number: Mapped[float | None]

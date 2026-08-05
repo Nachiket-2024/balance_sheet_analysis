@@ -5,6 +5,7 @@
 # *assigned policies* (via policy_repository), never from their role. Two
 # users with the identical role can hold different policies and therefore
 # see different permissions here.
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -16,13 +17,15 @@ MODULE = "backend.mystic_auth.auth.current_user.current_user_handler"
 
 class _FakeUser:
     def __init__(
-        self, name="Test User", email="user@example.com", role="user", is_active=True, hashed_password="hash"
+        self, name="Test User", email="user@example.com", role="user", is_active=True, hashed_password="hash",
+        created_at=None,
     ):
         self.name = name
         self.email = email
         self.role = UserRole(role) if role is not None else None
         self.is_active = is_active
         self.hashed_password = hashed_password
+        self.created_at = created_at or datetime(2026, 1, 1, tzinfo=UTC)
 
 
 class _FakePolicy:
@@ -73,7 +76,7 @@ async def test_no_assigned_policies_means_no_permissions(mocker):
 
 @pytest.mark.asyncio
 async def test_two_users_with_the_same_role_can_have_different_permissions(mocker):
-    # The core PBAC claim claude.md's Testing Requirements calls out
+    # The core PBAC claim the PBAC testing requirements calls out
     # explicitly: "identical roles can have different permissions."
     mocker.patch(
         f"{MODULE}.jwt_service.verify_token",
@@ -109,7 +112,7 @@ async def test_two_users_with_the_same_role_can_have_different_permissions(mocke
 
 
 # ---------------------------- Users without roles ----------------------------
-# Per claude.md: role is metadata only, and "the system must support ...
+# role is metadata only, and "the system must support ...
 # users without roles" / "users without roles still work": a roleless
 # account must still authenticate and be authorized purely via its
 # assigned policies.

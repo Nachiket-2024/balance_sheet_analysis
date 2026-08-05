@@ -3,7 +3,7 @@
 # End-to-end coverage for the persistent authorization audit log
 # (authorization/models/audit_log_model.py, .../repositories/audit_log_repository.py,
 # and the /authorization/audit-log query routes) against the real ASGI app,
-# real PostgreSQL, and real Redis. Per claude.md's Remaining PBAC Work item
+# real PostgreSQL, and real Redis. The PBAC audit logging requirement item
 # #1: "Authorization decisions must be auditable" : every real
 # authorize()/require() call (i.e. every hit on a PBAC-protected route)
 # must write a row automatically, with no route needing to opt in, and the
@@ -12,13 +12,17 @@ import uuid
 
 import pytest
 import pytest_asyncio
-from backend.mystic_auth.auth.verify_account.account_verification_service import account_verification_service
+from backend.mystic_auth.auth.verify_account.account_verification_service import (
+    account_verification_service,
+)
 from backend.mystic_auth.authorization.policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
     SYSTEM_SUPERUSER_POLICY_NAME,
     USER_ADMINISTRATION_POLICY_NAME,
 )
-from backend.mystic_auth.authorization.repositories.policy_repository import policy_repository
+from backend.mystic_auth.authorization.repositories.policy_repository import (
+    policy_repository,
+)
 from backend.mystic_auth.database.connection import database
 from backend.mystic_auth.redis.client import redis_client
 from backend.mystic_auth.user_crud.user_crud_collector import user_crud
@@ -189,3 +193,95 @@ async def test_audit_log_for_unknown_user_returns_404(client, created_emails):
 
     resp = await client.get(f"/authorization/audit-log/users/{_unique_email('nobody')}")
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_global_audit_log_search_filters_by_user_email(client, created_emails):
+    system_email = _unique_email("system")
+    await _create_system_user(client, created_emails, system_email)
+    target_email = _unique_email("searchtarget")
+    # Ends logged in as target_email.
+    await _create_verified_user(client, created_emails, target_email, [SELF_SERVICE_POLICY_NAME])
+
+    # GET /users/me itself is an authorized action (users:read_own), so it
+    # writes a real row into the authorization audit log for target_email.
+    await client.get("/users/me")
+
+    # Switch back to the system user to query the global audit log.
+    login_resp = await client.post("/auth/login", json={"email": system_email, "password": PASSWORD})
+    assert login_resp.status_code == 200
+
+    resp = await client.get("/authorization/audit-log", params={"search": target_email, "limit": 100})
+    assert resp.status_code == 200
+    entries = resp.json()
+    assert entries
+    assert all(e["user_email"] == target_email for e in entries)
+
+
+@pytest.mark.asyncio
+async def test_global_audit_log_sort_by_user_email(client, created_emails):
+    system_email = _unique_email("system")
+    await _create_system_user(client, created_emails, system_email)
+
+    # Two distinct, known-orderable emails sharing a common search prefix so
+    # this test's own two rows are isolated from other entries in the table.
+    prefix = _unique_email("sorttest").split("@")[0]
+    email_a = f"{prefix}-aaa@example.com"
+    email_b = f"{prefix}-bbb@example.com"
+    await _create_verified_user(client, created_emails, email_b, [SELF_SERVICE_POLICY_NAME])
+    await client.get("/users/me")
+    await _create_verified_user(client, created_emails, email_a, [SELF_SERVICE_POLICY_NAME])
+    await client.get("/users/me")
+
+    login_resp = await client.post("/auth/login", json={"email": system_email, "password": PASSWORD})
+    assert login_resp.status_code == 200
+
+    resp = await client.get(
+        "/authorization/audit-log",
+        params={"search": prefix, "sort_by": "user_email", "sort_dir": "asc", "limit": 100},
+    )
+    assert resp.status_code == 200
+    emails = [e["user_email"] for e in resp.json()]
+    assert emails == sorted(emails)
+    assert email_a in emails
+    assert email_b in emails
+    # email_a ("...-aaa@...") must sort before email_b ("...-bbb@...").
+    assert emails.index(email_a) < emails.index(email_b)
+
+
+@pytest.mark.asyncio
+async def test_global_audit_log_filters_by_action_and_allowed(client, created_emails):
+    system_email = _unique_email("system")
+    await _create_system_user(client, created_emails, system_email)
+    target_email = _unique_email("filtertarget")
+    # Ends logged in as target_email.
+    await _create_verified_user(client, created_emails, target_email, [SELF_SERVICE_POLICY_NAME])
+
+    # A plain user hitting GET /users/ (needs users:list_all, which it
+    # lacks) writes one denied users:list_all row; GET /users/me (which it
+    # holds via self_service) writes one allowed users:read_own row.
+    denied_resp = await client.get("/users/")
+    assert denied_resp.status_code == 403
+    allowed_resp = await client.get("/users/me")
+    assert allowed_resp.status_code == 200
+
+    login_resp = await client.post("/auth/login", json={"email": system_email, "password": PASSWORD})
+    assert login_resp.status_code == 200
+
+    resp = await client.get(
+        "/authorization/audit-log",
+        params={"search": target_email, "action": "users:read_own", "allowed": True, "limit": 100},
+    )
+    assert resp.status_code == 200
+    entries = resp.json()
+    assert entries
+    assert all(e["action"] == "users:read_own" and e["allowed"] is True for e in entries)
+
+    denied_only_resp = await client.get(
+        "/authorization/audit-log",
+        params={"search": target_email, "action": "users:list_all", "allowed": False, "limit": 100},
+    )
+    assert denied_only_resp.status_code == 200
+    denied_entries = denied_only_resp.json()
+    assert denied_entries
+    assert all(e["action"] == "users:list_all" and e["allowed"] is False for e in denied_entries)

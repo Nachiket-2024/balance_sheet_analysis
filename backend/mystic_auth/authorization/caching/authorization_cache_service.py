@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 # (JSON array of serialized policies). This is the ONE cache target this
 # module currently implements. See the class docstring for why
 # "policy lookup by name" and "evaluation results" (both also mentioned in
-# claude.md's Authorization Performance Layer) are deliberately NOT cached.
+# the authorization performance layer) are deliberately NOT cached.
 _USER_POLICIES_KEY_PREFIX = "authz:user_policies:"
 _USER_POLICIES_KEY_PATTERN = f"{_USER_POLICIES_KEY_PREFIX}*"
 
@@ -21,7 +21,7 @@ def _user_policies_key(user_email: str) -> str:
 
 
 # TTL bounds how long a cached policy list can outlive an invalidation this
-# module failed to receive for any reason. claude.md: "Never serve
+# module failed to receive for any reason. Never serve
 # indefinitely stale permissions". This is the backstop, not the primary
 # invalidation mechanism (which is the explicit invalidate_* calls below).
 _USER_POLICIES_TTL_SECONDS = 60
@@ -60,7 +60,7 @@ def _deserialize_policy(data: dict) -> Policy:
 class AuthorizationCacheService:
     """
     The single, centralized Redis abstraction for authorization data, per
-    claude.md's Authorization Performance Layer: "Create centralized Redis
+    the authorization performance layer: "Create centralized Redis
     abstraction layer (single module)" / "Do not scatter Redis calls
     throughout authorization code". Only policy_repository.py calls this;
     nothing else in the authorization module (the service, the evaluator,

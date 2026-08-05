@@ -61,6 +61,8 @@ This is the privilege-escalation guard working as intended (see [Architecture](a
 
 Also intentional (see [Writing and Testing Policies](writing-testing-policies.md#protected-baseline-policies)): these guard against permanently locking the system out of its own authorization management.
 
+---
+
 ## Logging and debugging
 
 - All authorization-relevant logging goes through `backend/mystic_auth/logging/logging_config.py`'s `get_logger(__name__)`: structured, module-scoped loggers.
@@ -68,13 +70,18 @@ Also intentional (see [Writing and Testing Policies](writing-testing-policies.md
 - `AuthorizationCacheService` similarly logs (and swallows) every Redis failure with a specific prefix per operation (`"Authorization cache read failed"`, `"...write failed"`, `"...invalidation failed"`, `"...namespace flush failed"`): grep for these to confirm whether a perceived staleness issue is actually a cache failure being silently absorbed.
 - The backend container's own request logs (`docker compose logs backend`) show every HTTP request/response; for a specific authorization decision, correlate by timestamp against the audit log's `created_at`.
 
+---
+
 ## Redis cache management
 
 `authorization/caching/authorization_cache_service.py` is the **only** place authorization code talks to Redis. It caches exactly one thing: a user's active, assigned policy list (`authz:user_policies:{email}`, 60s TTL). It deliberately does **not** cache policy-lookup-by-name or final evaluation decisions: see the module's own docstring for the correctness reasons (a cached, session-detached `Policy` object fed into an update/delete would break SQLAlchemy's identity map; caching a final decision would risk serving a stale answer for genuinely time/context-sensitive conditions).
 
 **Invalidation happens automatically:**
-- Policy `update`/`delete` → flushes the *entire* `authz:user_policies:*` namespace (a policy's own definition change can affect every holder, and there's no cheap reverse index).
-- Policy assign/revoke via the management API → invalidates just that one user's cache entry.
+- Policy `update`/`delete` flushes the *entire* `authz:user_policies:*`
+  namespace. A policy definition change can affect every holder, and there is
+  no cheap reverse index.
+- Policy assign/revoke via the management API invalidates only that user's cache
+  entry.
 
 **If you suspect stale cached permissions:**
 
@@ -89,7 +96,7 @@ docker compose exec redis redis-cli FLUSHDB   # nuclear option: clears everythin
 **Verifying it end-to-end** (useful after any change to the caching layer):
 
 ```bash
-docker compose exec -w /repo backend python -c "
+scripts/docker/backend-exec.sh python -c "
 import asyncio
 from backend.mystic_auth.authorization.caching.authorization_cache_service import authorization_cache_service
 from backend.mystic_auth.authorization.models.policy_model import Policy
@@ -104,6 +111,8 @@ async def main():
 asyncio.run(main())
 "
 ```
+
+---
 
 ## Database connection issues
 
@@ -120,7 +129,7 @@ tasklist /FI "PID eq <pid-from-above>"
 **Do not stop host services automatically**: this needs an explicit decision from whoever owns that machine (stop the conflicting service, or remap the Docker port again in `docker-compose.yml`). The safe workaround used throughout this project's own test suite: run everything **inside** the Docker network instead of from the host:
 
 ```bash
-docker compose exec --user root -w /repo backend python -m pytest tests/
+scripts/docker/backend-exec.sh python -m pytest tests/
 ```
 
 (`--user root` is needed on native Linux specifically, or pytest-cov's coverage output crashes with a permission error; on Windows with Git Bash, this command needs a separate small workaround too: see [Docker Overview: running a one-off command inside a container](../docker/overview.md#running-a-one-off-command-inside-a-container) for both.)

@@ -1,6 +1,6 @@
 # tests/backend/mystic_auth/performance/test_authorization_performance.py
 #
-# Real-DB smoke-level performance coverage (claude.md's "many users, many
+# Real-DB smoke-level performance coverage (many users and many
 # policies, large authorization batches"). These are regression alarms
 # against gross performance regressions (e.g. an accidental N+1, or a
 # missing index), not a precise load-testing/benchmarking framework, so

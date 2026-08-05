@@ -2,7 +2,13 @@
 
 ## Workflow
 
-`.github/workflows/ci.yml`: triggers on every push and pull request targeting `main`. Declares top-level `permissions: contents: read`: none of the jobs below push commits, comment on PRs, or need any write access, so the default `GITHUB_TOKEN` is scoped down explicitly rather than left at whatever the repo/org default happens to be; a compromised action dependency in this workflow can't do more than read the checkout. Five independent jobs (no job depends on another); the first four run on every push/PR, the fifth only on a push to `main`:
+`.github/workflows/ci.yml` triggers on every push and pull request targeting
+`main`. It declares top-level `permissions: contents: read` because none of the
+jobs push commits, comment on PRs, or need write access. A compromised action
+dependency in this workflow can only read the checkout.
+
+There are five independent jobs. The first four run on every push and PR. The
+fifth runs only on a push to `main`.
 
 ```mermaid
 flowchart LR
@@ -18,39 +24,78 @@ flowchart LR
 
 ### `backend`: Backend (unit + integration)
 
-- Spins up Postgres 15 and Redis 7 as GitHub Actions **service containers** (not Docker Compose: a deliberate, lower-overhead equivalent for CI; Compose remains the source of truth for local development).
-- All required settings (`SECRET_KEY`, `GOOGLE_CLIENT_ID`, `APP_NAME`, etc.: `core/settings.py` has no defaults for most of them) are provided as job-level env vars with clearly-fake CI-only values, since there's no checked-in `.env` for CI to read. `APP_NAME` in particular is set to `MysticAuth` here purely because `Settings` requires *some* value and refuses to start without one: it has no bearing on the actual product name. If you've cloned this repo as a template and renamed the app (see [Using This Repository as a Template: environment configuration](../template-usage/overview.md#environment-configuration)), there's no need to touch this CI value to match: it's a placeholder for test runs, not branding that needs to stay in sync with your `.env`.
-- Installs both `backend/requirements.txt` and `backend/requirements-dev.txt` (ruff, mypy, bandit: static-analysis-only, never installed in the runtime image), then runs `pip-audit -r backend/requirements.txt` (dependency vulnerability scan) before proceeding.
-- Runs `ruff check`, `mypy`, and `bandit -c pyproject.toml` (all three configured in `backend/pyproject.toml`): lint, type-check, and a Python-specific security scan, each as its own step so the specific failing tool is visible in the Actions UI.
-- Runs `alembic upgrade head`, then `alembic check`: the latter fails if any SQLAlchemy model's columns/indexes have drifted from what the migrations actually create (e.g. a model field changed without a matching migration).
-- Then `pytest tests/backend/app tests/backend/mystic_auth/unit` (the thin `app/` wrapper's own tests run alongside the `mystic_auth/` unit suite, as one coverage base), then `pytest tests/backend/mystic_auth/integration --cov-append`, then `pytest tests/backend/mystic_auth/security --cov-append --cov-fail-under=85`. The `--cov-append` flags accumulate coverage across all three steps, so the 85% gate on the final step checks *cumulative* unit+integration+security coverage (currently ~91%), not any one suite alone: `pytest.ini` deliberately does not bake `--cov-fail-under` into `addopts` itself, since that would also apply to (and false-fail) a developer running a single suite locally. See [Testing Overview](../testing/overview.md).
-- Then runs `pytest tests/backend/mystic_auth/performance` as a **non-blocking** (`continue-on-error: true`) step: informational only, since its thresholds, while generous regression alarms rather than a strict SLA, can still be noisier on shared GitHub-hosted runners than locally.
+- Spins up Postgres 15 and Redis 7 as GitHub Actions service containers. Compose
+  remains the source of truth for local development, but service containers are
+  a lower-overhead CI equivalent for the backend job.
+- Provides all required settings as job-level environment variables with
+  clearly fake CI-only values because CI has no checked-in `.env`. `APP_NAME`
+  is set to `MysticAuth` only because `Settings` requires a value. It is a test
+  placeholder, not branding that a downstream project must keep in sync.
+- Installs `backend/requirements.txt` and `backend/requirements-dev.txt`, then
+  runs `pip-audit -r backend/requirements.txt`.
+- Runs `ruff check`, `mypy`, and `bandit -c pyproject.toml` as separate steps so
+  the failing tool is obvious in the Actions UI.
+- Runs `alembic upgrade head`, then `alembic check`. The check fails if models
+  drift from what the migrations create.
+- Runs backend unit, integration, and security suites. The integration and
+  security steps use `--cov-append`, so the final 85% gate checks cumulative
+  coverage across all three suites. `pytest.ini` intentionally does not set
+  `--cov-fail-under` because that would break partial local runs. See
+  [Testing Overview](../testing/overview.md).
+- Runs `pytest tests/backend/mystic_auth/performance` as a non-blocking step
+  because timing thresholds can be noisy on shared GitHub-hosted runners.
 
 ### `frontend`: Frontend (typecheck + lint + test + build)
 
-- Node version is pinned to an explicit patch (`20.20.2`), not a bare major (`20`): ESLint 10 requires Node `^20.19.0 || ^22.13.0 || >=24` and Vite 8 requires `^20.19.0 || >=22.12.0`, both above some earlier Node 20 releases, so an explicit patch guarantees the floor is met rather than trusting whichever latest-20.x a runner happens to resolve.
-- `npm ci --legacy-peer-deps`, then `npm audit --audit-level=high` (dependency vulnerability scan, blocking), then `npm run typecheck`, `npm run lint`, `npm run test:coverage` (not plain `test`, since coverage must actually be collected for `vitest.config.ts`'s `coverage.thresholds` to be evaluated at all), `npm run build`, each as a separate step (so the specific failing stage is visible in the Actions UI).
+- Node is pinned to `22.22.0` because React Router 8 requires Node
+  `>=22.22.0`.
+- Runs `npm ci --legacy-peer-deps`, `npm audit --audit-level=high`,
+  `npm run typecheck`, `npm run lint`, `npm run test:coverage`, and
+  `npm run build` as separate steps. `test:coverage` is used instead of plain
+  `test` so `vitest.config.ts` coverage thresholds are enforced.
 
 ### `secrets-scan`: Secrets scan (gitleaks)
 
-- Checks out full git history (`fetch-depth: 0`, not just the latest commit) and runs [gitleaks](https://github.com/gitleaks/gitleaks) against it: catches a secret that was committed and later "removed" (but still sits in history), not just what's in the current working tree.
+- Checks out full git history with `fetch-depth: 0` and runs
+  [gitleaks](https://github.com/gitleaks/gitleaks). This catches secrets that
+  were committed and later removed from the working tree.
 
 ### `docker-build`: Docker image build verification
 
 - Builds `docker/backend.Dockerfile` and `docker/frontend.Dockerfile --target production` to confirm both images still build cleanly.
-- Runs the built backend image and asserts `/app/logs` does **not** exist inside it: a regression guard for a real bug found during a pre-release image-contents audit (local access-log files, with real request data, were previously getting baked into the image via a `.dockerignore` gap: see [Security Decisions](../security/decisions.md#dockerignore-previously-let-local-files-leak-into-built-images)).
-- Then boots the real dev stack (`docker compose up -d --build postgres redis alembic backend frontend`) and smoke-tests it: waits for the backend's `/health/ready` and the frontend's dev server to respond, then checks the actual response bodies (`{"status":"ok"}` from the backend, the app shell's root `<div>` from the frontend) before tearing everything down. This is a different class of check from everything else in this job: it confirms the *images and their compose wiring* actually boot and serve traffic (catches a bad env var passthrough, a broken healthcheck, a file the app needs at runtime that didn't make it into the image), a class of bug the `backend`/`frontend` jobs above can't see at all, since those run the same source code on a bare runner and never touch a built image. It does **not** re-run the test suite: that's `docker-full-suite`, below.
-- `BUGSINK_SUPERUSER_EMAIL` is blanked in this job's own `.env` copy before booting: `bugsink`/`bugsink-seed` aren't part of this invocation, so without the override the backend's startup command would still wait its full ~10s for a DSN file that will never arrive, wasting part of an already-tight boot budget for no reason. CI-only; a real `docker compose up` (which does start Bugsink) keeps the default.
-- If any step in this job fails, a final `docker compose logs --no-color` step (only runs on failure) prints every container's own logs, so the Actions UI shows *why* a container never became healthy instead of just a bare timeout. This is exactly what caught the real bug behind this job's own first two failed runs: not a timing issue at all, but the backend crashing at import time with a `PermissionError` on GitHub's native-Linux runners: see [Docker Overview: why `/app/logs` is a named volume](../docker/overview.md#why-applogs-is-a-named-volume-not-part-of-the-backendapp-bind-mount) for the full story and fix.
-- **No push to a registry, no deploy step**: this repo has no deploy pipeline; that's an explicit scope boundary (a template repository shouldn't assume a specific cloud/hosting target), not an oversight.
+- Validates all three Compose files parse: `docker-compose.yml`, `docker-compose.local-prod.yml`, and `docker-compose.prod.yml`.
+- Runs the built backend image and asserts `/app/logs` exists but is **empty**: a regression guard for a real bug found during a pre-release image-contents audit (local access-log files, with real request data, were previously getting baked into the image via a `.dockerignore` gap: see [Security Decisions](../security/decisions.md#dockerignore-previously-let-local-files-leak-into-built-images)). The directory itself is expected to exist (the app creates it on import); this only checks that no host-side log content rode along inside it.
+- Boots the real dev stack with `docker compose up -d --build postgres redis
+  alembic backend frontend`, waits for `/health/ready` and the frontend dev
+  server, checks response bodies, and tears the stack down. This verifies the
+  images and Compose wiring actually serve traffic. It does not re-run the test
+  suite because that is handled by `docker-full-suite`.
+- Blanks `BUGSINK_SUPERUSER_EMAIL` in the job's temporary `.env` copy before
+  booting because `bugsink` and `bugsink-seed` are not started in this job. This
+  avoids waiting for a DSN file that will never be written.
+- Prints `docker compose logs --no-color` on failure so container startup
+  failures have useful context in the Actions UI.
+- Does not push images or deploy. That is an explicit template scope boundary,
+  not an oversight.
 
 ### `docker-full-suite`: Full test suite via Docker (main only)
 
-- Gated to `if: github.event_name == 'push' && github.ref == 'refs/heads/main'`: does **not** run on pull requests, only once something actually merges to `main`.
-- Boots the backend stack (same `BUGSINK_SUPERUSER_EMAIL` override as `docker-build`, same reasoning), then runs the exact same three test tiers as the `backend` job above (unit → integration → security, same `--cov-fail-under=85` gate): but *inside the running backend container* via `docker compose exec --user root`, instead of on a bare GitHub Actions runner. `--user root` is required here: `pytest.ini`'s coverage output writes to `/repo` (the whole-repo bind mount), which native Linux won't let the container's non-root `app` user write into: see [Docker Overview: running a one-off command inside a container](../docker/overview.md#running-a-one-off-command-inside-a-container) for the full explanation (same underlying cause as `/app/logs` needing a named volume, just for coverage's output instead).
+- Gated to `if: github.event_name == 'push' && github.ref == 'refs/heads/main'`.
+  It does not run on pull requests.
+- Boots the backend stack with the same `BUGSINK_SUPERUSER_EMAIL` override as
+  `docker-build`, then runs the same unit, integration, and security tiers
+  inside the running backend container. `--user root` is required because
+  coverage output writes to `/repo`, the whole-repo bind mount. Native Linux
+  does not let the container's non-root `app` user write there. See
+  [Docker Overview: running a one-off command inside a container](../docker/overview.md#running-a-one-off-command-inside-a-container).
 - Boots the frontend, then runs its full test suite inside that container the same way.
 - Same on-failure `docker compose logs` step as `docker-build`.
-- This is deliberately a repeat of tests already run natively above, not a different set of tests: the value is running them through the actual deployable image (real container filesystem, real installed dependencies, real compose networking) rather than a bare runner, catching container-specific drift the native jobs structurally cannot. It's gated to `main`-only rather than every PR because the code under test is identical either way, so doubling CI time on every single PR would mostly just re-prove what the native jobs already proved, for a real but narrow class of bug that surfaces at the point of merging, not the point of proposing a change.
+- This repeats tests already run natively. The value is running them through the
+  deployable image, real container filesystem, installed dependencies, and
+  Compose networking. It is `main`-only to avoid doubling PR CI time for the
+  same source code.
+
+---
 
 ## What's covered
 
@@ -63,6 +108,8 @@ flowchart LR
 - Dependency vulnerability scanning on every push/PR: `pip-audit` (backend, blocking) and `npm audit --audit-level=high` (frontend, blocking). There is no scheduled/automated dependency-update bot in this repo; dependency bumps are a manual, deliberate action (see the header comment in `backend/requirements.txt`), not something that opens PRs on its own.
 - Secret scanning across full git history (`gitleaks`), independent of the backend/frontend jobs.
 
+---
+
 ## What's not covered (tracked, not silently missing)
 
 See [Concerns](../concerns/README.md) for the full entries:
@@ -70,6 +117,8 @@ See [Concerns](../concerns/README.md) for the full entries:
 - No image push to a registry and no deployment stage: deploying is a manual, documented process (see [Deployment Guide](../deployment/guide.md)), not automated.
 
 This is deliberately left as a documented gap rather than added: extending `ci.yml` with a deploy stage is a workflow change with its own blast radius (new required checks, new secrets, a specific hosting target to assume), and unnecessary cloud-specific tooling doesn't belong in a template repository with no assumed production target.
+
+---
 
 ## Local equivalents
 

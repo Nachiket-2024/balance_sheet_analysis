@@ -25,18 +25,18 @@ const PasswordRulesChecklist: React.FC<PasswordRulesChecklistProps> = ({ rules, 
         aria-live="polite"
     >
         <Stack direction="row">
-            <Text color={rules.lengthRule ? "green.500" : "red.500"} mr={6}>
+            <Text color={rules.lengthRule ? "fg.success" : "fg.error"} mr={6}>
                 • {rules.lengthRule ? "✓" : "✗"} At least 8 characters
             </Text>
-            <Text color={rules.upperRule ? "green.500" : "red.500"}>
+            <Text color={rules.upperRule ? "fg.success" : "fg.error"}>
                 • {rules.upperRule ? "✓" : "✗"} At least one uppercase letter
             </Text>
         </Stack>
         <Stack direction="row">
-            <Text color={rules.lowerRule ? "green.500" : "red.500"} mr={6}>
+            <Text color={rules.lowerRule ? "fg.success" : "fg.error"} mr={6}>
                 • {rules.lowerRule ? "✓" : "✗"} At least one lowercase letter
             </Text>
-            <Text color={rules.numberRule ? "green.500" : "red.500"}>
+            <Text color={rules.numberRule ? "fg.success" : "fg.error"}>
                 • {rules.numberRule ? "✓" : "✗"} At least one number
             </Text>
         </Stack>

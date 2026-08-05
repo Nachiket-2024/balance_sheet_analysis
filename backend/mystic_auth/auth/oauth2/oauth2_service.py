@@ -6,14 +6,16 @@ import base64
 import hashlib
 import secrets
 import traceback
+import uuid
 from typing import cast
 
 import httpx
+from fastapi import Request
 
 from ...authorization.policies.default_policies import SELF_SERVICE_POLICY_NAME
 
 # PBAC: new users get their access via an explicit default policy assignment,
-# never via their (metadata-only) role, see claude.md's "Roles" section: "New
+# never via their (metadata-only) role, see the role-as-metadata invariant. New
 # users must receive access through default policy assignment, not default
 # roles." Mirrors signup_service.py.
 from ...authorization.repositories.policy_repository import policy_repository
@@ -23,8 +25,10 @@ from ...redis.client import redis_client
 from ...user_crud.user_crud_collector import user_crud
 
 # UserRole is used ONLY to block OAuth2 login into the reserved system account
-# (see login_or_create_user below), mirroring the same guard user_routes.py
-# applies to update/delete/role-change. Never used to grant access.
+# (see login_or_create_user below), mirroring the same guard
+# user_management_routes.py applies to update/delete/role-change. Never used to
+# grant access.
+from ...user_session.session_service import session_service
 from ...user_table.user_model import UserRole
 from ..token_logic.jwt_service import jwt_service
 
@@ -121,18 +125,20 @@ class OAuth2Service:
             return None
 
     @staticmethod
-    async def login_or_create_user(db, user_info: dict) -> dict | None:
+    async def login_or_create_user(db, user_info: dict, request: Request | None = None) -> dict | None:
         """
         Authenticates an existing user or creates a new one from Google's verified
         profile, returning a fresh access/refresh token pair, or None on failure.
 
-        Session/multi-device tracking is handled entirely inside
-        jwt_service.create_refresh_token (the jti-based registry used by
-        logout-all and reuse detection); nothing further needs to be persisted
-        here. An earlier version additionally wrote each token pair into a
+        Token validity/multi-device revocation is handled entirely inside
+        jwt_service.create_refresh_token (the account_ver/chain_ver counters
+        used by logout-all and reuse detection); the best-effort Manage
+        Sessions row (device/IP/last-seen) is recorded separately below via
+        session_service, keyed off the same chain_id. An earlier version
+        additionally wrote each token pair into a
         separate `user_tokens:{email}` Redis list, but nothing ever read that
         list; it was pure dead weight that grew forever (no TTL) and needlessly
-        held raw, cleartext bearer tokens in Redis on top of the canonical registry.
+        held raw, cleartext bearer tokens in Redis on top of the version counters.
 
         Pre-hijacking note: an unverified account is not proof that whoever
         created it owns the email address: anyone can sign up with any email and
@@ -224,10 +230,23 @@ class OAuth2Service:
                 logger.info("OAuth2 login blocked for deactivated account: %s", email)
                 return None
 
+            # A fresh chain_id: see login_service.py's identical comment.
+            chain_id = uuid.uuid4().hex
             access_token, refresh_token = await asyncio.gather(
-                jwt_service.create_access_token(email),
-                jwt_service.create_refresh_token(email)
+                jwt_service.create_access_token(email, chain_id),
+                jwt_service.create_refresh_token(email, chain_id)
             )
+
+            # Best-effort session tracking (Manage Sessions dashboard card):
+            # decodes the token just minted above rather than changing
+            # create_refresh_token's return shape, which several existing
+            # unit tests assert on directly (see login_service.py's
+            # identical comment).
+            refresh_payload = await jwt_service.decode_payload(refresh_token)
+            if refresh_payload and refresh_payload.get("jti") and refresh_payload.get("exp"):
+                await session_service.create_session(
+                    db, user.id, refresh_payload["jti"], chain_id, refresh_payload["exp"], request, email
+                )
 
             return {"access_token": access_token, "refresh_token": refresh_token}
 

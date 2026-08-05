@@ -14,4 +14,8 @@ export interface CurrentUserProfile {
     /** False for an OAuth-only account (no usable password credential).
      *  See backend/mystic_auth/auth/current_user/current_user_handler.py. */
     has_password: boolean;
+    created_at: string;
+    /** Count of this user's currently-live refresh tokens (i.e. devices/
+     *  browsers with an active session), from the Redis-backed registry. */
+    active_sessions: number;
 }

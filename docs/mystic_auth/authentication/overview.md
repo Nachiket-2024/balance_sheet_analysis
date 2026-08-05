@@ -15,17 +15,21 @@ Expiry is configured via `ACCESS_TOKEN_EXPIRE_MINUTES`/`REFRESH_TOKEN_EXPIRE_MIN
 
 **Claims**: `email`, `type` (`"access"` or `"refresh"`; a refresh token can never be used where an access token is expected, and vice versa), `jti` (unique ID, used for refresh-token revocation; see below), `exp`. Signed with `HS256` using `SECRET_KEY` (`.env`, required, no default). Deliberately no `role` claim: role is display-only metadata, resolved fresh from the database on every request (alongside PBAC permissions) rather than trusted from a token that could go stale, see [Authorization Model](../authorization/architecture.md).
 
+---
+
 ## Signup
 
-`POST /auth/signup` → `signup_service.SignupService.signup`:
+`POST /auth/signup` -> `signup_service.SignupService.signup`:
 
 1. Check for an existing account with that email.
 2. Hash the password (Argon2, via `password_service.hash_password`) **unconditionally**, even on the duplicate-email path, since hashing is the expensive step: skipping it only when the email is free would let a timing attack distinguish "registered" from "not registered" even though the HTTP response is identical either way.
 3. Create the user row: `role=UserRole.user` (display-only, matches [Security Decisions](../security/decisions.md#role-is-never-used-to-decide-access)), `is_verified=False`, `is_active=True`.
 4. Assign the `self_service` policy: this, not the role, is what gives the new account access to its own profile (`users:read_own`/`users:update_own`).
-5. Send a verification email asynchronously (Taskiq).
+5. Queue a verification email asynchronously through `taskiq_tasks/email_tasks.py`.
 
 The signup endpoint always returns the same generic response regardless of whether the email was already taken, for the same enumeration-resistance reason as step 2.
+
+---
 
 ## Email verification
 
@@ -37,6 +41,8 @@ The signup endpoint always returns the same generic response regardless of wheth
 
 If the verification link expires or has already been used, the frontend lets the user request a fresh link with `POST /auth/verify-account/request`. The request accepts an email address and always returns the same generic success response. The backend only sends a new email when the account exists and is still unverified, which avoids account enumeration and avoids spamming already-verified users.
 
+---
+
 ## Login
 
 `POST /auth/login`:
@@ -46,47 +52,57 @@ If the verification link expires or has already been used, the frontend lets the
 3. The Argon2 comparison's *result* isn't checked first, though: `login_service.py` rejects in this order: account not found, not verified, not active, and only then a wrong password. This preserves constant-time hashing (step 2) while still surfacing "verify your email" instead of a generic "wrong password" to a legitimate user who mistyped their password on an unverified account.
 4. On success: issue a fresh access+refresh token pair, set both cookies, log `LOGIN_SUCCESS` (or `LOGIN_FAILURE`/`ACCOUNT_LOCKED`) to the security audit log.
 
+---
+
 ## Refresh token rotation
 
-`POST /auth/refresh/` → `refresh_token_service.refresh_tokens`:
+`POST /auth/refresh/` -> `refresh_token_service.refresh_tokens`:
 
 ```mermaid
 flowchart TD
     A["POST /auth/refresh/"] --> B["Decode refresh token claims (once)"]
-    B --> C{"jti already<br/>revoked?"}
-    C -- "yes (reused/stolen)" --> D["Revoke EVERY active token<br/>for this user"]
-    D --> E["Log at critical:<br/>force re-auth on every device"]
-    C -- "no (clean)" --> F["Revoke old jti"]
-    F --> G["Issue new access + refresh pair"]
+    B --> C{"account_ver/chain_ver<br/>still current?"}
+    C -- "no (stale)" --> S["Reject - simply invalid,<br/>not treated as reuse"]
+    C -- "yes" --> D{"jti already<br/>claimed?"}
+    D -- "yes (reused/stolen)" --> E["Bump that chain's version<br/>(or account-wide if no chain claim)"]
+    E --> F["Log at critical"]
+    D -- "no (clean)" --> G["Claim jti, issue new<br/>access + refresh pair<br/>(same chain_id)"]
 ```
 
 1. Decode the refresh token's claims once (not the two-or-three separate decodes an earlier version did).
-2. **Reuse detection**: refresh tokens are single-use; revoked (by `jti`) immediately after a successful rotation. If a token whose `jti` is *already* revoked is presented again, that's either a stale retry or a stolen token being used in parallel with its legitimate owner. Either way, the response is the same: **every** refresh token currently active for that user is revoked (`revoke_all_tokens_for_user`), forcing re-authentication on every device, and the incident is logged at `critical`.
-3. On a clean (non-reused) token: revoke the old `jti`, issue a new access+refresh pair.
+2. **Version check first**: if the token's embedded `account_ver`/`chain_ver` has already fallen behind Redis's current value after logout, logout-all, password change, or a targeted Manage Sessions revoke, it is rejected as stale. This runs *before* the reuse check below, so an intentionally ended session is not treated as suspected theft.
+3. **Reuse detection**: refresh tokens are still single-use, enforced by an atomic per-`jti` claim (`claim_jti_for_rotation`), independent of the version check above. If a token whose `jti` is *already* claimed is presented again, the cause could be a stale retry, a race, or token theft. The response bumps that token's own `chain_ver` (`revoke_chain_for_user`), or `account_ver` account-wide for a pre-chain token with no lineage to scope to, and logs the incident at `critical`. See [Session Management](session-management.md#rotation-chains-and-reuse-detection) for why this stays scoped to the compromised chain instead of every session on the account.
+4. On a clean (non-reused, current-version) token: claim the old `jti`, issue a new access+refresh pair carrying the same `chain_id` forward.
 
-Refresh tokens are tracked purely in Redis (a `jti → expiry` registry per user), not the database: `refresh_tokens()` does not re-check `is_active`/account existence itself. This is why account deletion (soft or hard; see [../database/design.md](../database/design.md#account-lifecycle)) explicitly calls `revoke_all_tokens_for_user` rather than relying on refresh to notice on its own.
+Token validity is version-based, governed by Redis (`account_ver`/`chain_ver` counters, not a registry of live tokens), not the database: `refresh_tokens()` does not re-check `is_active`/account existence itself. The `user_sessions` table mirrors the current `jti`/`chain_id` only for display and targeted revoke in the Manage Sessions card. See [Session Management](session-management.md) for the full source-of-truth breakdown.
+
+---
 
 ## Logout / logout-all
 
-- `POST /auth/logout` revokes the single refresh token's `jti` and clears both cookies (matching `path=/auth` for the refresh cookie).
-- `POST /auth/logout/all` walks the user's full `jti` registry and revokes every entry: every device, every session, immediately. Same mechanism the reuse-detection path (above) and account soft-delete/purge (see database design doc) reuse.
-- **Both are idempotent about an already-dead refresh token.** Neither endpoint treats "the presented refresh token is already revoked/expired/malformed" as an error, since the caller's goal (no valid session left in this browser) is already true either way, so both still clear cookies and report success. This matters concretely right after a self/admin password change (below), which revokes every refresh token for the account, including the one the current browser is still holding: clicking Logout immediately afterward presents that now-dead token, and it must still log the browser out cleanly rather than surfacing an "invalid or already revoked" error while leaving stale cookies (and an apparently-still-logged-in UI) behind. `logout/all` specifically decodes the token's claims without checking revocation first (`jwt_service.decode_payload`, not `verify_token`) so it can still resolve the owning email and revoke whatever sessions remain elsewhere, but it still enforces the token's `type` claim, so a wrong-type token (e.g. an access token mistakenly presented here) is never treated as resolving a real session to revoke.
+- `POST /auth/logout` bumps that one session's `chain_ver` (ending just this device) and clears both cookies (matching `path=/auth` for the refresh cookie).
+- `POST /auth/logout/all` bumps `account_ver`. One `INCR` ends every device and every session immediately. The reuse-detection path for an unknown-chain token and account soft-delete/purge use the same mechanism.
+- **Both are idempotent about an already-dead refresh token.** Neither endpoint treats "the presented refresh token is already revoked/expired/malformed" as an error, since the caller's goal (no valid session left in this browser) is already true either way, so both still clear cookies and report success. This matters concretely right after a self/admin password change (below), which revokes every session for the account (bumps `account_ver`), including the one the current browser is still holding: clicking Logout immediately afterward presents that now-stale token, and it must still log the browser out cleanly rather than surfacing an "invalid or already revoked" error while leaving stale cookies (and an apparently-still-logged-in UI) behind. `logout/all` specifically decodes the token's claims without checking revocation first (`jwt_service.decode_payload`, not `verify_token`) so it can still resolve the owning email and revoke whatever sessions remain elsewhere, but it still enforces the token's `type` claim, so a wrong-type token (e.g. an access token mistakenly presented here) is never treated as resolving a real session to revoke.
+
+---
 
 ## Password reset
 
-`POST /auth/password-reset/request` → `POST /auth/password-reset/confirm`:
+`POST /auth/password-reset/request` -> `POST /auth/password-reset/confirm`:
 
 1. Request: issues a scoped, Redis-backed single-use token (same `GETDEL` pattern as email verification), emailed to the address. **Always** the same generic response whether or not the email is registered.
-2. Confirm: atomically redeems the token, validates the new password's strength (same rule signup enforces; see `password_service.validate_password_strength`), rejects if it matches the current password, and, critically, **revokes every refresh token for the account**, so a password reset actually ends every other session rather than just changing the password while old sessions stay valid.
+2. Confirm: atomically redeems the token, validates the new password's strength (same rule signup enforces; see `password_service.validate_password_strength`), rejects if it matches the current password, and, critically, **bumps `account_ver`**, so a password reset actually ends every other session rather than just changing the password while old sessions stay valid.
 3. A recoverable failure (e.g. weak password) restores the Redis token entry, capped at its *original* remaining TTL: it doesn't get a fresh full-length window, closing a window-extension loophole.
 
-**Self/admin password changes revoke sessions the same way.** `PUT /users/me` (self) and `PUT /users/{email}` (admin) both back onto the same `UserUpdate` schema and, when the update includes a new password, both now call `refresh_token_service.revoke_all_tokens_for_user` after the change succeeds, matching password-reset-confirm's behavior exactly, for the same reason: a password change may be happening precisely because the account is compromised, so an attacker's existing session shouldn't outlive it. An ordinary profile update with no password field does not trigger this.
+**Self/admin password changes revoke sessions the same way.** `PUT /users/me` (self) and `PUT /users/{email}` (admin) both back onto the same `UserUpdate` schema and, when the update includes a new password, both now call `refresh_token_service.revoke_all_tokens_for_user` (bumps `account_ver`) after the change succeeds, matching password-reset-confirm's behavior exactly, for the same reason: a password change may be happening precisely because the account is compromised, so an attacker's existing session shouldn't outlive it. An ordinary profile update with no password field does not trigger this.
 
 **Self-service password changes also require the current password.** `PUT /users/me` requires a matching `current_password` whenever the request sets a new `password`: proof of the old credential, not just a valid session, since a hijacked `access_token` cookie alone would otherwise be enough to lock the real owner out. Skipped for an OAuth-only account (`hashed_password is None`) setting a password for the first time, and not required on the admin route (`PUT /users/{email}` authenticates via the admin's own `users:update_any` permission, not the target's old password). See [Security Decisions](../security/decisions.md#self-service-password-change-requires-the-current-password).
 
+---
+
 ## Google OAuth2
 
-`GET /auth/oauth2/login/google` → Google consent screen → `GET /auth/oauth2/callback/google`. See [OAuth2 / PKCE](oauth2-pkce.md) for the full request/response walkthrough and the exact PKCE code-challenge mechanics.
+`GET /auth/oauth2/login/google` -> Google consent screen -> `GET /auth/oauth2/callback/google`. See [OAuth2 / PKCE](oauth2-pkce.md) for the full request/response walkthrough and the exact PKCE code-challenge mechanics.
 
 1. **CSRF protection**: a random `state` value (`secrets.token_urlsafe(32)`) is generated, stored in Redis, and set as a cookie. The callback validates the query-param `state` against both the Redis entry and the cookie, then atomically consumes it (`GETDEL`), so a callback can't be replayed or forged from a different browser session.
 2. **PKCE** (S256) is layered on top of `state`, exceeding typical OAuth2 CSRF protection for a template of this kind.
@@ -97,6 +113,10 @@ Refresh tokens are tracked purely in Redis (a `jti → expiry` registry per user
 7. The reserved system account (`role=UserRole.system`) is blocked from OAuth2 login entirely; it must always go through the password login originally set by `scripts/create_system_user.py`.
 8. Setting a password on an OAuth2-only account afterward: `PUT /users/me` with a `password` field. See [../database/design.md](../database/design.md#users) for why this needed its own fix (the field name intentionally doesn't match a real column, and must be hashed + renamed before reaching the CRUD layer).
 
+---
+
 ## Current-session lookups (`GET /auth/me`)
 
 Every call re-verifies the JWT *and* re-queries the database for the user row. This is deliberate, not just "how it happened to be written": it's what makes `is_active=False` (deactivation, soft delete) take effect on the *very next request*, rather than only once the access token's own `exp` is reached. See [Security Decisions](../security/decisions.md#why-current-user-lookups-re-query-the-database-every-time).
+
+Server-side revocation (logout-all, password change, account deactivation, refresh-token reuse detection) is effective immediately: the very next request from an affected session gets `401`. Noticing that client-side is a separate concern. `useCurrentUserQuery` (`frontend/src/mystic_auth/auth/current_user/useCurrentUserQuery.ts`) is mounted once, at the app root, for the app's whole lifetime, so it does not re-run just because the user navigates between pages inside the SPA, and each page's own data query independently caches for the same 30s `staleTime`. Without a background poll, a tab that already had every page's data cached could sit showing "signed in" for a while after being revoked elsewhere, since nothing it does would happen to issue a fresh request that could actually surface the resulting `401`. `refetchInterval`/`refetchIntervalInBackground` on that query is what actually notices a revocation on its own, independent of user interaction or window focus.

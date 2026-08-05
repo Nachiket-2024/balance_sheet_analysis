@@ -1,7 +1,7 @@
 # tests/backend/mystic_auth/security/test_invalid_condition_payload_security.py
 #
 # Real-DB proof that invalid policy condition payloads are rejected before
-# ever reaching the database (claude.md's "invalid payloads" / Policy
+# ever reaching the database (the invalid-payload policy
 # Condition Validation: "Must happen before database writes").
 import pytest
 from backend.mystic_auth.authorization.repositories.policy_repository import policy_repository

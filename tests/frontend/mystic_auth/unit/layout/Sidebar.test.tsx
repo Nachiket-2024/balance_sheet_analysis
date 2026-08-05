@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { ChakraProvider, defaultSystem } from '@chakra-ui/react';
 import { MemoryRouter } from 'react-router';
 
@@ -18,6 +18,8 @@ function seed(permissions: string[]) {
     role: 'user',
     permissions,
     has_password: true,
+    created_at: '2026-01-15T00:00:00Z',
+    active_sessions: 1,
   });
 }
 
@@ -44,7 +46,7 @@ describe('Sidebar', () => {
 
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Audit Log' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Profile' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Account Settings' })).toBeInTheDocument();
   });
 
   it('hides Users and Policies links for a caller with no admin permissions', () => {
@@ -72,20 +74,25 @@ describe('Sidebar', () => {
   it('renders no extra links when extraItems is omitted, unchanged from before this prop existed', () => {
     renderSidebar();
 
-    expect(screen.getAllByRole('link')).toHaveLength(3); // Dashboard, Audit Log, Profile
+    // Scoped to the nav-links list, not the whole sidebar: the brand text
+    // above it is also a link (to /dashboard), which would otherwise count
+    // itself here and throw every length/order assertion below off by one.
+    const navLinks = within(screen.getByTestId('nav-links'));
+    expect(navLinks.getAllByRole('link')).toHaveLength(3); // Dashboard, Audit Log, Account Settings
   });
 
   it('renders app-supplied extraItems appended after the built-in links', () => {
-    renderSidebar(['/'], [{ label: 'Projects', to: '/projects' }]);
+    renderSidebar(['/'], [{ label: 'Extra A', to: '/extra-a' }]);
 
-    expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Extra A' })).toBeInTheDocument();
   });
 
   it('appends an extraItems link without an order after every built-in one, reproducing the original append-only behavior', () => {
-    renderSidebar(['/'], [{ label: 'Projects', to: '/projects' }]);
+    renderSidebar(['/'], [{ label: 'Extra A', to: '/extra-a' }]);
 
-    const labels = screen.getAllByRole('link').map((el) => el.textContent);
-    expect(labels).toEqual(['Dashboard', 'Audit Log', 'Profile', 'Projects']);
+    const navLinks = within(screen.getByTestId('nav-links'));
+    const labels = navLinks.getAllByRole('link').map((el) => el.textContent);
+    expect(labels).toEqual(['Dashboard', 'Audit Log', 'Account Settings', 'Extra A']);
   });
 
   it('slots an extraItems link between two built-ins using order', () => {
@@ -93,42 +100,45 @@ describe('Sidebar', () => {
     // after Users/Policies too (order:20/30) even though this caller can't
     // see those two (no matching permissions), confirming order is applied
     // to the full merged list, not just to the items actually rendered.
-    renderSidebar(['/'], [{ label: 'Companies', to: '/companies', order: 25 }]);
+    renderSidebar(['/'], [{ label: 'Extra B', to: '/extra-b', order: 25 }]);
 
-    const labels = screen.getAllByRole('link').map((el) => el.textContent);
-    expect(labels).toEqual(['Dashboard', 'Companies', 'Audit Log', 'Profile']);
+    const navLinks = within(screen.getByTestId('nav-links'));
+    const labels = navLinks.getAllByRole('link').map((el) => el.textContent);
+    expect(labels).toEqual(['Dashboard', 'Extra B', 'Audit Log', 'Account Settings']);
   });
 
   it('sorts multiple extraItems among the built-ins by their own order values', () => {
     renderSidebar(['/'], [
-      { label: 'Reports', to: '/reports', order: 45 }, // after Audit Log (40), before Profile (50)
-      { label: 'Companies', to: '/companies', order: 5 }, // before Dashboard (10)
+      { label: 'Extra C', to: '/extra-c', order: 45 }, // after Audit Log (40), before Account Settings (50)
+      { label: 'Extra B', to: '/extra-b', order: 5 }, // before Dashboard (10)
     ]);
 
-    const labels = screen.getAllByRole('link').map((el) => el.textContent);
-    expect(labels).toEqual(['Companies', 'Dashboard', 'Audit Log', 'Reports', 'Profile']);
+    const navLinks = within(screen.getByTestId('nav-links'));
+    const labels = navLinks.getAllByRole('link').map((el) => el.textContent);
+    expect(labels).toEqual(['Extra B', 'Dashboard', 'Audit Log', 'Extra C', 'Account Settings']);
   });
 
   it('keeps multiple order-less extraItems in the order they were given, all after the built-ins', () => {
     renderSidebar(['/'], [
-      { label: 'Reports', to: '/reports' },
-      { label: 'Companies', to: '/companies' },
+      { label: 'Extra C', to: '/extra-c' },
+      { label: 'Extra B', to: '/extra-b' },
     ]);
 
-    const labels = screen.getAllByRole('link').map((el) => el.textContent);
-    expect(labels).toEqual(['Dashboard', 'Audit Log', 'Profile', 'Reports', 'Companies']);
+    const navLinks = within(screen.getByTestId('nav-links'));
+    const labels = navLinks.getAllByRole('link').map((el) => el.textContent);
+    expect(labels).toEqual(['Dashboard', 'Audit Log', 'Account Settings', 'Extra C', 'Extra B']);
   });
 
   it('hides an extraItems link gated by a permission the caller lacks', () => {
-    renderSidebar(['/'], [{ label: 'Projects', to: '/projects', permission: 'projects:read' }]);
+    renderSidebar(['/'], [{ label: 'Extra A', to: '/extra-a', permission: 'extra:read' }]);
 
-    expect(screen.queryByRole('link', { name: 'Projects' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Extra A' })).toBeNull();
   });
 
   it('shows an extraItems link once the caller holds its required permission', () => {
-    seed(['projects:read']);
-    renderSidebar(['/'], [{ label: 'Projects', to: '/projects', permission: 'projects:read' }]);
+    seed(['extra:read']);
+    renderSidebar(['/'], [{ label: 'Extra A', to: '/extra-a', permission: 'extra:read' }]);
 
-    expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Extra A' })).toBeInTheDocument();
   });
 });

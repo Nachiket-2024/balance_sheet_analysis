@@ -11,11 +11,8 @@ from fastapi.responses import JSONResponse
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 _ = load_dotenv(dotenv_path=BASE_DIR / ".env")
 
-# This app's own routers, imported directly from their own modules rather
-# than through app_sdk.py, to avoid a circular import (see app_sdk.py's own
-# docstring): these modules' models need app_sdk.Base, so app_sdk.py can't
-# also depend on them. Routes live under api/<feature>_routes/, mirroring
-# mystic_auth's own api/ layout (api/auth_routes/, api/pbac_routes/, ...).
+# App routers import directly from their modules to avoid an app_sdk.py cycle.
+# Their models depend on app_sdk.Base, so app_sdk.py cannot also import them.
 from .api.balance_sheet_routes import balance_sheet_routes  # noqa: E402 (must follow load_dotenv() above)
 from .api.company_routes import company_routes  # noqa: E402
 from .api.llm_routes import llm_routes  # noqa: E402
@@ -38,7 +35,8 @@ from .sdk import (  # noqa: E402 (must follow load_dotenv() above, since sdk.py 
     refresh_token_router,
     security_audit_router,
     settings,
-    user_router,
+    user_management_router,
+    user_self_service_router,
     watch_for_late_dsn,
 )
 
@@ -87,25 +85,21 @@ app = FastAPI(
     openapi_url=None if _is_production else "/openapi.json",
 )
 
-# Starlette applies middleware in reverse of add order: the LAST middleware
-# added ends up OUTERMOST, running first on the way in. So
-# CorrelationIdMiddleware is added last, making it outermost, so
-# request.state.request_id (and the logging contextvar it sets) is populated
-# before every other middleware runs, including LoggingMiddleware's "Incoming
-# request" log line below.
+# Starlette applies middleware in reverse add order. Add CorrelationIdMiddleware
+# last so request IDs exist before LoggingMiddleware logs the incoming request.
 
-# Sourced from settings (FRONTEND_BASE_URL + optional
-# FRONTEND_ADDITIONAL_BASE_URLS) rather than hardcoded, so this works
-# unchanged across local/staging/production instead of only ever allowing
-# http://localhost:5173. See Settings.cors_allowed_origins for how the list
-# is built. Redirect/email links still always point at FRONTEND_BASE_URL
-# alone regardless of how many origins are CORS-allowed here.
+# Settings build the allowed CORS origins for local, staging, and production.
+# Redirect and email links still use only FRONTEND_BASE_URL.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
+    # Custom response headers are invisible to browser JS by default even
+    # when the request itself succeeds; without this, X-Total-Count (see
+    # list_all_users) is present on the wire but unreadable via axios.
+    expose_headers=["X-Total-Count"],
 )
 
 app.add_middleware(LoggingMiddleware)
@@ -130,14 +124,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.include_router(auth_router)
 app.include_router(refresh_token_router)
-app.include_router(user_router)
-# Split from a single pbac_routes/policy_routes.py into feature-based modules
-# (CRUD, history, assignment, checks, audit log), see backend/mystic_auth/api/pbac_routes/.
-# Registration order matters: policy_assignment_router defines
-# /authorization/users/me/policies before its own
-# /authorization/users/{user_email}/policies, so it must be included whole;
-# no other cross-router ordering constraint exists since each router owns a
-# disjoint set of paths.
+# Self-service routes must register before user_management_router, otherwise
+# PUT /users/{user_email} shadows PUT /users/me.
+app.include_router(user_self_service_router)
+app.include_router(user_management_router)
+# policy_assignment_router keeps its own /me route before /{user_email}.
+# The other PBAC routers have disjoint paths.
 app.include_router(policy_crud_router)
 app.include_router(policy_history_router)
 app.include_router(policy_assignment_router)
@@ -146,9 +138,7 @@ app.include_router(pbac_audit_log_router)
 app.include_router(security_audit_router)
 app.include_router(health_router)
 
-# This app's own domain routers (see app_sdk.py): companies, balance
-# sheets, LLM chat. Kept as a separate block from the mystic_auth routers
-# above so a future template merge only ever touches the block above this.
+# App-owned domain routers. Keep separate from template routers for sync review.
 app.include_router(company_router)
 app.include_router(balance_sheet_router)
 app.include_router(llm_router)

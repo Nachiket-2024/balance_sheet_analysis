@@ -25,11 +25,22 @@ const OAuth2LoginButtonComponent: React.FC<OAuth2LoginButtonComponentProps> = ({
         <Box w="full" mt={4}>
             <Button
                 w="full"
+                // Google's official "Sign in with Google" button asset comes in a light and a
+                // dark variant (branding guidelines require picking whichever fits the
+                // surrounding UI, not always the light one); previously this always rendered the
+                // light variant, which read as a stark white box against the rest of the app's
+                // dark-mode surfaces.
                 bg="white"
-                color="gray.800"
-                border="gray.800"
-                borderColor="border.default"
+                color="#1F1F1F"
+                borderWidth="1px"
+                borderColor="#747775"
                 _hover={{ bg: "gray.200" }}
+                _dark={{
+                    bg: "#131314",
+                    color: "#E3E3E3",
+                    borderColor: "#8E918F",
+                    _hover: { bg: "#303030" },
+                }}
                 size="lg"
                 onClick={onLogin}
             >

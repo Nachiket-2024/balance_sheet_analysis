@@ -1,11 +1,11 @@
 from .condition_handler import ConditionHandler
-from .context_attributes_condition import ContextAttributesCondition
-from .date_range_condition import DateRangeCondition
-from .network_condition import NetworkCondition
-from .resource_attributes_condition import ResourceAttributesCondition
-from .security_context_condition import SecurityContextCondition
-from .self_only_condition import SelfOnlyCondition
-from .time_condition import TimeCondition
+from .condition_types.context_attributes_condition import ContextAttributesCondition
+from .condition_types.date_range_condition import DateRangeCondition
+from .condition_types.network_condition import NetworkCondition
+from .condition_types.resource_attributes_condition import ResourceAttributesCondition
+from .condition_types.security_context_condition import SecurityContextCondition
+from .condition_types.self_only_condition import SelfOnlyCondition
+from .condition_types.time_condition import TimeCondition
 
 
 class ConditionRegistry:

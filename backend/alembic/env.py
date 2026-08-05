@@ -24,6 +24,7 @@ from mystic_auth.authorization.models.audit_log_model import AuthorizationAuditL
 from mystic_auth.authorization.models.policy_history_model import PolicyHistory  # noqa: F401
 from mystic_auth.authorization.models.policy_model import Policy, UserPolicy  # noqa: F401
 from mystic_auth.database.base import Base
+from mystic_auth.user_session.session_model import UserSession  # noqa: F401
 from mystic_auth.user_table.user_model import User  # noqa: F401
 
 load_dotenv()

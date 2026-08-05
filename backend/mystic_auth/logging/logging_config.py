@@ -28,6 +28,23 @@ os.makedirs(LOG_DIR, exist_ok=True)
 ACCESS_LOG_PATH = os.path.join(LOG_DIR, 'access.log')
 
 
+def _make_access_handler(level: int, formatter: logging.Formatter) -> logging.Handler:
+    handler: logging.Handler = TimedRotatingFileHandler(
+        ACCESS_LOG_PATH,
+        when="midnight",
+        interval=1,
+        # backupCount=0 previously meant "never delete a rotated file",
+        # not "keep no backups" (TimedRotatingFileHandler's own
+        # semantics: 0 disables pruning entirely), so access.log.* grew
+        # unbounded on a long-running deployment. 30 days is a
+        # reasonable default retention window for access logs.
+        backupCount=30
+    )
+    handler.setLevel(level)
+    handler.setFormatter(formatter)
+    return handler
+
+
 def _make_stream_formatter(json_fields: str, console_fields: str) -> logging.Formatter:
     """
     Human-readable console output in dev, structured JSON in production.
@@ -81,19 +98,7 @@ def get_logger(name: str = "base_logger") -> logging.Logger:
 
         request_id_filter = RequestIdFilter()
 
-        access_handler = TimedRotatingFileHandler(
-            ACCESS_LOG_PATH,
-            when="midnight",
-            interval=1,
-            # backupCount=0 previously meant "never delete a rotated file",
-            # not "keep no backups" (TimedRotatingFileHandler's own
-            # semantics: 0 disables pruning entirely), so access.log.* grew
-            # unbounded on a long-running deployment. 30 days is a
-            # reasonable default retention window for access logs.
-            backupCount=30
-        )
-        access_handler.setLevel(logging.INFO)
-        access_handler.setFormatter(file_formatter)
+        access_handler = _make_access_handler(logging.INFO, file_formatter)
         access_handler.addFilter(request_id_filter)
 
         stream_handler = logging.StreamHandler()
@@ -141,14 +146,7 @@ def get_worker_logger(name: str = "worker") -> logging.Logger:
 
         request_id_filter = RequestIdFilter()
 
-        access_handler = TimedRotatingFileHandler(
-            ACCESS_LOG_PATH,
-            when="midnight",
-            interval=1,
-            backupCount=30
-        )
-        access_handler.setLevel(logging.INFO)
-        access_handler.setFormatter(file_formatter)
+        access_handler = _make_access_handler(logging.INFO, file_formatter)
         access_handler.addFilter(request_id_filter)
 
         stream_handler = logging.StreamHandler()

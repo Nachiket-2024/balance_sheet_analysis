@@ -62,7 +62,10 @@ describe('App routing', () => {
     });
     renderAppAt('/dashboard');
 
-    expect(await screen.findByText('Welcome to your Dashboard')).toBeInTheDocument();
+    // "Manage Sessions" (not a page title) is the landmark here: the
+    // Dashboard's own welcome banner is a compact identity/stats/actions
+    // row with no unique static heading of its own, unlike this card.
+    expect(await screen.findByText('Manage Sessions')).toBeInTheDocument();
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
 
@@ -75,7 +78,10 @@ describe('App routing', () => {
     });
     renderAppAt('/');
 
-    expect(await screen.findByText('Welcome to your Dashboard')).toBeInTheDocument();
+    // "Manage Sessions" (not a page title) is the landmark here: the
+    // Dashboard's own welcome banner is a compact identity/stats/actions
+    // row with no unique static heading of its own, unlike this card.
+    expect(await screen.findByText('Manage Sessions')).toBeInTheDocument();
     expect(window.location.pathname).toBe('/dashboard');
   });
 

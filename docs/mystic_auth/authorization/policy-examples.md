@@ -26,6 +26,8 @@ Grants read access to a `documents` resource type, no restrictions:
 }
 ```
 
+---
+
 ## Policy with a time-based condition
 
 Only grants access during business hours (Sydney time):
@@ -46,6 +48,8 @@ Only grants access during business hours (Sydney time):
 }
 ```
 
+---
+
 ## Policy with a network-based condition
 
 Only grants access from the corporate network:
@@ -64,6 +68,8 @@ Only grants access from the corporate network:
 }
 ```
 
+---
+
 ## Policy with a user-attribute condition (ownership)
 
 Grants access to a resource only when the caller owns it: the resource's `email` field must match the caller's own email:
@@ -80,7 +86,9 @@ Grants access to a resource only when the caller owns it: the resource's `email`
 }
 ```
 
-> This is the actual seeded `self_service` policy's shape shown for illustration. The real seeded row has no `conditions` at all, because the "own-ness" is already enforced structurally (the `/users/me` routes only ever fetch the caller's own record by their own email; see `api/user_routes/user_routes.py`). Use `self_only` when a route passes an arbitrary target resource and needs the *policy* to enforce ownership instead.
+> This is the actual seeded `self_service` policy's shape shown for illustration. The real seeded row has no `conditions` at all, because the "own-ness" is already enforced structurally (the `/users/me` routes only ever fetch the caller's own record by their own email; see `api/user_routes/user_self_service_routes.py`). Use `self_only` when a route passes an arbitrary target resource and needs the *policy* to enforce ownership instead.
+
+---
 
 ## Policy combining multiple condition types
 
@@ -100,6 +108,8 @@ Conditions are AND'ed across keys: every present key must pass:
 }
 ```
 
+---
+
 ## System superuser policy (seeded)
 
 The most sensitive policy in the system: it assigns the system role and manages the authorization system itself. Resource type `"*"` because its actions span both `users` and `policies` resource types:
@@ -110,7 +120,6 @@ The most sensitive policy in the system: it assigns the system role and manages 
   "description": "The most sensitive actions: assigning the system role and managing the authorization system itself.",
   "actions": [
     "users:assign_system_role",
-    "users:promote_to_admin",
     "policies:read",
     "policies:create",
     "policies:update",
@@ -126,9 +135,9 @@ The most sensitive policy in the system: it assigns the system role and manages 
 }
 ```
 
-Note: `users:promote_to_admin` is left over from a one-directional "promote to admin" endpoint that has since been removed in favor of the single bidirectional `PATCH /users/{user_email}/role` endpoint. That action string is never checked by any route now; it's harmless, inert data, kept as-is rather than editing migration history. New policies should not reference it.
+This policy is seeded by `backend/alembic/versions/b7d3a1c9e4f2_add_pbac_policies.py` and updated in place by later data migrations as capabilities changed. The current migrated shape includes the fine-grained `policies:*` actions, `security_audit:read`, `users:purge`, and `users:reactivate`. It is protected: it can never be deleted or renamed via the management API (see [Writing and Testing Policies](writing-testing-policies.md#protected-baseline-policies)), and its last assignment can never be revoked (would leave nobody able to manage the authorization system at all).
 
-This policy is seeded by `backend/alembic/versions/b7d3a1c9e4f2_add_pbac_policies.py` (original actions) and updated in place by three later data migrations, each granting one more capability as it was added: `e2b6c8a4f1d5_split_policies_manage_action.py` (fine-grained `policies:*` split), `f3c1a9d7e5b2_grant_security_audit_read.py` (`security_audit:read`), and `b2c3d4e5f6a7_add_account_lifecycle_support.py` (`users:purge`, `users:reactivate`). It is protected: it can never be deleted or renamed via the management API (see [Writing and Testing Policies](writing-testing-policies.md#protected-baseline-policies)), and its last assignment can never be revoked (would leave nobody able to manage the authorization system at all).
+---
 
 ## User administration policy (seeded)
 
@@ -141,6 +150,8 @@ This policy is seeded by `backend/alembic/versions/b7d3a1c9e4f2_add_pbac_policie
   "is_active": true
 }
 ```
+
+---
 
 ## Self-service policy (seeded, actual shape)
 

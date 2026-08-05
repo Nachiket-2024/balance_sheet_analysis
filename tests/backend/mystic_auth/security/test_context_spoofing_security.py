@@ -2,7 +2,7 @@
 #
 # Real-DB proof that request_context_builder.build_authorization_context
 # is actually used for real decisions, and a client cannot influence it:
-# claude.md's "context spoofing attempts". Uses POST /authorization/batch-
+# context-spoofing attempts. Uses POST /authorization/batch-
 # check as the enforcement vehicle: unlike the admin inspection endpoint
 # (which deliberately accepts caller-supplied context for "what if"
 # simulation), batch-check always builds its context from the real

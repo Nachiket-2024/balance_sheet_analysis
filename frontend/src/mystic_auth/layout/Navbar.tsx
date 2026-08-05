@@ -4,6 +4,7 @@ import { Box, Flex, IconButton, Text } from "@chakra-ui/react";
 import { useAuthStore } from "../store/authStore";
 import LogoutButton from "../auth/logout/LogoutButton";
 import ThemeToggle from "./ThemeToggle";
+import { ICON_BUTTON_PROPS } from "../ui/styles/buttonStyles";
 
 interface NavbarProps {
     onToggleSidebar: () => void;
@@ -24,7 +25,8 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
             align="center"
             justify="space-between"
             px={{ base: 4, md: 6 }}
-            py={3}
+            h="16"
+            flexShrink={0}
             bg="bg.surface"
             borderBottom="1px solid"
             borderColor="border.default"
@@ -33,15 +35,15 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
                 <IconButton
                     aria-label="Toggle navigation menu"
                     onClick={onToggleSidebar}
-                    variant="ghost"
                     display={{ base: "inline-flex", md: "none" }}
                     size="sm"
+                    {...ICON_BUTTON_PROPS}
                 >
                     ☰
                 </IconButton>
                 {name && (
                     <Box>
-                        <Text fontSize="sm" color="fg.muted">
+                        <Text fontSize="15px" color="fg.muted">
                             Signed in as <Text as="span" fontWeight="semibold" color="fg.default">{name}</Text>
                         </Text>
                     </Box>

@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..user_table.user_model import User, UserRole
-from .user_crud_modules.user_base_crud import UserBaseCRUD
+from .user_crud_modules.user_base_crud import UserBaseCRUD, UserStatus
 from .user_crud_modules.user_email_crud import UserEmailCRUD
 from .user_crud_modules.user_lifecycle_crud import UserLifecycleCRUD
 from .user_crud_modules.user_role_crud import UserRoleCRUD
@@ -22,8 +22,39 @@ class UserCRUDCollector:
     async def get_by_id(self, id: int, db: AsyncSession):
         return await self.base.get_by_id(id, db)
 
-    async def get_all(self, db: AsyncSession, limit: int = 1000, offset: int = 0):
-        return await self.base.get_all(db, limit=limit, offset=offset)
+    async def get_all(
+        self,
+        db: AsyncSession,
+        limit: int = 1000,
+        offset: int = 0,
+        search: str | None = None,
+        role: UserRole | None = None,
+        is_verified: bool | None = None,
+        status: UserStatus | None = None,
+        sort_by: str | None = None,
+        sort_dir: str = "asc",
+    ):
+        return await self.base.get_all(
+            db,
+            limit=limit,
+            offset=offset,
+            search=search,
+            role=role,
+            is_verified=is_verified,
+            status=status,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
+
+    async def count(
+        self,
+        db: AsyncSession,
+        search: str | None = None,
+        role: UserRole | None = None,
+        is_verified: bool | None = None,
+        status: UserStatus | None = None,
+    ) -> int:
+        return await self.base.count(db, search=search, role=role, is_verified=is_verified, status=status)
 
     async def create(self, obj_data: dict, db: AsyncSession):
         return await self.base.create(obj_data, db)
@@ -62,5 +93,6 @@ __all__ = [
     "UserRoleCRUD",
     "UserLifecycleCRUD",
     "UserCRUDCollector",
+    "UserStatus",
     "user_crud",
 ]

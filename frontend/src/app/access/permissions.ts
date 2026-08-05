@@ -8,6 +8,7 @@
 export const APP_PERMISSIONS = {
     COMPANY_READ: "company:read",
     COMPANY_CREATE: "company:create",
+    COMPANY_UPDATE: "company:update",
     COMPANY_DELETE: "company:delete",
     BALANCE_SHEET_READ: "balance_sheet:read",
     BALANCE_SHEET_IMPORT: "balance_sheet:import",

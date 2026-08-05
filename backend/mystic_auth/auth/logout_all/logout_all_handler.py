@@ -13,7 +13,9 @@ logger = get_logger(__name__)
 
 
 class LogoutAllHandler:
-    """Revokes all refresh tokens for a user and clears authentication cookies."""
+    """Revokes every session on the account (one account-wide Redis
+    version bump - see refresh_token_service.revoke_all_tokens_for_user)
+    and clears authentication cookies."""
 
     async def handle_logout_all(
         self, refresh_token: str | None, db: AsyncSession | None = None, request: Request | None = None
@@ -40,7 +42,7 @@ class LogoutAllHandler:
 
             email = payload.get("email") if payload and payload.get("type") == "refresh" else None
 
-            revoked_count = await refresh_token_service.revoke_all_tokens_for_user(email) if email else 0
+            revoked_count = await refresh_token_service.revoke_all_tokens_for_user(email, db) if email else 0
 
             await log_security_event(
                 LOGOUT_ALL,
@@ -59,11 +61,11 @@ class LogoutAllHandler:
                 content={"message": f"Logged out from {revoked_count} devices"},
                 status_code=200
             )
-            resp.delete_cookie(key="access_token", httponly=True, secure=True, samesite="strict")
+            resp.delete_cookie(key="access_token", httponly=True, secure=True, samesite="none")
             # path must match the path="/auth" refresh_token was set with
             # (token_cookie_handler.py), or the browser treats this as a different
             # cookie and never clears the real one.
-            resp.delete_cookie(key="refresh_token", httponly=True, secure=True, samesite="strict", path="/auth")
+            resp.delete_cookie(key="refresh_token", httponly=True, secure=True, samesite="none", path="/auth")
 
             return resp
 

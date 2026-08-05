@@ -33,6 +33,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, permission, r
     }
 
     if (isAuthenticated === false) {
+        // Deliberately no `from`/return-to-previous-page state: every login
+        // (whether after an explicit logout, a session that died from under
+        // the user, or a fresh unauthenticated visit) lands on /dashboard,
+        // never wherever the caller happened to be when they lost their
+        // session - LoginPage.tsx always redirects there.
         return <Navigate to="/login" replace />;
     }
 

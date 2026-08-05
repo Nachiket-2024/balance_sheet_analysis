@@ -1,6 +1,6 @@
 # tests/backend/mystic_auth/unit/test_condition_validator_unit.py
 #
-# Unit coverage for validate_conditions (claude.md's "Policy Condition
+# Unit coverage for validate_conditions (the policy condition
 # Validation"): invalid policies must be rejected before storage: unknown
 # keys, wrong types, missing required fields, invalid timezone/IP/dates.
 import pytest

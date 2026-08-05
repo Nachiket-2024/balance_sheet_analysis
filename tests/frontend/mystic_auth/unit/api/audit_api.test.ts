@@ -18,7 +18,13 @@ beforeEach(() => {
 describe('getAuthorizationAuditLogApi', () => {
   it('sends a GET request to /authorization/audit-log with default limit/offset', async () => {
     mock.onGet('/authorization/audit-log').reply((config) => {
-      expect(config.params).toEqual({ limit: 50, offset: 0 });
+      expect(config.params).toEqual({
+        limit: 50,
+        offset: 0,
+        search: undefined,
+        sort_by: undefined,
+        sort_dir: undefined,
+      });
       return [200, []];
     });
 
@@ -27,13 +33,25 @@ describe('getAuthorizationAuditLogApi', () => {
     expect(response.status).toBe(200);
   });
 
-  it('passes explicit limit/offset through', async () => {
+  it('passes explicit limit/offset/search/sort through', async () => {
     mock.onGet('/authorization/audit-log').reply((config) => {
-      expect(config.params).toEqual({ limit: 5, offset: 15 });
+      expect(config.params).toEqual({
+        limit: 5,
+        offset: 15,
+        search: 'someone@example.com',
+        sort_by: 'user_email',
+        sort_dir: 'asc',
+      });
       return [200, []];
     });
 
-    await getAuthorizationAuditLogApi(5, 15);
+    await getAuthorizationAuditLogApi({
+      limit: 5,
+      offset: 15,
+      search: 'someone@example.com',
+      sortBy: 'user_email',
+      sortDir: 'asc',
+    });
   });
 });
 

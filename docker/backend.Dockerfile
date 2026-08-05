@@ -1,7 +1,7 @@
 # Compiles native extensions (psycopg2/asyncpg wheels etc.) into a venv so
 # the build toolchain (gcc, libpq headers) never has to ship in the final
 # image — it's only needed here, at build time.
-FROM python:3.11-slim AS builder
+FROM python:3.14.6-slim AS builder
 
 WORKDIR /app
 
@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # pre-built venv, and the app source. Cuts image size and removes a class
 # of tooling (gcc) that has no business being reachable from a running
 # container.
-FROM python:3.11-slim
+FROM python:3.14.6-slim
 
 WORKDIR /app
 

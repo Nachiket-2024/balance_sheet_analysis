@@ -4,7 +4,7 @@
 # decisions are actually computed. Pure and DB-free, so these tests build
 # Policy objects directly rather than mocking a repository or database.
 #
-# Per claude.md's Testing Requirements, these tests must prove: allow
+# Per the PBAC testing requirements, these tests must prove: allow
 # decisions, deny decisions, ownership rules, resource attributes,
 # conditional policies, and (together with test_current_user_handler and
 # test_authorization_service) that identical roles/no-role users can have
@@ -263,7 +263,7 @@ def test_evaluation_never_references_role_two_role_free_policy_sets_differ_corre
 # ---------------------------- evaluate_detailed (explainability) ----------------------------
 # evaluate_detailed now returns an AuthorizationDecision (see
 # evaluators/authorization_decision.py) rather than a bare dict : per
-# claude.md's Authorization Decision Explainability, "detailed APIs should
+# authorization decision explainability, "detailed APIs should
 # use new structure". matched_policies/rejected_policies replace the old
 # granting_policy_names/"candidate minus granting" split.
 

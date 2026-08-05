@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { Stack, Input, Button, Text, Box } from "@chakra-ui/react";
+import { Stack, Input, Button, Text } from "@chakra-ui/react";
 import { Field as ChakraField } from "@chakra-ui/react";
+import { Link } from "react-router";
 
 import { useSignupMutation } from "./useSignupMutation";
 import FormAlert from "../../ui/FormAlert";
+import { BRAND_SOLID_HOVER_PROPS } from "../../ui/styles/buttonStyles";
 
 // Shared password policy logic and checklist UI, kept identical to
 // PasswordResetConfirmForm so the two flows can't drift apart again.
@@ -41,16 +43,25 @@ const SignupForm: React.FC = () => {
         }
 
         setLocalError("");
-        signupMutation.mutate({ name, email, password });
-    };
-
-    const handleClear = () => {
-        setName(""); setEmail(""); setPassword(""); setConfirmPassword("");
-        setLocalError(""); setPasswordStrength("");
-        signupMutation.reset();
+        signupMutation.mutate(
+            { name, email, password },
+            {
+                // Clears the sensitive fields (not name/email, which stay
+                // as a visible receipt of what was submitted) and, with the
+                // button below, blocks an accidental duplicate submit with
+                // the same still-filled password once signup has already
+                // succeeded.
+                onSuccess: () => {
+                    setPassword("");
+                    setConfirmPassword("");
+                    setPasswordStrength("");
+                },
+            }
+        );
     };
 
     const rules = checkPasswordRules(password);
+    const passwordErrorId = localError ? "signup-password-error" : signupMutation.isError ? "signup-mutation-error" : undefined;
 
     return (
         <Stack as="form" onSubmit={handleSubmit} w="full">
@@ -83,20 +94,27 @@ const SignupForm: React.FC = () => {
                     value={password}
                     onChange={e => handlePasswordChange(e.target.value)}
                     placeholder="Enter password"
+                    aria-invalid={!!localError || signupMutation.isError}
+                    aria-describedby={passwordErrorId}
                 />
-                {passwordStrength && (
-                    <Text
-                        mt={1}
-                        fontSize="sm"
-                        fontWeight="bold"
-                        color={
-                            passwordStrength === "Weak" ? "red.500" :
-                            passwordStrength === "Medium" ? "orange.400" : "green.500"
-                        }
-                    >
-                        Strength: {passwordStrength}
-                    </Text>
-                )}
+                {/* Always rendered, even before typing starts (showing a
+                    neutral "-" placeholder): reserving this line's height
+                    from the very first render means the strength label
+                    filling in never shifts the fields below it, unlike a
+                    conditionally-mounted line that only appears once
+                    passwordStrength has a value. */}
+                <Text
+                    mt={1}
+                    fontSize="15px"
+                    fontWeight="bold"
+                    color={
+                        passwordStrength === "Weak" ? "red.500" :
+                        passwordStrength === "Medium" ? "orange.400" :
+                        passwordStrength === "Strong" ? "green.500" : "fg.muted"
+                    }
+                >
+                    Strength: {passwordStrength || "-"}
+                </Text>
             </ChakraField.Root>
 
             <PasswordRulesChecklist rules={rules} fontSize="15px" />
@@ -108,63 +126,44 @@ const SignupForm: React.FC = () => {
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
                     placeholder="Confirm password"
+                    aria-invalid={!!localError}
+                    aria-describedby={localError ? "signup-password-error" : undefined}
                 />
             </ChakraField.Root>
 
-            {localError && <FormAlert status="error">{localError}</FormAlert>}
+            {localError && <FormAlert status="error" id="signup-password-error">{localError}</FormAlert>}
             {signupMutation.isError && (
-                <FormAlert status="error">{signupMutation.error.message}</FormAlert>
+                <FormAlert status="error" id="signup-mutation-error">{signupMutation.error.message}</FormAlert>
             )}
             {signupMutation.isSuccess && (
                 <FormAlert status="success">{signupMutation.data.message}</FormAlert>
             )}
 
-            <Box display="flex" alignItems="center">
-                {/* Signup shows a spinner and disables itself while the request
-                    is in flight, preventing double-submit. */}
-                <Stack direction="row">
-                    <Button
-                        type="submit"
-                        colorPalette="brand"
-                        loading={signupMutation.isPending}
-                        loadingText="Signing up..."
-                    >
-                        Signup
-                    </Button>
+            {/* Signup shows a spinner and disables itself while the request
+                is in flight, preventing double-submit. */}
+            <Button
+                type="submit"
+                colorPalette="brand"
+                w="full"
+                loading={signupMutation.isPending}
+                loadingText="Signing up..."
+                disabled={signupMutation.isSuccess}
+                {...BRAND_SOLID_HOVER_PROPS}
+            >
+                Signup
+            </Button>
 
-                    {/* Secondary/soft styling to match every other auth form's
-                        Clear button: explicit tokens rather than Chakra's gray
-                        colorPalette defaults, which read as an almost-invisible
-                        border in dark mode. */}
-                    <Button
-                        type="button"
-                        onClick={handleClear}
-                        variant="outline"
-                        borderColor="fg.muted"
-                        color="fg.muted"
-                        _hover={{ bg: "bg.canvas", borderColor: "fg.muted" }}
-                        disabled={signupMutation.isPending}
-                    >
-                        Clear
-                    </Button>
-                </Stack>
-
-                <Box display="flex" alignItems="center" ml="auto">
-                    <Text mr={2} color="fg.muted" fontSize="16px">
-                        Already have an account?
-                    </Text>
-                    <Button
-                        type="button"
-                        colorPalette="brand"
-                        variant="outline"
-                        size="sm"
-                        borderColor="brand.500"
-                        onClick={() => (window.location.href = "/login")}
-                    >
-                        Login
-                    </Button>
-                </Box>
-            </Box>
+            {/* Matches LoginPage's reciprocal "Don't have an account? Sign
+                Up" treatment - a plain inline link, not a second competing
+                button, so the two auth pages read as one consistent
+                pattern instead of two different conventions for the same
+                "wrong page? go to the other one" action. */}
+            <Text fontSize="16px" color="fg.muted" textAlign="center">
+                Already have an account?{" "}
+                <Link to="/login" style={{ color: "var(--chakra-colors-brand-fg)", fontWeight: 600 }}>
+                    Login
+                </Link>
+            </Text>
         </Stack>
     );
 };

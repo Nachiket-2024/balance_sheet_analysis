@@ -1,6 +1,6 @@
 # tests/backend/mystic_auth/unit/test_policy_authorization_security_unit.py
 #
-# Security-review coverage (claude.md's "Authorization Security Review"):
+# Security-review coverage (authorization security review):
 # policy create/update/assign must never let a caller grant one of this
 # app's own sensitive actions (Permission's fixed vocabulary) that they do
 # not already hold themselves, baseline policies must be undeletable and
@@ -242,6 +242,7 @@ async def test_assign_policy_blocks_self_escalation_to_superuser(mocker):
         await assign_policy_to_user(
             "caller@example.com",
             PolicyAssignmentRequest(policy_name=SYSTEM_SUPERUSER_POLICY_NAME),
+            request=None,
             current_user=CALLER, db="fake-db",
         )
 
@@ -260,6 +261,7 @@ async def test_assign_policy_allows_when_caller_already_holds_every_action(mocke
 
     await assign_policy_to_user(
         "someone@example.com", PolicyAssignmentRequest(policy_name="self_service"),
+        request=None,
         current_user=CALLER, db="fake-db",
     )
 
@@ -277,6 +279,7 @@ async def test_assign_policy_allows_business_domain_policy_regardless_of_caller_
 
     await assign_policy_to_user(
         "someone@example.com", PolicyAssignmentRequest(policy_name="app_policy"),
+        request=None,
         current_user=CALLER, db="fake-db",
     )
 
@@ -299,7 +302,7 @@ async def test_remove_policy_blocks_removing_last_superuser_assignment(mocker):
 
     with pytest.raises(HTTPException) as exc_info:
         await remove_policy_from_user(
-            "lastadmin@example.com", SYSTEM_SUPERUSER_POLICY_NAME, current_user=CALLER, db="fake-db"
+            "lastadmin@example.com", SYSTEM_SUPERUSER_POLICY_NAME, request=None, current_user=CALLER, db="fake-db"
         )
 
     assert exc_info.value.status_code == 409
@@ -316,7 +319,7 @@ async def test_remove_policy_allows_when_other_superusers_remain(mocker):
     remove_mock = mocker.patch(f"{ASSIGNMENT_ROUTES_MODULE}.policy_repository.remove_policy_from_user", new_callable=AsyncMock, return_value=True)
 
     await remove_policy_from_user(
-        "admin2@example.com", SYSTEM_SUPERUSER_POLICY_NAME, current_user=CALLER, db="fake-db"
+        "admin2@example.com", SYSTEM_SUPERUSER_POLICY_NAME, request=None, current_user=CALLER, db="fake-db"
     )
 
     remove_mock.assert_awaited_once()

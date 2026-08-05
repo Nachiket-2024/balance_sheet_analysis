@@ -22,7 +22,9 @@ class RefreshTokenHandler:
     """Validates and rotates refresh tokens, with rate limiting and brute-force protection."""
 
     @staticmethod
-    async def handle_refresh_tokens(request: Request, refresh_token: str | None, db: AsyncSession | None = None):
+    async def handle_refresh_tokens(
+        request: Request, refresh_token: str | None, db: AsyncSession | None = None
+    ) -> JSONResponse:
         try:
             # Same 401 outcome as an invalid token, so a client can't distinguish
             # "never had a session" from "had one that's now invalid" purely from

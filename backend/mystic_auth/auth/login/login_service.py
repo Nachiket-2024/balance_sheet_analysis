@@ -1,8 +1,12 @@
 import asyncio
 import traceback
+import uuid
+
+from fastapi import Request
 
 from ...logging.logging_config import get_logger
 from ...user_crud.user_crud_collector import user_crud
+from ...user_session.session_service import session_service
 from ..password_logic.password_service import password_service
 from ..token_logic.jwt_service import jwt_service
 from ..token_logic.token_schema import TokenPairResponseSchema
@@ -14,7 +18,7 @@ class LoginService:
     """Authenticates a user and issues an access/refresh token pair."""
 
     @staticmethod
-    async def login(email: str, password: str, db=None) -> TokenPairResponseSchema | None:
+    async def login(email: str, password: str, db=None, request: Request | None = None) -> TokenPairResponseSchema | None:
         try:
             if not email or not password:
                 return None
@@ -56,10 +60,25 @@ class LoginService:
                 logger.warning("Incorrect password for email: %s", email)
                 return None
 
+            # A fresh chain_id: this login shares nothing with any other
+            # session on the account, so a future targeted revoke of one
+            # never has to guess which sessions are related (see
+            # jwt_service.py's own docstring on chain_id).
+            chain_id = uuid.uuid4().hex
             access_token, refresh_token = await asyncio.gather(
-                jwt_service.create_access_token(email=email),
-                jwt_service.create_refresh_token(email=email)
+                jwt_service.create_access_token(email=email, chain_id=chain_id),
+                jwt_service.create_refresh_token(email=email, chain_id=chain_id)
             )
+
+            # Best-effort session tracking (Manage Sessions dashboard card):
+            # decodes the token just minted above rather than changing
+            # create_refresh_token's return shape, which several existing
+            # unit tests assert on directly.
+            refresh_payload = await jwt_service.decode_payload(refresh_token)
+            if refresh_payload and refresh_payload.get("jti") and refresh_payload.get("exp"):
+                await session_service.create_session(
+                    db, user.id, refresh_payload["jti"], chain_id, refresh_payload["exp"], request, email
+                )
 
             return TokenPairResponseSchema(access_token=access_token, refresh_token=refresh_token)
 

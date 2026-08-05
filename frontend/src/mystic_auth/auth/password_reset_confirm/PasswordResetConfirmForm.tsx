@@ -4,6 +4,7 @@ import { Field as ChakraField } from "@chakra-ui/react";
 
 import { usePasswordResetConfirmMutation } from "./usePasswordResetConfirmMutation";
 import FormAlert from "../../ui/FormAlert";
+import { BRAND_SOLID_HOVER_PROPS } from "../../ui/styles/buttonStyles";
 
 // Shared password policy logic and checklist UI: kept identical to
 // SignupForm so the two flows can't drift apart again.
@@ -50,19 +51,13 @@ const PasswordResetConfirmForm: React.FC<PasswordResetConfirmFormProps> = ({ tok
         resetConfirmMutation.mutate({ token, new_password: newPassword });
     };
 
-    const handleClear = () => {
-        resetConfirmMutation.reset();
-        if (!propToken) {
-            setManualToken("");
-        }
-        setNewPassword("");
-        setConfirmPassword("");
-        setLocalError("");
-        setPasswordStrength("");
-    };
-
     const hasTokenFromUrl = !!propToken;
     const rules = checkPasswordRules(newPassword);
+    const passwordErrorId = localError
+        ? "password-reset-confirm-local-error"
+        : resetConfirmMutation.isError
+            ? "password-reset-confirm-mutation-error"
+            : undefined;
 
     return (
         <Stack as="form" onSubmit={handleSubmit} w="full" gap={4}>
@@ -89,23 +84,28 @@ const PasswordResetConfirmForm: React.FC<PasswordResetConfirmFormProps> = ({ tok
                     placeholder="New Password"
                     size="lg"
                     autoFocus={hasTokenFromUrl}
+                    aria-invalid={!!localError || resetConfirmMutation.isError}
+                    aria-describedby={passwordErrorId}
                 />
             </ChakraField.Root>
 
-            {passwordStrength && (
-                <Text
-                    fontSize="sm"
-                    fontWeight="bold"
-                    color={
-                        passwordStrength === "Weak" ? "red.500" :
-                        passwordStrength === "Medium" ? "orange.400" : "green.500"
-                    }
-                >
-                    Strength: {passwordStrength}
-                </Text>
-            )}
+            {/* Always rendered, even before typing starts (showing a
+                neutral "-" placeholder): kept identical to SignupForm so
+                the strength label filling in never shifts the fields
+                below it. */}
+            <Text
+                fontSize="15px"
+                fontWeight="bold"
+                color={
+                    passwordStrength === "Weak" ? "red.500" :
+                    passwordStrength === "Medium" ? "orange.400" :
+                    passwordStrength === "Strong" ? "green.500" : "fg.muted"
+                }
+            >
+                Strength: {passwordStrength || "-"}
+            </Text>
 
-            <PasswordRulesChecklist rules={rules} fontSize="14px" />
+            <PasswordRulesChecklist rules={rules} fontSize="15px" />
 
             <ChakraField.Root required>
                 <ChakraField.Label>Confirm new password</ChakraField.Label>
@@ -115,6 +115,8 @@ const PasswordResetConfirmForm: React.FC<PasswordResetConfirmFormProps> = ({ tok
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm New Password"
                     size="lg"
+                    aria-invalid={!!localError}
+                    aria-describedby={localError ? "password-reset-confirm-local-error" : undefined}
                 />
             </ChakraField.Root>
 
@@ -125,31 +127,15 @@ const PasswordResetConfirmForm: React.FC<PasswordResetConfirmFormProps> = ({ tok
                 w="full"
                 loading={resetConfirmMutation.isPending}
                 loadingText="Resetting..."
+                {...BRAND_SOLID_HOVER_PROPS}
             >
                 Reset Password
             </Button>
 
-            {/* Matches every other auth form's secondary styling (see
-                LoginForm.tsx for why explicit tokens, not Chakra's gray
-                colorPalette defaults). */}
-            <Button
-                type="button"
-                variant="outline"
-                borderColor="fg.muted"
-                color="fg.muted"
-                _hover={{ bg: "bg.canvas", borderColor: "fg.muted" }}
-                size="lg"
-                w="full"
-                onClick={handleClear}
-                disabled={resetConfirmMutation.isPending}
-            >
-                Clear
-            </Button>
-
-            {localError && <FormAlert status="error">{localError}</FormAlert>}
+            {localError && <FormAlert status="error" id="password-reset-confirm-local-error">{localError}</FormAlert>}
 
             {resetConfirmMutation.isError && (
-                <FormAlert status="error">{resetConfirmMutation.error.message}</FormAlert>
+                <FormAlert status="error" id="password-reset-confirm-mutation-error">{resetConfirmMutation.error.message}</FormAlert>
             )}
 
             {resetConfirmMutation.isSuccess && (

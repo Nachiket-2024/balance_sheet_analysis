@@ -51,6 +51,18 @@ class UserUpdate(BaseModel):
     current_password: str | None = Field(default=None, max_length=128)
 
 
+class UserStatsRead(BaseModel):
+    """Aggregate counts backing the Users page's summary card. Independent
+    of whatever page/filters the caller currently has applied to the main
+    list - always reflects the whole table, so the card doesn't shift
+    numbers around as an admin pages/filters through the list below it."""
+
+    total: int
+    verified: int
+    unverified: int
+    inactive: int
+
+
 class UserRoleUpdate(BaseModel):
     """Schema used exclusively by admin endpoints to change a user's role.
     Kept separate from UserUpdate to make privilege escalation explicit."""

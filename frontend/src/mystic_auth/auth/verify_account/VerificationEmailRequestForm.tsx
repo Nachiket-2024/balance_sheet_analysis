@@ -3,7 +3,9 @@ import { Button, Input, Stack } from "@chakra-ui/react";
 import { Field as ChakraField } from "@chakra-ui/react";
 
 import { useVerificationEmailRequestMutation } from "./useVerificationEmailRequestMutation";
+import { useCooldown } from "../useCooldown";
 import FormAlert from "../../ui/FormAlert";
+import { BRAND_OUTLINE_HOVER_PROPS } from "../../ui/styles/buttonStyles";
 
 interface VerificationEmailRequestFormProps {
     initialEmail?: string;
@@ -11,22 +13,8 @@ interface VerificationEmailRequestFormProps {
 
 const VerificationEmailRequestForm: React.FC<VerificationEmailRequestFormProps> = ({ initialEmail = "" }) => {
     const [email, setEmail] = useState(initialEmail);
-    const [cooldown, setCooldown] = useState(0);
+    const { cooldown, startCooldown } = useCooldown();
     const requestMutation = useVerificationEmailRequestMutation();
-
-    const startCooldown = () => {
-        setCooldown(60);
-
-        const interval = setInterval(() => {
-            setCooldown((prev) => {
-                if (prev <= 1) {
-                    clearInterval(interval);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    };
 
     const handleSubmit = (e: React.SubmitEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -58,12 +46,12 @@ const VerificationEmailRequestForm: React.FC<VerificationEmailRequestFormProps> 
                 variant="outline"
                 borderColor="brand.500"
                 color="brand.500"
-                _hover={{ bg: "bg.canvas", borderColor: "brand.500" }}
                 size="lg"
                 w="full"
                 loading={requestMutation.isPending}
                 disabled={cooldown > 0 || requestMutation.isPending}
                 loadingText="Sending..."
+                {...BRAND_OUTLINE_HOVER_PROPS}
             >
                 {cooldown > 0 ? `Try again in ${cooldown}s` : "Send New Verification Link"}
             </Button>

@@ -14,21 +14,35 @@ Two real, verified bugs found during a pre-release image-contents audit, both ab
 
 CI now has a regression guard for the `backend/logs/` case specifically; see [CI/CD Overview](../cicd/overview.md). See `.dockerignore` for the full current exclusion list.
 
+---
+
 ## Role is never used to decide access
 
 PBAC (policy-based access control), not RBAC. `users.role` is nullable, display/grouping metadata only: every real authorization decision goes through an assigned, active `Policy` (see [../authorization/architecture.md](../authorization/architecture.md)). Two accounts with the identical role can have completely different effective permissions, and a roleless account (`role=NULL`) can still be fully authorized via policies alone.
 
-**Why not RBAC**: a static role → permission mapping means every new access pattern either overloads an existing role's meaning or requires a new role (and a code deploy) to express. Policies are data, not code: a new access pattern is a new policy row, assignable/revocable per-account without touching role definitions at all. The tradeoff is real: PBAC is more moving parts to reason about than "if role == admin." The `Permission` enum (`backend/mystic_auth/authorization/permissions.py`) still gives the action vocabulary the same fixed-set discipline a role enum would.
+**Why not RBAC**: a static role-permission mapping means every new access
+pattern either overloads an existing role's meaning or requires a new role and a
+code deploy. Policies are data, not code: a new access pattern is a new policy
+row, assignable and revocable per account without touching role definitions.
+The tradeoff is real: PBAC has more moving parts than `if role == admin`. The
+`Permission` enum (`backend/mystic_auth/authorization/permissions.py`) still
+gives the action vocabulary the same fixed-set discipline a role enum would.
 
-**Where this is enforced structurally, not just by convention**: every admin route in `user_routes.py` depends on `require_authorization(action, resource_type)`, never a role comparison. The handful of `role ==` checks that do exist (e.g. "the system account cannot be modified via these generic endpoints") are resource-protection invariants: they protect one specific reserved account from *every* caller regardless of what that caller is otherwise authorized to do, not authorization decisions. See the `UserRole` import comment at the top of `user_routes.py` for the exact reasoning, repeated at each guard site.
+**Where this is enforced structurally, not just by convention**: every admin route in `user_management_routes.py` depends on `require_authorization(action, resource_type)`, never a role comparison. The handful of `role ==` checks that do exist (e.g. "the system account cannot be modified via these generic endpoints") are resource-protection invariants: they protect one specific reserved account from *every* caller regardless of what that caller is otherwise authorized to do, not authorization decisions. See the `UserRole` import comment at the top of `user_management_routes.py` for the exact reasoning, repeated at each guard site.
+
+---
 
 ## Why current-user lookups re-query the database every time
 
 `current_user_handler.get_current_user` (called on every authenticated request) decodes the JWT *and* re-fetches the user row from Postgres, rather than trusting the token's claims alone. This is the mechanism that makes account deactivation/soft-delete take effect on the very next request, instead of only once the access token's own (up-to-one-hour) `exp` is reached. The cost is one extra DB round-trip per request; the alternative (trust the token until it expires) would mean a just-deleted or just-deactivated account could keep acting on the system for up to the full access-token lifetime.
 
+---
+
 ## Email addresses are normalized, case-insensitively, everywhere
 
-`User@Example.com` and `user@example.com` are the same account. Normalization (`emails/email_normalization.py::normalize_email`, strip + lowercase) happens at two layers, not scattered across every call site: `UserEmailCRUD.get_by_email`/`update_by_email` normalize on every lookup, and `UserBaseCRUD.create` normalizes before every insert. Together these cover every path (signup, login, OAuth2, admin routes) regardless of what casing the caller passes. `signup_schema.py`/`login_schema.py`/`password_reset_request_schema.py`/`UserBase` also normalize at the input boundary, so the canonical lowercase form flows through logs/tokens/audit from the earliest point, not just at the DB. `oauth2_service.py` normalizes explicitly right after reading `user_info.get("email")`, since that path is a raw dict from Google's response and never touches a Pydantic schema. The five admin routes in `user_routes.py` that take `user_email` as a path parameter normalize it before using it for lookups, session revocation, and audit logging, so a differently-cased path param still revokes the right sessions.
+`User@Example.com` and `user@example.com` are the same account. Normalization (`emails/email_normalization.py::normalize_email`, strip + lowercase) happens at two layers, not scattered across every call site: `UserEmailCRUD.get_by_email`/`update_by_email` normalize on every lookup, and `UserBaseCRUD.create` normalizes before every insert. Together these cover every path (signup, login, OAuth2, admin routes) regardless of what casing the caller passes. `signup_schema.py`/`login_schema.py`/`password_reset_request_schema.py`/`UserBase` also normalize at the input boundary, so the canonical lowercase form flows through logs/tokens/audit from the earliest point, not just at the DB. `oauth2_service.py` normalizes explicitly right after reading `user_info.get("email")`, since that path is a raw dict from Google's response and never touches a Pydantic schema. The five admin routes in `user_management_routes.py` that take `user_email` as a path parameter normalize it before using it for lookups, session revocation, and audit logging, so a differently-cased path param still revokes the right sessions.
+
+---
 
 ## Timing-attack mitigations
 
@@ -38,11 +52,27 @@ Applied consistently across every enumeration-sensitive endpoint:
 - **Signup** (`signup_service.py`): the password is hashed unconditionally before the duplicate-email check, so a registered vs. unregistered email can't be distinguished by how fast the response comes back (only by the identical generic response body).
 - **Password reset request**: always returns the same generic "if this email is registered..." message.
 
+---
+
 ## Token replay and reuse detection
 
-Refresh tokens are single-use, revoked (by `jti`, in Redis) immediately upon successful rotation. If a token whose `jti` is already revoked is presented again, the system treats the entire session as potentially compromised (not just that one token): **every** refresh token currently active for that user is revoked, forcing re-authentication on every device, logged at `critical` severity. See [../authentication/overview.md](../authentication/overview.md#refresh-token-rotation). This is deliberately more aggressive than "just reject the reused token," since a reuse is either a client retry bug or actual token theft, and the two are indistinguishable from the server's side, so the response has to assume the worse case.
+Refresh tokens are single-use. An atomic per-`jti` claim (`claim_jti_for_rotation`) marks one redeemed immediately after a successful rotation. If a token whose `jti` is already claimed is presented again, the cause could be a stale retry, a concurrent race, or token theft. The claim alone cannot distinguish those cases, so the response assumes the worst and bumps that token's own `chain_ver` (`revoke_chain_for_user`). That kills both the reused token and any rotated descendant sharing its chain, logged at `critical` severity. **This is deliberately scoped to the compromised chain, not every session on the account.** An earlier version bumped every session unconditionally, which meant a stale token replayed on any device could also kill an unrelated, never-compromised session created afterward. See [Session Management](../authentication/session-management.md#rotation-chains-and-reuse-detection) and [Authentication Overview](../authentication/overview.md#refresh-token-rotation).
 
-**Rotation is atomic, closing a concurrent-request race.** `refresh_token_service.refresh_tokens()` previously checked `is_token_revoked_by_jti` (a read) and only later called `revoke_token_by_jti` (a write): two separate Redis round trips. Two requests presenting the identical still-valid refresh token at the same time could both pass the read check before either had revoked it, and both would then mint a valid new token pair from one presented token. `JWTService.claim_jti_for_rotation` (`auth/token_logic/jwt_service.py`) fixes this with a single atomic `SET revoked:{jti} true NX EX <ttl>`: Redis's `NX` flag makes the whole check-and-set one operation, so only one of any concurrent pair can ever win. The loser is treated exactly like today's reuse case (`_handle_reuse_detected`, above), since a legitimate racing retry and a real replay attack are indistinguishable here anyway, so the same "assume the worst" response applies to both. Covered by `tests/backend/mystic_auth/unit/auth/token_logic/test_jti_revocation_unit.py` (the atomic claim itself) and `tests/backend/mystic_auth/integration/test_auth_api_integration.py::test_concurrent_refresh_with_the_same_token_only_one_succeeds` (two real concurrent requests against real Redis).
+A token minted before chain tracking existed carries no `chain` claim, so there's no lineage to scope to; reuse of one of those still falls back to the old, maximally-safe response (bumps `account_ver`, every session on the account).
+
+**Version validity is checked *before* the reuse check, not just after.** A refresh token whose embedded `account_ver`/`chain_ver` has already fallen behind Redis's current value is rejected as stale before `claim_jti_for_rotation` runs. Without that order, a session that was intentionally ended could still rotate into a new valid session on its next refresh, since the single-use claim only catches a token redeemed twice.
+
+**Rotation is atomic, closing a concurrent-request race.** Two requests presenting the identical still-valid refresh token at the same time must not both be able to rotate it. `JWTService.claim_jti_for_rotation` (`auth/token_logic/jwt_service.py`) uses a single atomic `SET revoked:{jti} true NX EX <ttl>`: Redis's `NX` flag makes the whole check-and-claim one operation, so only one of any concurrent pair can ever win. The loser is treated exactly like today's reuse case (`_handle_reuse_detected`, above), since a legitimate racing retry and a real replay attack are indistinguishable here anyway, so the same "assume the worst" response applies to both. Covered by `tests/backend/mystic_auth/unit/auth/token_logic/test_jti_revocation_unit.py` (the atomic claim itself) and `tests/backend/mystic_auth/integration/test_refresh_token_integration.py::test_concurrent_refresh_with_the_same_token_only_one_succeeds` (two real concurrent requests against real Redis).
+
+---
+
+## Revocation is version-based: one Redis `INCR`, not a registry to iterate
+
+Every access and refresh token embeds the account's `account_ver` and its own chain's `chain_ver` at mint time (`jwt_service.py`). `verify_token` and `refresh_tokens()` reject a token the instant either number falls behind Redis's current value. A whole-account revoke (`POST /auth/logout/all`, password reset confirm, self/admin password change, forced deactivation/purge) is a single `bump_account_version` call. One `INCR` makes every device's access and refresh tokens fail on their next use, with no per-token iteration. A single-session revoke (logout, a targeted Manage Sessions "End session", or chain-scoped reuse containment above) is the equivalent `bump_chain_version`, scoped to one chain.
+
+This replaced an earlier design that tracked every live refresh-token `jti` in a per-user Redis Hash (to revoke by iterating it) plus a separate "access tokens issued before this timestamp are dead" epoch key for access tokens specifically. That epoch mechanism had a real, self-inflicted bug: PyJWT truncates a `datetime`-valued `iat` claim to whole seconds while encoding, but the epoch itself kept full sub-second precision, so a token minted the moment *after* a revoke (e.g. logging back in immediately after logout-all - trivially easy, since the two calls are naturally back-to-back) could still decode to an `iat` numerically *less* than the epoch, and come back rejected as if it predated a revocation it actually postdated. The fix at the time (encoding `iat` as a raw float instead of a `datetime`, preserving real ordering) is now moot: the version-based comparison this section describes is a plain integer equality check with no timestamp precision involved at all, so that whole class of bug can't recur. See `tests/backend/mystic_auth/unit/auth/token_logic/test_jwt_unit.py`.
+
+---
 
 ## OAuth2 CSRF and account-hijacking protections
 
@@ -51,15 +81,28 @@ Refresh tokens are single-use, revoked (by `jti`, in Redis) immediately upon suc
 - **Pre-registration hijack window**: if an attacker signs up with a victim's email (password-based, unverified) before the victim ever does, and the victim later authenticates via Google with that same address, the pre-existing account's password is cleared at that moment. Without this, the attacker's chosen password would remain valid on an account Google has now confirmed belongs to someone else. See [../authentication/overview.md](../authentication/overview.md#google-oauth2) for the full walkthrough.
 - **Redirect URI is server-side fixed**, never client-influenced, ruling out open-redirect-via-OAuth.
 
+---
+
 ## The signup/OAuth2 email race
 
-`user_crud.get_by_email` (existence check) and `user_crud.create` are not wrapped in a single atomic transaction in either `signup_service.py` or `oauth2_service.py`, so a genuine TOCTOU race between two concurrent requests for the same brand-new email is theoretically possible at the application level. This is closed at the database level instead: `users.email` carries a **unique constraint**, so the loser of the race gets an `IntegrityError`. Both call sites already wrap their entire body in a broad `except Exception` that logs and returns a clean failure (`False`/`None` → the handler's standard generic error response) rather than propagating a raw 500, so the practical outcome of the race is "one request succeeds, the other gets an ordinary-looking failure," not a duplicate account or an ugly stack trace to the client.
+`user_crud.get_by_email` (existence check) and `user_crud.create` are not wrapped
+in a single atomic transaction in either `signup_service.py` or
+`oauth2_service.py`, so a TOCTOU race between two concurrent requests for the
+same new email is theoretically possible at the application level. The database
+closes it with a **unique constraint** on `users.email`, so the loser gets an
+`IntegrityError`. Both call sites catch broad exceptions, log, and return a
+clean failure (`False` or `None`) that the handler turns into the standard
+generic error response.
+
+---
 
 ## Self-service password change requires the current password
 
 `PUT /users/me` (self-service profile update) requires `current_password`, verified against the account's existing `hashed_password`, whenever the request also sets a new `password`. Without this, a hijacked `access_token` cookie (e.g. via XSS) was enough to permanently lock the legitimate owner out: the attacker just sets a new password, no proof of the old one required, and the existing "password change revokes all sessions" behavior (see [../database/design.md](../database/design.md)) would then work *against* the real owner by killing their session too.
 
-Skipped when the account has no password yet (`hashed_password is None`, an OAuth-only account setting a password for the first time): there's nothing to confirm against, and requiring one would make it impossible for such an account to ever add a password. The admin route (`PUT /users/{email}`, which reuses the same `UserUpdate` schema) does **not** require this, since an admin changing someone else's password already authenticated via their own `users:update_any` permission; requiring the *target's* current password there would be nonsensical (the admin doesn't have it) and isn't what the check is protecting against. See `backend/mystic_auth/api/user_routes/user_routes.py::update_my_profile` and `tests/backend/mystic_auth/integration/test_user_routes_integration.py` (`test_self_password_change_requires_current_password`, `test_self_password_change_rejects_wrong_current_password`, `test_setting_a_first_password_on_an_oauth_only_account_does_not_require_current_password`, `test_admin_password_change_does_not_require_admins_current_password`).
+Skipped when the account has no password yet (`hashed_password is None`, an OAuth-only account setting a password for the first time): there's nothing to confirm against, and requiring one would make it impossible for such an account to ever add a password. The admin route (`PUT /users/{email}`, which reuses the same `UserUpdate` schema) does **not** require this, since an admin changing someone else's password already authenticated via their own `users:update_any` permission; requiring the *target's* current password there would be nonsensical (the admin doesn't have it) and isn't what the check is protecting against. See `backend/mystic_auth/api/user_routes/user_self_service_routes.py::update_my_profile` and `tests/backend/mystic_auth/integration/test_user_self_service_routes_integration.py` (`test_self_password_change_requires_current_password`, `test_self_password_change_rejects_wrong_current_password`, `test_setting_a_first_password_on_an_oauth_only_account_does_not_require_current_password`) and `test_user_account_lifecycle_integration.py` (`test_admin_password_change_does_not_require_admins_current_password`).
+
+---
 
 ## Logout and logout-all are idempotent about an already-dead refresh token
 
@@ -67,15 +110,19 @@ Skipped when the account has no password yet (`hashed_password is None`, an OAut
 
 Both handlers now treat this as a success instead: the caller's actual goal, no valid session left in this browser, is already true whether or not the presented token was still live to revoke, so both always clear cookies and return `200`. `logout/all` specifically switched from `jwt_service.verify_token` (which refuses to return anything for an already-revoked token) to `jwt_service.decode_payload` (which skips the revocation check, same as reuse-detection in `refresh_token_service.py`), so it can still resolve the owning email and revoke whatever sessions remain elsewhere, while still enforcing the token's `type` claim, so a wrong-type token (e.g. an access token mistakenly presented as the refresh cookie) is never treated as resolving a real session. The security audit trail is unaffected by the response-code change: both handlers still record `success=False` for an already-dead/undecodable token (and, for `logout/all`, `user_email=None` when no email could be recovered at all), so a real operator reviewing the log can still tell the two cases apart even though the caller-facing outcome looks identical.
 
-Covers the admin-driven path too, not just self-service: an admin changing a *different* account's password (`PUT /users/{email}`) revokes that target's sessions, so the target's own browser, not the admin's, is the one left holding a dead refresh-token cookie; logging out from the target's session must succeed the same way. Also covers a malformed (not just merely-revoked) cookie value, and two logout calls presenting the identical already-used token back to back (e.g. two tabs, or a retried request): both must succeed rather than only the first. See `backend/mystic_auth/auth/logout/logout_handler.py`, `backend/mystic_auth/auth/logout_all/logout_all_handler.py`, `tests/backend/mystic_auth/unit/auth/logout/test_logout_handler_unit.py`, `tests/backend/mystic_auth/unit/auth/logout_all/test_logout_all_handler_unit.py`, and `tests/backend/mystic_auth/integration/test_user_routes_integration.py` (`test_logout_after_self_password_change_still_succeeds_and_clears_cookies`, `test_logout_all_after_self_password_change_still_succeeds_and_clears_cookies`, `test_logout_after_admin_password_change_for_another_user_still_succeeds_and_clears_cookies`, `test_repeated_logout_calls_with_the_same_token_both_succeed`, `test_logout_with_malformed_refresh_token_cookie_still_succeeds_and_clears_cookies`, `test_logout_all_with_malformed_refresh_token_cookie_still_succeeds_and_clears_cookies`).
+Covers the admin-driven path too, not just self-service: an admin changing a *different* account's password (`PUT /users/{email}`) revokes that target's sessions, so the target's own browser, not the admin's, is the one left holding a dead refresh-token cookie; logging out from the target's session must succeed the same way. Also covers a malformed (not just merely-revoked) cookie value, and two logout calls presenting the identical already-used token back to back (e.g. two tabs, or a retried request): both must succeed rather than only the first. See `backend/mystic_auth/auth/logout/logout_handler.py`, `backend/mystic_auth/auth/logout_all/logout_all_handler.py`, `tests/backend/mystic_auth/unit/auth/logout/test_logout_handler_unit.py`, `tests/backend/mystic_auth/unit/auth/logout_all/test_logout_all_handler_unit.py`, and `tests/backend/mystic_auth/integration/test_user_self_service_routes_integration.py` (`test_logout_after_self_password_change_still_succeeds_and_clears_cookies`, `test_logout_all_after_self_password_change_still_succeeds_and_clears_cookies`, `test_repeated_logout_calls_with_the_same_token_both_succeed`, `test_logout_with_malformed_refresh_token_cookie_still_succeeds_and_clears_cookies`, `test_logout_all_with_malformed_refresh_token_cookie_still_succeeds_and_clears_cookies`) and `test_user_account_lifecycle_integration.py` (`test_logout_after_admin_password_change_for_another_user_still_succeeds_and_clears_cookies`).
+
+---
 
 ## `Settings` ignores env vars it doesn't declare, because `.env` is shared with Docker Compose
 
-`backend/mystic_auth/core/settings.py`'s `Settings.Config` sets `extra = "ignore"`, overriding pydantic-settings' own default of `extra = "forbid"`. Reason: the root `.env` isn't exclusively this app's config file: `docker-compose.yml`/`docker-compose.prod.yml`'s `env_file:` directive also hands the whole file to infra-only services that have no corresponding `Settings` field (`REDIS_PASSWORD` for `redis-server --requirepass`; `BUGSINK_*` for the optional self-hosted error-monitoring service, see [Error Monitoring](../error-monitoring/overview.md)).
+`backend/mystic_auth/core/settings.py`'s `Settings.Config` sets `extra = "ignore"`, overriding pydantic-settings' own default of `extra = "forbid"`. Reason: the root `.env` isn't exclusively this app's config file: Compose `env_file:` directives also hand the whole file to infra-only services that have no corresponding `Settings` field (`REDIS_PASSWORD` for `redis-server --requirepass`; `BUGSINK_*` for the optional self-hosted error-monitoring service, see [Error Monitoring](../error-monitoring/overview.md)).
 
 With the default `"forbid"`, any such var crashed `Settings()` construction outright: but only sometimes, which made it a confusing bug to track down: `Settings.env_file = ".env"` is a *relative* path, so it only resolves to a real file (triggering pydantic-settings' own direct file parse, which builds a dict of literally every key in the file: not just ones it recognizes) when the process's working directory is the repo root. The running app (`WORKDIR /app` in the Docker image) never hits this, since a relative `.env` there resolves to nothing and pydantic-settings falls back to reading only its declared fields from `os.environ`. Running the test suite with `-w /repo` (required so tests can import `backend.app...`/`backend.mystic_auth...`, per [Testing Overview](../testing/overview.md)) does hit it, since `/repo/.env` genuinely exists there: so the exact same `.env` silently worked for the running app while crashing every test collection. `extra = "ignore"` makes both paths behave identically instead. See `tests/backend/mystic_auth/unit/core/test_settings_unit.py`.
 
 **Known trade-off, accepted deliberately**: `"ignore"` also means a genuine typo in a variable this app *does* care about (`SENTRY_DSNN` instead of `SENTRY_DSN`, say) is silently dropped rather than raising a loud, easy-to-spot error: you'd only notice because the feature it configures quietly stays off, not because `Settings()` complained. `SECRET_KEY` and every other field this app treats as load-bearing are still fully validated on their own terms regardless (see `_secret_key_minimum_strength` below, and each field's required-vs-defaulted status in `Settings` itself): `extra = "ignore"` only affects keys the model was never going to look at anyway. Given `.env.example` documents every real field inline, this was judged the better trade against a shared `.env` file crashing the app outright over a var another service in the same compose stack legitimately needs.
+
+---
 
 ## A malformed `SENTRY_DSN` must never crash the app
 
@@ -85,13 +132,13 @@ Also verified, separately: `capture_exception()` itself (called from the global 
 
 `JWTService.create_verification_token` previously hardcoded the JWT's own `exp` claim to `ACCESS_TOKEN_EXPIRE_MINUTES` (15min default) regardless of what its caller requested, while `account_verification_service.py` set the paired Redis single-use key's TTL: and the verification email's own wording: to `RESET_TOKEN_EXPIRE_MINUTES` (60min default). A user clicking the link between 15 and 60 minutes in got a confusing invalid/expired error despite the email and the Redis key both saying it should still work. Fixed by threading `expires_minutes` through from the caller. Password-reset tokens (`password_service.create_reset_token`) were never affected: they build their own JWT directly with the caller's `expires_minutes`, a separate code path. See `tests/backend/mystic_auth/unit/auth/token_logic/test_jwt_unit.py` (`test_create_verification_token_honors_explicit_expires_minutes`) and `tests/backend/mystic_auth/unit/auth/verify_account/test_account_verification_service_unit.py` (`test_create_verification_token_forwards_expires_minutes_to_jwt_service`).
 
-## Refresh-token registry pruning
-
-The per-user refresh-token registry (`refresh_token_registry:{email}`, a Redis Hash of `jti -> expiry`, used by logout-all to enumerate and revoke every active session) previously only ever had an entry removed by an explicit revoke/rotation/logout-all: a refresh token that simply went unused until it naturally expired left its entry there forever, growing the hash without bound over a deployment's lifetime. `JWTService.create_refresh_token` now sweeps already-expired entries from the same hash on every new token mint (login/refresh: the exact moments that grow it), keeping it bounded to roughly the user's active session count rather than every refresh token ever issued to them. Best-effort: a failure here is logged and swallowed, never blocking the actual token mint. See `tests/backend/mystic_auth/unit/auth/token_logic/test_jwt_unit.py` (`test_create_refresh_token_prunes_already_expired_registry_entries`).
+---
 
 ## Account lifecycle: soft delete by default
 
 Deleting an account defaults to reversible (soft delete: `is_active=False` + `deleted_at` set, row and all FK-referencing audit/policy rows intact) rather than immediate permanent removal. Permanent removal (`purge`) is a separate endpoint gated by its own, more sensitive permission (`users:purge`, granted only by `system_superuser`): an admin who can delete accounts day-to-day cannot, by that permission alone, irreversibly destroy one. See [../database/design.md](../database/design.md#account-lifecycle) for the full mechanics, including why session invalidation is done explicitly (`revoke_all_tokens_for_user`) rather than relying on the refresh endpoint to notice on its own.
+
+---
 
 ## Rate limiting and lockout are layered, not singular
 
@@ -104,6 +151,8 @@ Login has **both** a generic sliding-window rate limiter (per-IP and per-account
 **This was reviewed and kept as-is, deliberately.** The alternative: fail *open* (treat a Redis outage as "unlimited," letting every request through unthrottled): would silently disable brute-force and credential-stuffing protection across the entire authentication surface at precisely the moment (infrastructure instability) an attacker is statistically most likely to be probing for exactly that kind of gap. A temporary full-surface `429` is recoverable and visible (users see errors, monitoring/alerting on 429 rates would catch it); a temporary silent removal of all rate limiting is neither. For a template whose purpose is an authentication *foundation*, fail-closed is the safer default to ship.
 
 This is a genuine availability/security tradeoff, not a free resolution either way: a deployment with different priorities (e.g. one that treats any auth downtime as worse than degraded brute-force protection, because Redis outages are rare and monitored separately) can override it by changing `record_request`'s `except` clause to return `True` instead. That should be a deliberate, reviewed change for that specific deployment, not this template's default.
+
+---
 
 ## Background task queue: Taskiq vs Celery
 
@@ -122,10 +171,12 @@ The app is fully async (FastAPI, SQLAlchemy async, `asyncio` throughout), and [T
 
 No multi-factor authentication (TOTP, SMS, WebAuthn, or otherwise) is implemented: this is an intentionally deferred scope boundary for a template repository, not an oversight discovered late:
 
-- `authorization/conditions/security_context_condition.py` and `authorization/context/request_context_builder.py` both carry explicit comments that `security_context` starts empty because this app does not implement MFA/device-trust infrastructure; any policy condition keyed on it (e.g. a hypothetical `mfa_verified` check) would currently always evaluate to false/deny.
+- `authorization/conditions/condition_types/security_context_condition.py` and `authorization/context/request_context_builder.py` both carry explicit comments that `security_context` starts empty because this app does not implement MFA/device-trust infrastructure; any policy condition keyed on it (e.g. a hypothetical `mfa_verified` check) would currently always evaluate to false/deny.
 - The PBAC condition framework (`context_attributes`, `security_context` condition types: see [../authorization/condition-schema-reference.md](../authorization/condition-schema-reference.md)) was deliberately built generic enough that a real MFA layer could plug in later by populating `security_context` at authentication time and writing policies that key off it: without any redesign of the authorization engine itself. The `mfa_verified` key appears in tests and docs today purely as an illustrative example of the generic mechanism, not a real, enforced check.
 - **Why not build it now**: MFA enrollment/verification is a substantial feature on its own (secret storage, recovery codes, rate-limiting the verification step itself, UI for enrollment/challenge) that would roughly double the scope of the authentication surface for a template whose goal is a solid PBAC/session foundation, not a complete IdP feature set. Adding a half-built MFA flow (e.g. TOTP storage with no recovery-code UX) would be worse than not having it: a template should not ship a security feature that looks complete but isn't.
 - Any real deployment that needs MFA should treat it as a deliberate follow-up: add a TOTP/WebAuthn enrollment+verification flow, populate `security_context.mfa_verified` on successful step-up auth, and gate sensitive policies on that context key: the hooks already exist to receive it.
+
+---
 
 ## Intentionally deferred features
 
@@ -134,10 +185,12 @@ Recorded in one place rather than scattered across code comments: each of these 
 - **MFA / device trust**: see above.
 - **Per-endpoint rate-limit overrides**: one global `MAX_REQUESTS_PER_WINDOW`/`REQUEST_WINDOW_SECONDS` applies to every rate-limited route; the login-specific brute-force lockout layers a second, endpoint-specific control on top of the highest-risk route instead. See [Concerns](../concerns/README.md).
 - **Email provider swapping beyond SMTP**: `emails/email_sender.py` now isolates the transport behind an `EmailSender` protocol, but only one implementation (`SMTPEmailSender`) exists; adding SES/SendGrid/Postmark support is a new class, not a framework change, and is left for whoever needs a specific provider.
-- **Deploy automation**: CI verifies both Dockerfiles build but never pushes to a registry or deploys anywhere; this template assumes no specific production host (see [Deployment Guide](../deployment/guide.md#free--low-cost-hosting-options)).
+- **Deploy automation**: CI verifies both Dockerfiles build but never pushes to a registry or deploys anywhere; this template assumes no specific production host (see [Deployment Guide](../deployment/guide.md#production-host-requirements)).
+
+---
 
 ## Known accepted gaps / follow-ups
 
 Recorded here rather than silently left unaddressed, so it's a deliberate backlog, not an oversight. (Forwarded-header trust, Redis authentication, and `SECRET_KEY` strength enforcement were also tracked here previously: all three are resolved and documented in [Security Hardening](hardening.md) now, rather than lingering here as crossed-out history.)
 
-- **No automated database backups**: `scripts/db_backup.sh`/`scripts/db_restore.sh` now script the `pg_dump`/`psql` runbook (see [Deployment Guide](../deployment/guide.md#backups)), but there's still no *scheduler* wired up anywhere in this repo, since no specific production host/cloud target is assumed to hang a cron job on.
+- **No automated database backups**: `scripts/db/db_backup.sh`/`scripts/db/db_restore.sh` now script the `pg_dump`/`psql` runbook (see [Deployment Guide](../deployment/guide.md#backups)), but there's still no *scheduler* wired up anywhere in this repo, since no specific production host/cloud target is assumed to hang a cron job on.

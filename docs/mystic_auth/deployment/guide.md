@@ -1,66 +1,184 @@
 # Deployment Guide
 
-## Dev vs Production
+Reference material shared across all three deployment modes. For
+step-by-step instructions on running a given mode, see:
 
-| | `docker-compose.yml` | `docker-compose.prod.yml` |
-|---|---|---|
-| Frontend | Vite dev server (HMR) | nginx serving the static build |
-| Source code | Bind-mounted from host | Baked into the image |
-| Backend/worker reload | `--reload` on file change | Off |
-| Restart policy | None (dev: you restart manually) | `unless-stopped` on long-running services |
+- [Dev Deployment](dev.md): local development, hot reload, no TLS
+- [Local-Prod Deployment](local-prod.md): self-hosted production image shape,
+  exposed via a free Cloudflare Tunnel, no public server needed
+- [Prod Deployment](prod.md): your own server with Caddy-managed TLS
 
-Local development:
+New to the repo? Start with [Dev Deployment](dev.md). It's the mode you'll
+use day to day, and needs no domain, tunnel, or server.
+
+## At a glance
+
+| | Dev | Local-Prod | Prod |
+|---|---|---|---|
+| Compose file | `docker-compose.yml` | `docker-compose.local-prod.yml` | `docker-compose.prod.yml` |
+| Frontend | Vite dev server (HMR) | nginx serving the static build | nginx serving the static build |
+| Source code | Bind-mounted from host | Baked into the image | Baked into the image |
+| Backend/worker reload | `--reload` on file change | Off | Off |
+| Restart policy | None (manual) | `unless-stopped` | `unless-stopped` |
+| Public entrypoint | None (`localhost` only) | Cloudflare Tunnel (`cloudflared`) | Caddy, automatic Let's Encrypt |
+| TLS | None | Terminates at Cloudflare's edge | Caddy, on the host |
+| Hosting model | Developer machine only | Your machine through Cloudflare Tunnel | Your own server with Caddy |
+| Needs a public server? | No | No. Quick Tunnel needs no domain, Named Tunnel needs your own Cloudflare-managed domain | Yes, a server with public IP + DNS |
+| Ports on host | frontend/backend/postgres/redis, all `localhost` | frontend (80) + backend (8000), for local debugging | only Caddy (80/443) |
+
+See [Docker Overview: dev vs. production compose](../docker/overview.md#dev-vs-production-compose)
+for the fuller service-by-service breakdown across all three Compose files.
+
+---
+
+## Choosing the right env template
+
+The root `.env` file is the only file Docker Compose reads by default. Pick
+one template for the mode you are running, copy it to `.env`, then edit that
+copy. Do not combine values from multiple templates unless the deployment doc
+for that mode explicitly says to.
+
+| Mode | Copy this file | Use with | Best for |
+|---|---|---|---|
+| Dev | `.env.example` | `docker-compose.yml` | Local development with hot reload |
+| Local-prod | `.env.local-prod.example` | `docker-compose.local-prod.yml` | Your machine through Cloudflare Tunnel |
+| Prod | `.env.prod.example` | `docker-compose.prod.yml` | Your own server with Caddy TLS |
 
 ```bash
-./scripts/dev-up.sh      # Git Bash, WSL, Linux, macOS
-.\scripts\dev-up.ps1     # PowerShell
-scripts\dev-up.cmd       # Command Prompt
-```
+# Dev
+cp .env.example .env
+docker compose up
 
-(or plain `docker compose up` if you want every service's logs interleaved; see [Docker Overview](../docker/overview.md#day-to-day-dev-up-helpers))
+# Local-prod
+cp .env.local-prod.example .env
+docker compose -f docker-compose.local-prod.yml up -d --build
 
-Production:
-
-```bash
+# Prod
+cp .env.prod.example .env
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-`docker-compose.prod.yml` assumes a reverse proxy / TLS terminator (nginx, Caddy, Traefik, or a cloud load balancer) sits in front of it: it exposes plain HTTP on ports 80 (frontend) and 8000 (backend) and does not attempt to provision TLS itself. See [Docker Overview](../docker/overview.md).
+Important rules:
 
-**Testing `docker-compose.prod.yml` locally**: both compose files share the same root `.env`; there's no separate `.env.prod`. Its `FRONTEND_BASE_URL=http://localhost:5173` is the dev (Vite) port; prod serves on port 80 via nginx, so OAuth2/email redirect links (built from `FRONTEND_BASE_URL`) point at a dead port until you change it. Set `FRONTEND_BASE_URL=http://localhost` in `.env` before a local prod test, and set it back to `:5173` before returning to the dev-up helper. A real deployment doesn't hit this: there, `FRONTEND_BASE_URL` is your actual domain, set once.
+- `.env` is user-managed local configuration. Keep it out of git.
+- The example files are checked in documentation and defaults. Update them
+  when the required settings change.
+- `frontend/.env.example` is only for running the frontend directly with
+  `npm run dev --prefix frontend`. Docker reads `VITE_*` values from the root
+  `.env`.
+- Production-style frontend values are baked into the image at build time:
+  `VITE_API_BASE_URL`, `VITE_APP_NAME`, `VITE_SENTRY_DSN`, and
+  `VITE_SENTRY_ENVIRONMENT`. After changing any of them, rebuild the frontend
+  image with `--build`.
+- Runtime backend values, such as `DATABASE_URL`, `SECRET_KEY`,
+  `GOOGLE_REDIRECT_URI`, SMTP settings, and rate-limit settings, are read when
+  containers start. After changing them, recreate or restart the affected
+  containers.
+
+---
+
+## Single-origin frontend/backend routing
+
+The frontend container's nginx (`docker/nginx.frontend.conf`) also proxies API
+route prefixes to the backend. It forwards `/auth`, `/audit`, `/users`,
+`/authorization`, and `/health` to the `backend` service. In both
+production-style Compose files, the frontend container is pinned to
+`172.28.0.10` so the backend can list that address in `TRUSTED_PROXY_IPS` and
+trust its `X-Forwarded-For` header.
+
+This single-origin setup works when `VITE_API_BASE_URL` is empty and
+`TRUSTED_PROXY_IPS=172.28.0.10`. Both are set by default in
+`.env.local-prod.example` and `.env.prod.example`. If your TLS terminator
+sits in front of this nginx, forward to port 80 and let
+nginx proxy the API paths internally. `proxy_add_x_forwarded_for` appends rather
+than overwrites, so the client IP chain is preserved.
+
+If you deploy the frontend elsewhere, point `VITE_API_BASE_URL` at the backend's
+real public origin. Set `TRUSTED_PROXY_IPS` to the proxy that actually sits in
+front of the backend for that topology.
+
+---
 
 ## Required production environment variables
 
-Same variables as `.env.example`, with these called out specifically for production:
+`.env.local-prod.example` and `.env.prod.example` already set the values
+below correctly. This section explains the values you must review before
+real production use:
 
-- `ENVIRONMENT=production`: disables `/docs`, `/redoc`, and `/openapi.json` on the backend (see `backend/app/main.py`).
-- `SECRET_KEY`, `GOOGLE_CLIENT_SECRET`, `GMAIL_APP_PASSWORD`, `POSTGRES_PASSWORD`: generate/rotate these for production; never reuse the values from local `.env` files or CI.
-- `FRONTEND_BASE_URL` / `BACKEND_BASE_URL`: must point at the real production hostnames; CORS (`main.py`) allows this origin plus any comma-separated `FRONTEND_ADDITIONAL_BASE_URLS` (e.g. a second domain, or staging sharing this backend), and that should be left unset for the common single-origin case.
-- `TRUSTED_PROXY_IPS`: set this to your reverse proxy's own address(es) if you deploy one in front of the backend, so per-IP rate limiting/lockout resolve the real client IP from `X-Forwarded-For` instead of collapsing onto the proxy's IP for every request. See [Security Hardening](../security/hardening.md#rate-limiting) and [Authorization Context Builder](../authorization/architecture.md#authorization-context-builder) (covers `auth/security/client_ip.py`'s IP resolution logic). Leave unset (default) for a direct deployment with no reverse proxy.
-- `SENTRY_DSN` / `VITE_SENTRY_DSN`: optional, leave unset to keep error monitoring fully disabled. If enabling self-hosted Bugsink in production, `BUGSINK_SECRET_KEY`/`BUGSINK_SUPERUSER_EMAIL`/`BUGSINK_SUPERUSER_PASSWORD`/`BUGSINK_BASE_URL` also need real (non-`.env.example`-placeholder) values. **These two DSNs are not the same value in a self-hosted-Bugsink setup, and only one of them needs setting by hand**: `SENTRY_DSN` (backend, container-to-container) uses the Compose service address (`bugsink:8000`); `docker-compose.prod.yml`'s `bugsink-seed` service auto-wires this one for you, same as in dev, so leave it blank and let seeding fill it in. `VITE_SENTRY_DSN` (frontend, baked into the browser bundle at build time) is the one that genuinely needs a manual value: it needs whatever *publicly* reaches Bugsink in production, which, per its own no-exposed-port-by-default posture (see [Error Monitoring: security notes](../error-monitoring/overview.md#security-notes)), means a reverse-proxy route you set up deliberately, not `localhost`, and `bugsink-seed` has no way to know that address in advance. See [Error Monitoring](../error-monitoring/overview.md) for the full explanation, including the dev/prod split.
-- `VITE_API_BASE_URL` / `VITE_APP_NAME` / `VITE_SENTRY_DSN` / `VITE_SENTRY_ENVIRONMENT`: unlike every other variable in this list, these are consumed at **image build time**, not container runtime: `docker-compose.prod.yml`'s `frontend` service passes them to `docker/frontend.Dockerfile` as build args, since the production nginx image has no bind-mounted `frontend/.env` for Vite to read the way the dev target does. They must be set in the root `.env` (not just `frontend/.env`) before `docker compose -f docker-compose.prod.yml up -d --build`, since `docker compose` only reads the compose file's own directory for `${VAR}` interpolation, so a value that only exists in `frontend/.env` is invisible to `docker-compose.prod.yml`. Point `VITE_API_BASE_URL` at the real public backend origin, not `localhost`, unless the frontend and backend share an origin behind the same reverse proxy.
+- `ENVIRONMENT=production` disables `/docs`, `/redoc`, and `/openapi.json` on
+  the backend. See `backend/app/main.py`.
+- Generate or rotate `SECRET_KEY`, `GOOGLE_CLIENT_SECRET`,
+  `GMAIL_APP_PASSWORD`, and `POSTGRES_PASSWORD` for production. Do not reuse
+  local `.env` or CI values.
+- Configure at least one user verification path before expecting normal users
+  to reach the dashboard. Password signup requires SMTP email delivery because
+  password accounts cannot log in until verified. Google login requires
+  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI`, and
+  creates a verified account using Google's verified-email signal.
+- The CLI-created system superuser is the exception. It is marked verified by
+  the script and can sign in with its password without Google or SMTP.
+- Point `FRONTEND_BASE_URL` and `BACKEND_BASE_URL` at the real production
+  hostnames. CORS in `backend/app/main.py` allows `FRONTEND_BASE_URL` plus
+  comma-separated `FRONTEND_ADDITIONAL_BASE_URLS`. Leave the additional list
+  unset for a single-origin deployment.
+- Set `TRUSTED_PROXY_IPS` to your reverse proxy's address when a proxy sits in
+  front of the backend. This lets rate limiting, lockout, and audit logging read
+  the real client IP from `X-Forwarded-For`. Leave it unset for direct backend
+  traffic. See [Security Hardening](../security/hardening.md#rate-limiting) and
+  [Authorization Context Builder](../authorization/architecture.md#authorization-context-builder).
+- `SENTRY_DSN` and `VITE_SENTRY_DSN` are optional. Leave them unset to disable
+  error monitoring. If you enable self-hosted Bugsink in production, set real
+  values for `BUGSINK_SECRET_KEY`, `BUGSINK_SUPERUSER_EMAIL`,
+  `BUGSINK_SUPERUSER_PASSWORD`, and `BUGSINK_BASE_URL`.
+- `SENTRY_DSN` and `VITE_SENTRY_DSN` differ in self-hosted Bugsink setups.
+  `SENTRY_DSN` is backend-only and can use `bugsink:8000`. `bugsink-seed`
+  auto-wires it through the shared volume. `VITE_SENTRY_DSN` is baked into the
+  browser bundle at build time and must use the public route to Bugsink. See
+  [Error Monitoring](../error-monitoring/overview.md).
+- `VITE_API_BASE_URL`, `VITE_APP_NAME`, `VITE_SENTRY_DSN`, and
+  `VITE_SENTRY_ENVIRONMENT` are consumed at **image build time**, not container
+  runtime. `docker-compose.local-prod.yml` and `docker-compose.prod.yml` pass them to
+  `docker/frontend.Dockerfile` as build args. Set them in the root `.env` before
+  `docker compose -f docker-compose.local-prod.yml up -d --build` or
+  `docker compose -f docker-compose.prod.yml up -d --build`. Values only in
+  `frontend/.env` are invisible to Compose interpolation.
+
+---
 
 ## Database migrations
 
-The `alembic` service runs `alembic upgrade head` once and exits; `backend` and `taskiq_worker` both wait on it (`depends_on: alembic: condition: service_completed_successfully` in `docker-compose.prod.yml`) so nothing serves traffic against a schema that hasn't been migrated yet.
+The `alembic` service runs `alembic upgrade head` once and exits. `backend` and
+`taskiq_worker` both wait on it using Compose's `service_completed_successfully`
+condition, so nothing serves traffic against an unmigrated schema.
 
-Before applying a migration in production, review the generated migration script under `backend/alembic/versions/`: especially anything that drops or alters a column/table. Alembic's autogenerate is a starting point, not a guarantee of safety; a destructive migration should be reviewed like any other schema change before `alembic upgrade head` runs against production data.
+Before applying a migration in production, review the generated script under
+`backend/alembic/versions/`, especially anything that drops or alters a column
+or table. Alembic autogenerate is a starting point, not a safety guarantee.
+
+---
 
 ## Backups
 
-`scripts/db_backup.sh` and `scripts/db_restore.sh` wrap the `pg_dump`/`psql` commands below: environment-driven (read `POSTGRES_USER`/`POSTGRES_DB` from `.env`), Docker-only, no cloud/provider assumptions:
+`scripts/db/db_backup.sh` and `scripts/db/db_restore.sh` wrap the `pg_dump` and `psql`
+commands below. They read `POSTGRES_USER` and `POSTGRES_DB` from `.env`, run
+through Docker Compose, and make no cloud or provider assumptions.
 
 ```bash
 # Dump the running postgres service to backups/<db>-<timestamp>.sql
-scripts/db_backup.sh
+scripts/db/db_backup.sh
 # Against the production compose file instead of the dev one:
-scripts/db_backup.sh docker-compose.prod.yml
+scripts/db/db_backup.sh docker-compose.local-prod.yml
 
-# Restore a dump (prompts for confirmation; -y skips the prompt)
-scripts/db_restore.sh backups/mystic_auth-20260717-120000.sql
+# Restore a dump. Use -y to skip confirmation.
+scripts/db/db_restore.sh backups/mystic_auth-20260717-120000.sql
 ```
 
-These scripts are the "how", not the "when": there's still no scheduler wired up in this repo, since no specific production host/cloud target is assumed (see [Concerns](../concerns/README.md)). Wire `scripts/db_backup.sh` into whatever your host provides (a `cron` entry, a systemd timer, a managed Postgres provider's built-in backups, or a sidecar container), on a schedule that matches your data's change rate (daily is a reasonable default for most small apps). Store the dumps somewhere durable off the host, and periodically test a restore: an untested backup is not a backup.
+These scripts are the "how", not the "when". There is no scheduler in this repo
+because no specific production host is assumed. Wire `scripts/db/db_backup.sh` into
+whatever your host provides, such as cron, a systemd timer, managed Postgres
+backups, or a sidecar container. Choose a schedule that matches your data's
+change rate. Daily is a reasonable default for most small apps. Store dumps
+somewhere durable off the host, and periodically test a restore.
 
 Equivalent raw commands, if you'd rather not use the scripts:
 
@@ -69,42 +187,46 @@ docker compose exec postgres pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup-$(d
 docker compose exec -T postgres psql -U $POSTGRES_USER $POSTGRES_DB < backup-2026-07-13.sql
 ```
 
+---
+
 ## Graceful shutdown
 
-`backend/app/main.py` registers a FastAPI `lifespan` handler that runs on shutdown (e.g. `docker stop`, or a rolling restart under an orchestrator): it disposes the SQLAlchemy connection pool and closes the Redis client cleanly instead of relying on the process dying and the OS reclaiming the sockets.
+`backend/app/main.py` registers a FastAPI `lifespan` handler that runs on
+shutdown, including `docker stop` and rolling restarts under an orchestrator. It
+disposes the SQLAlchemy connection pool and closes the Redis client cleanly.
 
-## Free / low-cost hosting options
+---
 
-This stack has four pieces that need hosting: backend (containerized FastAPI), frontend (static SPA build), Postgres, and Redis + a background worker process. The options below are a reasonable starting point for a template/side-project deployment: evaluate each provider's own limits (cold starts, storage caps, free-tier sleep policies) against what your actual deployment needs before relying on one.
+## Production host requirements
 
-### Backend (FastAPI, containerized)
+This template assumes a Docker-capable host that can run long-lived services.
+Use `docker-compose.prod.yml` when this stack should own the public HTTP/HTTPS
+entrypoint through Caddy. Use `docker-compose.local-prod.yml` when another
+reverse proxy or TLS terminator sits in front of the stack.
 
-- **Render** (free/hobby web service tier): deploys directly from `docker/backend.Dockerfile`; supports a separate "background worker" service type for `taskiq_worker` on the same repo. Free tier sleeps after inactivity (cold-start latency).
-- **Fly.io**: deploys any Dockerfile; has a small free allowance. Good fit since the app is already fully containerized.
-- **Railway**: Dockerfile-based deploys, usage-based free tier.
+At minimum, a production deployment needs:
 
-### Frontend (static SPA build)
+- A host that can run Docker Compose continuously.
+- Persistent storage for Postgres, Caddy certificates, and Bugsink state.
+- Network access for SMTP email delivery.
+- DNS pointing at the public host before starting `docker-compose.prod.yml`.
+- A backup schedule for Postgres dumps or volume snapshots.
+- Monitoring and alerting appropriate for the environment.
 
-- **Vercel** / **Netlify** / **Cloudflare Pages**: all have generous free tiers for a static build (`npm run build` → `frontend/dist/`); none need the `production` nginx image specifically, since they serve the static files themselves. If you do want the containerized nginx path (`docker/frontend.Dockerfile --target production`), use the same host as the backend instead.
+The backend, frontend nginx, Postgres, Redis, Taskiq worker, Alembic migration
+runner, and Bugsink services are all included in the Compose files. The email
+pipeline depends on the long-running `taskiq_worker` service connected to Redis.
+request-driven serverless backend deployments are intentionally out of scope.
 
-### PostgreSQL
-
-- **Neon**, **Supabase**, or **Railway**: all offer a free managed Postgres tier reachable over the internet; set `DATABASE_URL` to the provided connection string (must use the `postgresql+asyncpg://` scheme this app's async engine expects, not `postgresql://`).
-
-### Redis
-
-- **Upstash**: serverless Redis with a free tier, reachable over TLS from any host; set `REDIS_URL` accordingly. Note Upstash's free tier has request-count limits that matter here since Redis is used for rate limiting, lockout, and the taskiq broker (all high-frequency).
-
-### Background worker (taskiq)
-
-Needs a long-running process, not a request-driven serverless function: Render's/Railway's "background worker" service type (pointed at the same image, `command: taskiq worker mystic_auth.taskiq_tasks.email_tasks:broker`) is the most direct fit among the free-tier options above.
-
-### Practical combination for a $0 deployment
-
-Backend + worker on Render (two services from the same repo/image), frontend on Vercel/Netlify, Postgres on Neon, Redis on Upstash. Set `TRUSTED_PROXY_IPS` appropriately if the chosen backend host places its own reverse proxy in front of your container (most of the above do): otherwise per-IP rate limiting will silently collapse onto that proxy's IP for every request.
+---
 
 ## Limitations of this deployment approach
 
-- No infrastructure-as-code (Terraform/Pulumi/etc.) is provided: the steps above are manual, per-provider console/CLI actions.
-- No automated backups are wired up: see [Concerns: database backups](../concerns/README.md#database-backups-are-scripted-but-not-scheduled). Error monitoring/alerting IS available (opt-in, disabled by default): see [Error Monitoring](../error-monitoring/overview.md).
-- Free tiers on the providers above typically have cold-start latency, storage caps, and request-volume limits not suitable for real production traffic: treat this section as a starting point for a demo/side-project deployment, not a scaling plan.
+- No infrastructure as code is provided. The steps above are manual host setup
+  and Docker Compose operations.
+- No automated backups are wired up. See
+  [Concerns: database backups](../concerns/README.md#database-backups-are-scripted-but-not-scheduled).
+  Error monitoring and alerting are available but opt-in. See
+  [Error Monitoring](../error-monitoring/overview.md).
+- Capacity planning, host hardening, backups, and alerting remain deployment
+  responsibilities outside this template.

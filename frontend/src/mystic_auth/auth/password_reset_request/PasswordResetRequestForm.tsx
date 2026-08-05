@@ -3,27 +3,14 @@ import { Stack, Input, Button } from "@chakra-ui/react";
 import { Field as ChakraField } from "@chakra-ui/react";
 
 import { usePasswordResetRequestMutation } from "./usePasswordResetRequestMutation";
+import { useCooldown } from "../useCooldown";
 import FormAlert from "../../ui/FormAlert";
 
 const PasswordResetRequestForm: React.FC = () => {
     const [email, setEmail] = useState("");
-    const [cooldown, setCooldown] = useState(0);
+    const { cooldown, startCooldown } = useCooldown();
 
     const resetRequestMutation = usePasswordResetRequestMutation();
-
-    const startCooldown = () => {
-        setCooldown(60);
-
-        const interval = setInterval(() => {
-            setCooldown((prev) => {
-                if (prev <= 1) {
-                    clearInterval(interval);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    };
 
     const handleSubmit = (e: React.SubmitEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -34,12 +21,6 @@ const PasswordResetRequestForm: React.FC = () => {
 
         resetRequestMutation.mutate({ email });
         startCooldown();
-    };
-
-    const handleClear = () => {
-        resetRequestMutation.reset();
-        setEmail("");
-        setCooldown(0);
     };
 
     return (
@@ -57,6 +38,9 @@ const PasswordResetRequestForm: React.FC = () => {
                 />
             </ChakraField.Root>
 
+            {/* Solid variant's default hover is only colorPalette.solid at 90%
+                opacity - too subtle a shift to read as a hover state (see
+                LoginForm.tsx's Login button for the same fix). */}
             <Button
                 type="submit"
                 colorPalette="brand"
@@ -65,25 +49,9 @@ const PasswordResetRequestForm: React.FC = () => {
                 loading={resetRequestMutation.isPending}
                 disabled={cooldown > 0 || resetRequestMutation.isPending}
                 loadingText="Sending..."
+                _hover={{ bg: "brand.700" }}
             >
                 {cooldown > 0 ? `Try again in ${cooldown}s` : "Request Password Reset"}
-            </Button>
-
-            {/* Matches every other auth form's secondary styling (see
-                LoginForm.tsx for why explicit tokens, not Chakra's gray
-                colorPalette defaults). */}
-            <Button
-                type="button"
-                variant="outline"
-                borderColor="fg.muted"
-                color="fg.muted"
-                _hover={{ bg: "bg.canvas", borderColor: "fg.muted" }}
-                size="lg"
-                w="full"
-                onClick={handleClear}
-                disabled={resetRequestMutation.isPending}
-            >
-                Clear
             </Button>
 
             {resetRequestMutation.isError && (

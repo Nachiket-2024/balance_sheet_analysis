@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Stack, Text } from "@chakra-ui/react";
-import { NavLink } from "react-router";
+import { Link, NavLink } from "react-router";
 
 import { IfCan } from "../authorization/IfCan";
 import { NAV_ITEMS, type NavItem } from "./navItems";
@@ -59,13 +59,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onNavigate, extraItems }) => 
             display="flex"
             flexDirection="column"
         >
-            <Box px={6} py={5} borderBottom="1px solid" borderColor="border.default">
-                <Text fontWeight="bold" fontSize="lg" color="brand.fg">
-                    {APP_NAME}
-                </Text>
+            {/* h="16" fixed (not py-driven) so this border-bottom lines up
+                exactly with Navbar.tsx's own border-bottom - both are fixed
+                to the same height for that reason, rather than relying on
+                matching padding to coincidentally produce the same total
+                height as Navbar's differently-sized content (icon button +
+                name text) would. */}
+            <Box
+                h="16"
+                px={6}
+                display="flex"
+                alignItems="center"
+                borderBottom="1px solid"
+                borderColor="border.default"
+                flexShrink={0}
+            >
+                <Link to="/dashboard" onClick={onNavigate} style={{ textDecoration: "none" }}>
+                    <Text fontWeight="bold" fontSize="22px" color="brand.fg">
+                        {APP_NAME}
+                    </Text>
+                </Link>
             </Box>
 
-            <Stack p={3} gap={1}>
+            <Stack p={3} gap={1} data-testid="nav-links">
                 {items.map((item) => {
                     const link = (
                         <NavLink
@@ -78,7 +94,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onNavigate, extraItems }) => 
                                 borderRadius: "6px",
                                 fontWeight: isActive ? 600 : 500,
                                 color: isActive ? "var(--chakra-colors-brand-fg)" : "var(--chakra-colors-fg-default)",
-                                background: isActive ? "var(--chakra-colors-brand-muted)" : "transparent",
+                                background: isActive ? "var(--chakra-colors-brand-selected)" : "transparent",
                             })}
                         >
                             {item.label}

@@ -10,7 +10,7 @@ from ..caching.authorization_cache_service import authorization_cache_service
 from ..models.policy_model import Policy, UserPolicy
 
 # Every create/update/delete below also stages a policy_history row in the
-# same transaction, see claude.md's "Policy Versioning and Change History":
+# same transaction, policy versioning writes history rows in the same transaction:
 # every policy mutation must be traceable and reversible.
 from .policy_history_repository import policy_history_repository
 
@@ -231,7 +231,7 @@ class PolicyRepository:
         How many users currently hold this policy (assigned, regardless of
         the policy's own is_active flag). Used by
         api/pbac_routes/policy_assignment_routes.py's revoke endpoint to refuse removing the
-        last remaining holder of system_superuser, see claude.md's
+        last remaining holder of system_superuser, see the
         "System policies are protected": deleting a policy row is already
         blocked for baseline policies, but *revoking every assignment* of
         system_superuser would leave the system equally unrecoverable

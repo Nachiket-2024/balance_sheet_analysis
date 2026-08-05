@@ -22,6 +22,8 @@ function seed(permissions: string[]) {
     role: 'user',
     permissions,
     has_password: true,
+    created_at: '2026-01-15T00:00:00Z',
+    active_sessions: 1,
   });
 }
 
@@ -112,6 +114,108 @@ describe('CompaniesPage', () => {
       name: 'Reliance Retail Ventures',
       ticker: 'RRVL.NS',
     });
+  });
+
+  it('autofills the company name from the ticker lookup when the name field is left blank', async () => {
+    const user = userEvent.setup();
+    seed(['company:read', 'company:create']);
+    mock.onGet('/companies/').reply(200, []);
+    mock.onGet('/companies/lookup/RRVL.NS').reply(200, { ticker: 'RRVL.NS', name: 'Reliance Retail Ventures' });
+
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Add company' }));
+    await user.type(screen.getByPlaceholderText('Ticker (e.g. JIO.NS)'), 'RRVL.NS');
+    await user.tab(); // blur the ticker field to trigger the lookup
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Company name (e.g. Jio Platforms)')).toHaveValue('Reliance Retail Ventures');
+    });
+    expect(mock.history.get.some((r) => r.url === '/companies/lookup/RRVL.NS')).toBe(true);
+  });
+
+  it('does not overwrite a manually entered company name with the ticker lookup', async () => {
+    const user = userEvent.setup();
+    seed(['company:read', 'company:create']);
+    mock.onGet('/companies/').reply(200, []);
+    mock.onGet('/companies/lookup/RRVL.NS').reply(200, { ticker: 'RRVL.NS', name: 'Reliance Retail Ventures' });
+
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Add company' }));
+    await user.type(screen.getByPlaceholderText('Company name (e.g. Jio Platforms)'), 'My Custom Name');
+    await user.type(screen.getByPlaceholderText('Ticker (e.g. JIO.NS)'), 'RRVL.NS');
+    await user.tab();
+
+    // No lookup call is made at all: the name field was already non-empty.
+    expect(mock.history.get.some((r) => r.url === '/companies/lookup/RRVL.NS')).toBe(false);
+    expect(screen.getByPlaceholderText('Company name (e.g. Jio Platforms)')).toHaveValue('My Custom Name');
+  });
+
+  it('hides the row-level "Edit" action for a user without company:update', async () => {
+    seed(['company:read']);
+    mock.onGet('/companies/').reply(200, [
+      { id: 2, name: 'Jio Platforms', ticker: 'JIO.NS', parent_company_id: null, group_root_id: 2 },
+    ]);
+
+    renderPage();
+
+    await screen.findByText('Jio Platforms');
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+  });
+
+  it('opens the row-level "Edit" form pre-filled and submits an update via PATCH', async () => {
+    seed(['company:read', 'company:update']);
+    mock.onGet('/companies/').reply(200, [
+      { id: 2, name: 'Jio Platforms', ticker: 'JIO.NS', parent_company_id: null, group_root_id: 2 },
+    ]);
+    mock.onPatch('/companies/2').reply(200, {
+      id: 2,
+      name: 'Jio Platforms Ltd',
+      ticker: 'JIO.NS',
+      parent_company_id: null,
+      group_root_id: 2,
+    });
+
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    const nameInput = screen.getByDisplayValue('Jio Platforms');
+    expect(screen.getByDisplayValue('JIO.NS')).toBeInTheDocument();
+
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Jio Platforms Ltd');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(mock.history.patch).toHaveLength(1));
+    expect(JSON.parse(mock.history.patch[0].data)).toMatchObject({
+      name: 'Jio Platforms Ltd',
+      ticker: 'JIO.NS',
+      parent_company_id: null,
+    });
+    // Form closes on success (same close path as create); the list itself
+    // refetches via query invalidation, covered separately by the "renders
+    // only the companies the backend returns" test, not re-asserted here.
+    await waitFor(() => expect(screen.queryByDisplayValue('Jio Platforms Ltd')).toBeNull());
+  });
+
+  it('closes the edit form without submitting when "Cancel" is clicked', async () => {
+    seed(['company:read', 'company:update']);
+    mock.onGet('/companies/').reply(200, [
+      { id: 2, name: 'Jio Platforms', ticker: 'JIO.NS', parent_company_id: null, group_root_id: 2 },
+    ]);
+
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    expect(screen.getByDisplayValue('Jio Platforms')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByDisplayValue('Jio Platforms')).toBeNull();
+    expect(mock.history.patch).toHaveLength(0);
   });
 
   it('hides the row-level "Delete" action for a user without company:delete', async () => {

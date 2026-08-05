@@ -39,8 +39,8 @@ export type { NavItem } from "../mystic_auth/layout/navItems";
 
 // Mount once at your app root (see App.tsx) so any component/thunk can call
 // toaster.create({...})
-export { Toaster } from "../mystic_auth/ui/toaster";
-export { toaster } from "../mystic_auth/ui/toasterInstance";
+export { Toaster } from "../mystic_auth/ui/toaster/toaster";
+export { toaster } from "../mystic_auth/ui/toaster/toasterInstance";
 
 // Generic UI primitives: no identity/PBAC coupling of their own, reused
 // as-is by your own feature pages the same way this template's own pages do.
