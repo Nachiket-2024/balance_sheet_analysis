@@ -11,8 +11,8 @@ This doc covers the Manage Sessions feature across backend, frontend, database, 
 | Persistence mirror | `backend/mystic_auth/user_session/` | Stores one row per visible login session, updates the row when refresh tokens rotate, marks rows revoked |
 | Token authority | `backend/mystic_auth/auth/token_logic/jwt_service.py` and `auth/refresh_token_logic/refresh_token_service.py` | Redis-backed version counters (`account_ver`, `chain_ver`), single-use rotation claim, reuse detection |
 | Frontend | `frontend/src/mystic_auth/dashboard/manage_sessions/` | Dashboard card that lists sessions, formats device metadata, and revokes another active session |
-| Real-time push | `backend/mystic_auth/user_session/session_events.py`, `GET /auth/session-events`, `frontend/src/mystic_auth/auth/useSessionEventsStream.ts` | Server-Sent Events + Redis Pub/Sub nudge every open tab/device the instant a session is revoked. See "Real-time push" below |
-| Tests | `tests/backend/mystic_auth/integration/test_manage_sessions_integration.py` and matching unit suites | End-to-end and handler/service coverage for list, revoke, self-revoke, foreign session, logout, logout-all, and rotation behavior |
+| Real-time push | `backend/mystic_auth/user_session/session_events.py`, `GET /auth/session-events`, `frontend/src/mystic_auth/auth/session_lifecycle/useSessionEventsStream.ts` | Server-Sent Events + Redis Pub/Sub nudge every open tab/device the instant a session is revoked. See "Real-time push" below |
+| Tests | `tests/backend/mystic_auth/integration/user_session/test_manage_sessions_integration.py` and matching unit suites | End-to-end and handler/service coverage for list, revoke, self-revoke, foreign session, logout, logout-all, and rotation behavior |
 
 ---
 

@@ -9,7 +9,9 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-from backend.mystic_auth.auth.current_user.current_user_handler import current_user_handler
+from backend.mystic_auth.auth.current_user.current_user_handler import (
+    current_user_handler,
+)
 from backend.mystic_auth.user_table.user_model import UserRole
 
 MODULE = "backend.mystic_auth.auth.current_user.current_user_handler"

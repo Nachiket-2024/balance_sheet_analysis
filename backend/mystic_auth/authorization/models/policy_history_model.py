@@ -54,7 +54,7 @@ class PolicyHistory(Base):
     # for "created"/"deleted", where the entire definition is the change.
     changed_fields: Mapped[list[str] | None] = mapped_column(ARRAY(String))
 
-    # Email of the admin who made this change, or "system" for
+    # Email of the user who made this change, or "system" for
     # migration/automated changes.
     changed_by: Mapped[str | None]
 

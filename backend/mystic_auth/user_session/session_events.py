@@ -63,7 +63,7 @@ async def session_event_stream(email: str, request: Request) -> AsyncIterator[st
     """
     Yields Server-Sent-Events-formatted lines on `email`'s own channel
     until the client disconnects. One Redis Pub/Sub subscription per open
-    tab: fine at this app's scale (a handful of admin users, not millions
+    tab: fine at this app's scale (a handful of users, not millions
     of concurrent connections); a larger deployment would front this with
     a proper pub/sub fan-out layer instead of one subscription per
     connection.

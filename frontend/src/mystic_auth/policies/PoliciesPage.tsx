@@ -19,7 +19,7 @@ import type { PolicyRead } from "../api/policies_api";
 /**
  * PoliciesPage
  * ----------------------------
- * Admin CRUD for policies (backend: /authorization/policies). Route itself
+ * Management CRUD for policies (backend: /authorization/policies). Route itself
  * is gated by ProtectedRoute permission="policies:read"; the create/edit/
  * delete affordances are additionally gated per-action here via IfCan,
  * since a caller might hold policies:read without policies:create/update/

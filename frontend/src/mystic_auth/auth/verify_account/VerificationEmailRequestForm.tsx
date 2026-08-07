@@ -3,7 +3,7 @@ import { Button, Input, Stack } from "@chakra-ui/react";
 import { Field as ChakraField } from "@chakra-ui/react";
 
 import { useVerificationEmailRequestMutation } from "./useVerificationEmailRequestMutation";
-import { useCooldown } from "../useCooldown";
+import { useCooldown } from "../../ui/hooks/useCooldown";
 import FormAlert from "../../ui/FormAlert";
 import { BRAND_OUTLINE_HOVER_PROPS } from "../../ui/styles/buttonStyles";
 

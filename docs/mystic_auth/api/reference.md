@@ -49,7 +49,7 @@ Every endpoint that returns a list of rows (`GET /users/`, and the audit log end
 
 ---
 
-## Users: `/users` (`api/user_routes/user_self_service_routes.py`, `api/user_routes/user_management_routes.py`)
+## Users: `/users` (`api/user_routes/user_self_service_routes.py`, `user_management_query_routes.py`, `user_management_update_routes.py`, `user_lifecycle_routes.py`)
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|

@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...audit_log.audit_log_service import PASSWORD_RESET_CONFIRMED, log_security_event
 from ...logging.logging_config import get_logger
 from ..password_logic.password_reset_service import password_reset_service
+from ..password_logic.password_service import password_service
 from ..security.login_protection_service import login_protection_service
-from ..token_logic.jwt_service import jwt_service
 
 logger = get_logger(__name__)
 
@@ -17,7 +17,7 @@ class PasswordResetConfirmHandler:
     """Verifies a reset token, resets the password, and enforces login protection."""
 
     def __init__(self):
-        self.jwt_service = jwt_service
+        self.password_service = password_service
         self.password_reset_service = password_reset_service
         self.login_protection_service = login_protection_service
 
@@ -25,7 +25,11 @@ class PasswordResetConfirmHandler:
         self, token: str, new_password: str, db: AsyncSession | None = None, request: Request | None = None
     ) -> JSONResponse:
         try:
-            payload = await self.jwt_service.verify_token(token)
+            # Must scope to type=="reset" here, not a generic verify_token: any
+            # validly-signed JWT with an "email" claim (an access/refresh/verify
+            # token) would otherwise pass, letting an attacker holding one for a
+            # victim account poison their audit log and trip their reset lockout.
+            payload = await self.password_service.verify_reset_token(token)
 
             if not payload or "email" not in payload:
                 return JSONResponse({"error": "Invalid or expired token"}, status_code=400)

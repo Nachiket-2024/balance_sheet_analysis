@@ -7,7 +7,7 @@ import {
     reactivateUserApi,
     updateUserRoleApi,
     type UserUpdatePayload,
-    type AdminUserRead,
+    type ManagedUserRead,
 } from "../api/users_api";
 import { extractApiErrorMessage } from "../api/apiError";
 import { queryClient } from "../core/queryClient";
@@ -16,10 +16,10 @@ import { USERS_QUERY_KEY } from "./userQueries";
 /**
  * Each mutation invalidates the shared users list on success: the User
  * Management page's table is a TanStack Query cache read, not local state,
- * so an admin action here is reflected everywhere that list is rendered.
+ * so a management action here is reflected everywhere that list is rendered.
  */
 export function useUpdateUserMutation() {
-    return useMutation<AdminUserRead, Error, { userEmail: string; payload: UserUpdatePayload }>({
+    return useMutation<ManagedUserRead, Error, { userEmail: string; payload: UserUpdatePayload }>({
         mutationFn: async ({ userEmail, payload }) => {
             try {
                 return (await updateUserApi(userEmail, payload)).data;
@@ -64,7 +64,7 @@ export function usePurgeUserMutation() {
 }
 
 export function useReactivateUserMutation() {
-    return useMutation<AdminUserRead, Error, { userEmail: string }>({
+    return useMutation<ManagedUserRead, Error, { userEmail: string }>({
         mutationFn: async ({ userEmail }) => {
             try {
                 return (await reactivateUserApi(userEmail)).data;

@@ -9,8 +9,12 @@ import time
 import uuid
 
 import pytest
-from backend.mystic_auth.authorization.policies.default_policies import SELF_SERVICE_POLICY_NAME
-from backend.mystic_auth.authorization.schemas.batch_authorization_schema import MAX_BATCH_SIZE
+from backend.mystic_auth.authorization.policies.default_policies import (
+    SELF_SERVICE_POLICY_NAME,
+)
+from backend.mystic_auth.authorization.schemas.batch_authorization_schema import (
+    MAX_BATCH_SIZE,
+)
 
 from tests.backend.mystic_auth.security.conftest import create_verified_user
 

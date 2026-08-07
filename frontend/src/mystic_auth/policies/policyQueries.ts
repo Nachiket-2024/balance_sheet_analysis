@@ -13,7 +13,7 @@ export const MY_POLICIES_QUERY_KEY = ["policies", "me"] as const;
 export const userPoliciesQueryKey = (userEmail: string) => ["policies", "user", userEmail] as const;
 
 // Policies themselves (as opposed to who they're assigned to) change rarely
-// - an admin editing PoliciesPage explicitly invalidates this key on
+// - a user editing PoliciesPage explicitly invalidates this key on
 // save/delete (see policyMutations.ts), so a longer staleTime here doesn't
 // risk showing stale data after an actual edit, it just avoids refetching
 // this list on every unrelated remount/refocus.

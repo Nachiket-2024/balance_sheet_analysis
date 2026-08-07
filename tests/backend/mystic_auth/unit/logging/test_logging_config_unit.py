@@ -7,7 +7,11 @@
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
-from backend.mystic_auth.logging.logging_config import get_logger, get_startup_logger, get_worker_logger
+from backend.mystic_auth.logging.logging_config import (
+    get_logger,
+    get_startup_logger,
+    get_worker_logger,
+)
 from pythonjsonlogger import json as jsonlogger
 
 MODULE = "backend.mystic_auth.logging.logging_config"

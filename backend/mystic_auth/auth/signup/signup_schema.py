@@ -10,6 +10,14 @@ class SignupSchema(BaseModel):
     # Capped so an arbitrarily large string isn't fed straight into Argon2 hashing
     password: str = Field(..., max_length=128)
 
+    @field_validator("name")
+    @classmethod
+    def _reject_blank_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("name cannot be blank")
+        return stripped
+
     @field_validator("email")
     @classmethod
     def _normalize_email(cls, value: str) -> str:

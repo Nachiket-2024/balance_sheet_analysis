@@ -1,6 +1,5 @@
 import React from "react";
 import { Flex, Heading, Text, VStack, Button } from "@chakra-ui/react";
-import type { StackProps } from "@chakra-ui/react";
 
 import { reportError } from "../core/errorMonitoring";
 import { BRAND_SOLID_HOVER_PROPS } from "./styles/buttonStyles";
@@ -47,7 +46,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
         return (
             <Flex align="center" justify="center" h="100vh" bg="bg.canvas" px={4} textAlign="center">
-                <VStack {...({ spacing: 4 } as StackProps)}>
+                <VStack gap={4}>
                     <Heading color="fg.error" size="2xl">Something went wrong</Heading>
 
                     <Text fontSize="xl" fontWeight="medium">

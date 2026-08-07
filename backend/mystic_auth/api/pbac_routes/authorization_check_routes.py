@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # in the batch (they're all the same incoming request)
 from ...authorization.context.request_context_builder import build_authorization_context
 from ...authorization.dependencies.authorization_dependency import require_authorization
+from ...authorization.dependencies.policy_route_dependencies import READ_DEPENDENCY
 from ...authorization.permissions import Permission
 from ...authorization.schemas.batch_authorization_schema import (
     BatchAuthorizationCheckRequest,
@@ -16,8 +17,7 @@ from ...authorization.schemas.policy_schema import AuthorizationCheckRequest, Au
 from ...authorization.services.authorization_service import authorization_service
 from ...database.connection import database
 from ...user_crud.user_crud_collector import user_crud
-from ..get_or_404 import get_or_404
-from .policy_permissions import READ_DEPENDENCY
+from ..get_or_404.get_or_404 import get_or_404
 
 router = APIRouter(prefix="/authorization", tags=["Authorization"])
 
@@ -45,7 +45,7 @@ async def check_user_authorization(
     unlike every real protected route (which builds context itself via
     context/request_context_builder.py and never trusts a client-supplied
     value), this is a hypothetical "what would happen if" simulation tool
-    for admins/operators, not a real access decision, so there is nothing
+    for operators, not a real access decision, so there is nothing
     to forge: no actual authorization outcome depends on it.
     """
     await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
@@ -84,7 +84,7 @@ async def batch_check_authorization(
     empty batches are rejected by the schema itself, before this function
     runs). Requires only users:read_own, the baseline every real account
     holds via self_service: unlike the /users/{email}/authorization-check
-    admin inspection tool (which checks *someone else's* access and needs
+    operator inspection tool (which checks *someone else's* access and needs
     policies:read), this endpoint always checks the caller's *own*
     effective authorization, so the bar is simply "you're a legitimate,
     onboarded account" rather than an elevated permission.
@@ -101,7 +101,7 @@ async def batch_check_authorization(
 
     The response exposes only `allowed` and a coarse `denial_reason` per
     check, deliberately never policy names or failed condition keys : those
-    stay reserved for the admin inspection endpoint above.
+    stay reserved for the operator inspection endpoint above.
     """
     context = build_authorization_context(request)
 

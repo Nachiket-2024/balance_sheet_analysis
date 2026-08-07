@@ -28,13 +28,13 @@ def _fake_policy(name):
 
 
 def _existing_user(**overrides):
-    defaults = dict(
-        id=42,
-        email="existing@example.com",
-        name="Existing User",
-        role=SimpleNamespace(value="user"),
-        hashed_password="already-hashed",
-    )
+    defaults = {
+        "id": 42,
+        "email": "existing@example.com",
+        "name": "Existing User",
+        "role": SimpleNamespace(value="user"),
+        "hashed_password": "already-hashed",
+    }
     return SimpleNamespace(**{**defaults, **overrides})
 
 

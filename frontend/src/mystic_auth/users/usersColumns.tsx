@@ -5,7 +5,7 @@ import TableActionButton from "../ui/TableActionButton";
 import StyledSelect from "../ui/StyledSelect";
 import { IfCan } from "../authorization/IfCan";
 import { PERMISSIONS } from "../authorization/permissions";
-import type { AdminUserRead } from "../api/users_api";
+import type { ManagedUserRead } from "../api/users_api";
 
 export const ROLE_OPTIONS = ["user", "admin", "system"] as const;
 
@@ -15,13 +15,13 @@ export function capitalize(value: string): string {
 
 interface BuildUsersColumnsParams {
     currentUserEmail: string | null | undefined;
-    onRoleChangeRequest: (user: AdminUserRead, role: string) => void;
-    onView: (user: AdminUserRead) => void;
+    onRoleChangeRequest: (user: ManagedUserRead, role: string) => void;
+    onView: (user: ManagedUserRead) => void;
     onPolicies: (email: string) => void;
     onReactivate: (email: string) => void;
     reactivatingEmail: string | undefined;
-    onPurgeRequest: (user: AdminUserRead) => void;
-    onDeleteRequest: (user: AdminUserRead) => void;
+    onPurgeRequest: (user: ManagedUserRead) => void;
+    onDeleteRequest: (user: ManagedUserRead) => void;
 }
 
 /** UsersPage's DataTable column definitions, extracted since they need the
@@ -39,7 +39,7 @@ export function buildUsersColumns({
     reactivatingEmail,
     onPurgeRequest,
     onDeleteRequest,
-}: BuildUsersColumnsParams): DataTableColumn<AdminUserRead>[] {
+}: BuildUsersColumnsParams): DataTableColumn<ManagedUserRead>[] {
     return [
         {
             key: "name",

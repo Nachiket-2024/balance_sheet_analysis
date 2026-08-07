@@ -71,15 +71,15 @@ if "REDIS_URL" not in os.environ:
         )
 
 # ---------------------------- Imports (after env overrides above) ----------------------------
-import pytest_asyncio  # noqa: E402
-from backend.app.main import app  # noqa: E402
-from backend.mystic_auth.database.connection import database  # noqa: E402
-from backend.mystic_auth.redis.client import redis_client  # noqa: E402
-from httpx import ASGITransport, AsyncClient  # noqa: E402
-from sqlalchemy import text  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
-from sqlalchemy.pool import NullPool  # noqa: E402
+import pytest_asyncio
+from backend.app.main import app
+from backend.mystic_auth.database.connection import database
+from backend.mystic_auth.redis.client import redis_client
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
 # pytest-asyncio hands each test function its own event loop, but
 # `database.engine`'s connection pool is a module-level singleton shared

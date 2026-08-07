@@ -30,6 +30,9 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
             bg="bg.surface"
             borderBottom="1px solid"
             borderColor="border.default"
+            position="sticky"
+            top={0}
+            zIndex="sticky"
         >
             <Flex align="center" gap={3}>
                 <IconButton

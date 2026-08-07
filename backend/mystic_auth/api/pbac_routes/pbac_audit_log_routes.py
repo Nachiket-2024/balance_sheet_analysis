@@ -5,12 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # /audit-log/me, where a user inspects their own decisions regardless of
 # whether they hold policies:read
 from ...auth.current_user.current_user_dependency import get_current_user
+from ...authorization.dependencies.policy_route_dependencies import READ_DEPENDENCY
 from ...authorization.repositories.audit_log_repository import audit_log_repository
 from ...authorization.schemas.audit_log_schema import AuditLogEntryRead
 from ...database.connection import database
 from ...user_crud.user_crud_collector import user_crud
-from ..get_or_404 import get_or_404
-from .policy_permissions import READ_DEPENDENCY
+from ..get_or_404.get_or_404 import get_or_404
 
 router = APIRouter(prefix="/authorization", tags=["Authorization"])
 

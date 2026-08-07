@@ -65,13 +65,15 @@ database = _m("database.connection").database
 settings = _m("core.settings").settings
 
 # Small route helpers
-get_or_404 = _m("api.get_or_404").get_or_404
+get_or_404 = _m("api.get_or_404.get_or_404").get_or_404
 
 # Routers, mounted on the FastAPI app in main.py
 auth_router = _m("api.auth_routes.auth_routes").router
 refresh_token_router = _m("api.auth_routes.refresh_token_routes").router
 user_self_service_router = _m("api.user_routes.user_self_service_routes").router
-user_management_router = _m("api.user_routes.user_management_routes").router
+user_management_query_router = _m("api.user_routes.user_management_query_routes").router
+user_management_update_router = _m("api.user_routes.user_management_update_routes").router
+user_lifecycle_router = _m("api.user_routes.user_lifecycle_routes").router
 policy_crud_router = _m("api.pbac_routes.policy_crud_routes").router
 policy_history_router = _m("api.pbac_routes.policy_history_routes").router
 policy_assignment_router = _m("api.pbac_routes.policy_assignment_routes").router
@@ -119,7 +121,9 @@ __all__ = [
     "auth_router",
     "refresh_token_router",
     "user_self_service_router",
-    "user_management_router",
+    "user_management_query_router",
+    "user_management_update_router",
+    "user_lifecycle_router",
     "policy_crud_router",
     "policy_history_router",
     "policy_assignment_router",

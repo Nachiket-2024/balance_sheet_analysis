@@ -28,7 +28,7 @@ from mystic_auth.user_session.session_model import UserSession  # noqa: F401
 from mystic_auth.user_table.user_model import User  # noqa: F401
 
 load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 config = context.config
 config.set_main_option("sqlalchemy.url", DATABASE_URL)

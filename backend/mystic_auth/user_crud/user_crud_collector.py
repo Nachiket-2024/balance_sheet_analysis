@@ -71,9 +71,6 @@ class UserCRUDCollector:
     async def update_by_email(self, email: str, update_data: dict, db: AsyncSession):
         return await self.email.update_by_email(email, update_data, db)
 
-    async def get_by_role(self, role: UserRole, db: AsyncSession):
-        return await self.role.get_by_role(role, db)
-
     async def update_role(self, db_obj, role: UserRole, db: AsyncSession):
         return await self.role.update_role(db_obj, role, db)
 

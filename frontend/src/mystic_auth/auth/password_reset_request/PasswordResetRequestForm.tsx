@@ -3,7 +3,7 @@ import { Stack, Input, Button } from "@chakra-ui/react";
 import { Field as ChakraField } from "@chakra-ui/react";
 
 import { usePasswordResetRequestMutation } from "./usePasswordResetRequestMutation";
-import { useCooldown } from "../useCooldown";
+import { useCooldown } from "../../ui/hooks/useCooldown";
 import FormAlert from "../../ui/FormAlert";
 
 const PasswordResetRequestForm: React.FC = () => {

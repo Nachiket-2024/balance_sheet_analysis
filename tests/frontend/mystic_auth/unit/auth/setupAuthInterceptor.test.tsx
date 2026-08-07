@@ -5,10 +5,10 @@ import MockAdapter from 'axios-mock-adapter';
 
 import api from '@/api/axiosInstance';
 import { useAuthStore } from '@/store/authStore';
-import { setupAuthInterceptor } from '@/auth/setupAuthInterceptor';
+import { setupAuthInterceptor } from '@/auth/session_lifecycle/setupAuthInterceptor';
 import { queryClient } from '@/core/queryClient';
 import { useCurrentUserQuery } from '@/auth/current_user/useCurrentUserQuery';
-import { trackSessionRotatingRequest } from '@/auth/sessionRotationGuard';
+import { trackSessionRotatingRequest } from '@/auth/session_lifecycle/sessionRotationGuard';
 
 const mock = new MockAdapter(api);
 

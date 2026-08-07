@@ -2,7 +2,9 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from backend.mystic_auth.auth.password_logic.password_reset_service import password_reset_service
+from backend.mystic_auth.auth.password_logic.password_reset_service import (
+    password_reset_service,
+)
 
 MODULE = "backend.mystic_auth.auth.password_logic.password_reset_service"
 
@@ -212,5 +214,5 @@ async def test_reset_password_restore_ttl_is_capped_by_remaining_jwt_lifetime(mo
 
     await password_reset_service.reset_password("valid-token", "weak", db=None)
 
-    args, kwargs = set_mock.call_args
+    _args, kwargs = set_mock.call_args
     assert 0 < kwargs["ex"] <= 31

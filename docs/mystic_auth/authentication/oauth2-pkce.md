@@ -122,7 +122,7 @@ See [Security Decisions: OAuth2 CSRF and account-hijacking protections](../secur
 
 `tests/backend/mystic_auth/unit/` covers `oauth2_login_handler` and
 `oauth2_service` with Google HTTP calls mocked.
-`tests/backend/mystic_auth/integration/test_oauth_integration.py` exercises the
+`tests/backend/mystic_auth/integration/auth/test_oauth_integration.py` exercises the
 initiate-to-callback flow against a real Redis instance. See
 [Testing Overview](../testing/overview.md).
 

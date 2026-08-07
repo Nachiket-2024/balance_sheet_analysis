@@ -22,12 +22,12 @@ interface UserStatsCardProps {
  * Summary counts (GET /users/stats) for UsersPage: total, verified,
  * unverified, inactive - always across the whole table, independent of
  * whatever page/search/filters the list below currently has applied, so
- * these numbers don't shift as an admin pages or filters through the list.
+ * these numbers don't shift as an operator pages or filters through the list.
  * Sits in PageContainer's own actions slot (top-right, level with the page
  * title), so the search/filter row and table below it are unaffected.
  *
  * Each tile doubles as a filter shortcut when its handler is supplied:
- * clicking "Verified" applies the same filter an admin would otherwise set
+ * clicking "Verified" applies the same filter an operator would otherwise set
  * by hand via the Verified select below, rather than just being a
  * read-only count next to it.
  */

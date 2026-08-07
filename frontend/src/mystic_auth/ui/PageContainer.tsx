@@ -19,7 +19,7 @@ interface PageContainerProps {
 }
 
 /**
- * Consistent heading/description/action-slot layout for every admin page
+ * Consistent heading/description/action-slot layout for every management page
  * (Users, Policies, Audit Log, Account Settings) so they share the same page-header
  * rhythm instead of each hand-rolling its own Heading + Flex.
  */

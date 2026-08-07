@@ -35,7 +35,9 @@ from .sdk import (  # noqa: E402 (must follow load_dotenv() above, since sdk.py 
     refresh_token_router,
     security_audit_router,
     settings,
-    user_management_router,
+    user_lifecycle_router,
+    user_management_query_router,
+    user_management_update_router,
     user_self_service_router,
     watch_for_late_dsn,
 )
@@ -124,12 +126,27 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.include_router(auth_router)
 app.include_router(refresh_token_router)
-# Self-service routes must register before user_management_router, otherwise
-# PUT /users/{user_email} shadows PUT /users/me.
+# Split from a single user_routes.py into user_self_service_routes.py (GET/PUT
+# /users/me, no elevated permission) and, by operation type, user_management_query_routes.py
+# (users:list_all/stats), user_management_update_routes.py (update_any/assign_role),
+# and user_lifecycle_routes.py (delete_any/purge/reactivate) - all gated
+# accordingly, see backend/mystic_auth/api/user_routes/. Registration order
+# matters here: the self-service router must come first, since the management
+# routers' PUT /users/{user_email} would otherwise shadow PUT /users/me
+# (Starlette matches routes in registration order across the whole app, not
+# per-router) - the same hazard policy_assignment_router's own
+# /me-before-{email} ordering below guards against within a single router.
 app.include_router(user_self_service_router)
-app.include_router(user_management_router)
-# policy_assignment_router keeps its own /me route before /{user_email}.
-# The other PBAC routers have disjoint paths.
+app.include_router(user_management_query_router)
+app.include_router(user_management_update_router)
+app.include_router(user_lifecycle_router)
+# Split from a single pbac_routes/policy_routes.py into feature-based modules
+# (CRUD, history, assignment, checks, audit log), see backend/mystic_auth/api/pbac_routes/.
+# Registration order matters: policy_assignment_router defines
+# /authorization/users/me/policies before its own
+# /authorization/users/{user_email}/policies, so it must be included whole;
+# no other cross-router ordering constraint exists since each router owns a
+# disjoint set of paths.
 app.include_router(policy_crud_router)
 app.include_router(policy_history_router)
 app.include_router(policy_assignment_router)

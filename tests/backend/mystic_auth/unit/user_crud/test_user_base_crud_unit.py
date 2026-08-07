@@ -1,7 +1,7 @@
 # tests/backend/mystic_auth/unit/user_crud/test_user_base_crud_unit.py
 #
 # UserBaseCRUD is the generic list/filter/sort/CRUD engine behind GET
-# /users/ (user_management_routes.py): its filter/sort-column allowlisting
+# /users/ (user_management_query_routes.py): its filter/sort-column allowlisting
 # is the one thing standing between a caller-supplied query param and an
 # arbitrary SQL column reference, so it's exercised directly here rather
 # than only indirectly through the route-level integration tests.

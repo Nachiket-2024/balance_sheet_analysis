@@ -4,29 +4,13 @@
 # display/grouping metadata only under this app's PBAC model (see
 # authorization/) - these tests confirm the CRUD layer itself just persists
 # whatever role value it's given, with no authorization logic of its own;
-# that decision lives entirely in user_management_routes.py's dependency.
+# that decision lives entirely in user_management_update_routes.py's dependency.
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from backend.mystic_auth.user_crud.user_crud_modules.user_role_crud import UserRoleCRUD
 from backend.mystic_auth.user_table.user_model import User as _FakeModel
 from backend.mystic_auth.user_table.user_model import UserRole
-
-
-@pytest.mark.asyncio
-async def test_get_by_role_returns_matching_rows():
-    db = AsyncMock()
-    execute_result = MagicMock()
-    scalars_result = MagicMock()
-    scalars_result.all = MagicMock(return_value=["admin1", "admin2"])
-    execute_result.scalars = MagicMock(return_value=scalars_result)
-    db.execute = AsyncMock(return_value=execute_result)
-    crud = UserRoleCRUD(_FakeModel)
-
-    result = await crud.get_by_role(UserRole.admin, db)
-
-    assert result == ["admin1", "admin2"]
-    db.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio

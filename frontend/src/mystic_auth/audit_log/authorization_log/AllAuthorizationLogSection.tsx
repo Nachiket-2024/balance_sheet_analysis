@@ -7,13 +7,13 @@ import { useDebouncedValue } from "../../ui/hooks/useDebouncedValue";
 import { useSortState } from "../../ui/hooks/useSortState";
 import { usePageResetOn } from "../../ui/hooks/usePageResetOn";
 import { SEARCH_INPUT_PROPS } from "../../ui/styles/inputStyles";
-import { useAuthorizationAuditLogQuery } from "./queries";
-import { authorizationColumns } from "./columns";
+import { useAuthorizationAuditLogQuery } from "./authorizationLogQueries";
+import { authorizationColumns } from "./authorizationLogColumns";
 import AuthorizationFilterBar from "./AuthorizationFilterBar";
 import { ALL_VALUE, PAGE_SIZE, toBoolFilter, totalPagesFor } from "../auditLogListConfig";
 
 /** "Authorization decisions" tab's "All users" sub-tab (policies:read only):
- * same shape as MyAuthorizationLog, plus a server-side email search. */
+ * same shape as MyAuthorizationLogSection, plus a server-side email search. */
 const AllAuthorizationLogSection: React.FC = () => {
     const [search, setSearch] = useState("");
     const debouncedSearch = useDebouncedValue(search);

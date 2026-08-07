@@ -7,7 +7,7 @@ import LoadingState from "../ui/LoadingState";
 interface ProtectedRouteProps {
     children: React.ReactNode;
     // If provided, the caller must also hold this action (via useAuthorization().can) in
-    // addition to being authenticated, e.g. permission="policies:read" for an admin-only route.
+    // addition to being authenticated, e.g. permission="policies:read" for a permission-gated route.
     // Omit for a route that only needs authentication.
     permission?: string;
     // Passed through to can() alongside `permission`: see useAuthorization.ts's `can` for why

@@ -82,26 +82,34 @@ on it as a stable, shareable link.
 
 #### Do I need to update `FRONTEND_BASE_URL`/`BACKEND_BASE_URL`?
 
-**No, not for the app itself to work.** This is already handled for you:
+**For password login and browsing, no.** This is already handled for you:
 `VITE_API_BASE_URL` is left empty in `.env.local-prod.example`, so the
 frontend calls the API on the same origin it was loaded from, whatever the
 current tunnel URL is, and nginx proxies that same-origin request to
-`backend` internally. Nothing needs to track the tunnel URL for signup, login,
-or browsing to work.
+`backend` internally. Nothing needs to track the tunnel URL for signup,
+password login, or browsing to work.
 
-Those two variables only affect two things, neither required for basic
-use:
+**For Google login, yes: `FRONTEND_BASE_URL` must track the tunnel URL.**
+Unlike every other flow, the OAuth2 callback (`oauth2_login_handler.py`)
+issues a hard, cross-origin redirect built from `FRONTEND_BASE_URL` after
+setting the auth cookies on the tunnel host. If `FRONTEND_BASE_URL` is
+stale (e.g. left at `http://localhost`), the browser gets sent to a
+different origin than the one holding the cookies, `/auth/me` comes back
+401, and the user is bounced to `/login`, even though the account was
+created/verified successfully server-side. Keep it in sync with
+`GOOGLE_REDIRECT_URI` below.
 
-- `FRONTEND_BASE_URL`: the origin baked into verification/password-reset
-  email links, and the CORS allow-list (which same-origin requests don't
-  need anyway). Stale value means emailed links point at the wrong URL.
-  the app itself still works.
+- `FRONTEND_BASE_URL`: also baked into verification/password-reset email
+  links and the CORS allow-list. A stale value breaks Google login (above)
+  and points emailed links at the wrong URL.
 - `BACKEND_BASE_URL`: must be *set* for the app to boot (it's a required
   setting), but nothing in the app currently reads it at runtime. It never
   needs to track the tunnel URL.
 
-The one thing that genuinely does need updating in step with a changing
-Quick Tunnel URL is `GOOGLE_REDIRECT_URI` when Google login is enabled:
+Two things need updating in step with a changing Quick Tunnel URL:
+`FRONTEND_BASE_URL` (for Google login to redirect back to the right
+origin) and `GOOGLE_REDIRECT_URI` (for Google to accept the callback) when
+Google login is enabled:
 
 #### Updating for a new Quick Tunnel URL
 
@@ -128,6 +136,7 @@ past restarts can be removed, or left there. Google allows multiple.
 
 ```
 GOOGLE_REDIRECT_URI=<new URL>/auth/oauth2/callback/google
+FRONTEND_BASE_URL=<new URL>
 ```
 
 ---

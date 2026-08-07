@@ -25,7 +25,7 @@ import '../mystic_auth/store/themeStore.ts';
 
 // Must be called once, before the app renders, so every API call made
 // during the initial session check is already covered.
-import { setupAuthInterceptor } from "../mystic_auth/auth/setupAuthInterceptor.ts";
+import { setupAuthInterceptor } from "../mystic_auth/auth/session_lifecycle/setupAuthInterceptor.ts";
 
 // A no-op unless VITE_SENTRY_DSN is set. See core/errorMonitoring.ts and
 // docs/mystic_auth/error-monitoring/overview.md. Called before render so a crash during the

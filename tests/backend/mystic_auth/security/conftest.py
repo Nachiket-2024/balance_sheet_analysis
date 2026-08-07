@@ -10,13 +10,17 @@
 import uuid
 
 import pytest_asyncio
-from backend.mystic_auth.auth.verify_account.account_verification_service import account_verification_service
+from backend.mystic_auth.auth.verify_account.account_verification_service import (
+    account_verification_service,
+)
 from backend.mystic_auth.authorization.policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
     SYSTEM_SUPERUSER_POLICY_NAME,
     USER_ADMINISTRATION_POLICY_NAME,
 )
-from backend.mystic_auth.authorization.repositories.policy_repository import policy_repository
+from backend.mystic_auth.authorization.repositories.policy_repository import (
+    policy_repository,
+)
 from backend.mystic_auth.database.connection import database
 from backend.mystic_auth.redis.client import redis_client
 from backend.mystic_auth.user_crud.user_crud_collector import user_crud

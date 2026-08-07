@@ -5,7 +5,7 @@ import type { CurrentUserProfile } from "../auth/current_user/current_user_types
 /**
  * The single client-side source of truth for "who is logged in right now and what can they do".
  * Populated from GET /auth/me and kept in sync by every mutation that changes the session
- * (login/logout/logout-all) and by the axios 401 interceptor (see auth/setupAuthInterceptor.ts).
+ * (login/logout/logout-all) and by the axios 401 interceptor (see auth/session_lifecycle/setupAuthInterceptor.ts).
  */
 interface AuthState {
     /** null = session not checked yet, true/false after. */

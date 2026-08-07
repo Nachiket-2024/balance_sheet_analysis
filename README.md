@@ -279,22 +279,41 @@ npm run dev
 
 ## 🔑 First-Time Setup: Creating the System Superuser
 
-After starting the app for the first time, create the reserved system account: a one-time step inherited from mystic-auth that seeds the account holding the `system_superuser` policy (and every other baseline policy). There is no API endpoint for this by design; CLI/shell access is the point.
+After starting the app for the first time, create the reserved system account: a one-time step inherited from mystic-auth that seeds the account holding the `system_superuser` policy (and every other baseline policy). There is no API endpoint for this by design; CLI/shell access is the point. Pick the command for the mode you're actually running (this repo primarily uses **Dev Docker**; the other three are inherited from mystic-auth for completeness):
 
-### Docker
+### Dev Docker
+
+Use this with `.env.example` and `docker-compose.yml`, i.e. `./scripts/docker/dev-up.sh`/`dev-up.ps1`/`dev-up.cmd` above:
 
 ```bash
 docker compose exec -it backend python -m mystic_auth.scripts.create_system_user
 ```
 
-### Local
+### Local-prod Docker
+
+Use this with `.env.local-prod.example` and `docker-compose.local-prod.yml` (self-hosted Cloudflare Tunnel mode):
 
 ```bash
-cd backend
-python -m mystic_auth.scripts.create_system_user
+docker compose -f docker-compose.local-prod.yml exec -it backend python -m mystic_auth.scripts.create_system_user
 ```
 
-You'll be prompted for a name, email, and password. This only needs to be run once: the system user persists in the database and can never be created, modified, or promoted via any API endpoint. See [System Superuser](docs/mystic_auth/authentication/system-superuser.md) for the full behavior.
+### Prod Docker
+
+Use this on the server running `.env.prod.example` and `docker-compose.prod.yml`:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -it backend python -m mystic_auth.scripts.create_system_user
+```
+
+### Local Backend Without Docker
+
+Only if the backend is running directly on your host and can reach the configured Postgres and Redis (Path 2 above):
+
+```bash
+PYTHONPATH=backend python -m mystic_auth.scripts.create_system_user
+```
+
+Run any of these from the repo root. Drop `-it` if running from a non-interactive shell or CI job. You'll be prompted for an email, then a name and password if the account is new; an existing account can instead be promoted, with the exact flow depending on whether it already has a password (Google-only accounts are deleted and recreated, since a system account can't use Google login). This only needs to be run once: the system user persists in the database and can never be created, modified, or promoted via any API endpoint. See [System Superuser](docs/mystic_auth/authentication/system-superuser.md) for the full behavior, including both promotion flows.
 
 Then, from the `/policies`/`/users` pages, assign `role_company_viewer` or `role_company_manager` to any account (your own included) to start using the app, with no conditions to write by hand. See [Baseline Policies](docs/app/access-control/baseline-policies.md).
 

@@ -195,7 +195,9 @@ async def test_verify_token_without_expected_type_skips_type_check(mocker):
 
 @pytest.mark.asyncio
 async def test_current_user_handler_requires_access_type(mocker):
-    from backend.mystic_auth.auth.current_user.current_user_handler import current_user_handler
+    from backend.mystic_auth.auth.current_user.current_user_handler import (
+        current_user_handler,
+    )
     from fastapi import HTTPException
 
     verify_mock = mocker.patch(
@@ -212,7 +214,9 @@ async def test_current_user_handler_requires_access_type(mocker):
 
 @pytest.mark.asyncio
 async def test_refresh_token_service_requires_refresh_type_on_rotation(mocker):
-    from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import refresh_token_service
+    from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import (
+        refresh_token_service,
+    )
 
     # refresh_tokens() decodes once via decode_payload and checks the "type"
     # claim itself (rather than delegating to verify_token) to avoid
@@ -260,7 +264,9 @@ async def test_create_verification_token_defaults_to_access_token_expiry_when_un
 
 @pytest.mark.asyncio
 async def test_account_verification_requires_verify_type(mocker):
-    from backend.mystic_auth.auth.verify_account.account_verification_service import account_verification_service
+    from backend.mystic_auth.auth.verify_account.account_verification_service import (
+        account_verification_service,
+    )
 
     verify_mock = mocker.patch(
         "backend.mystic_auth.auth.verify_account.account_verification_service.jwt_service.verify_token",

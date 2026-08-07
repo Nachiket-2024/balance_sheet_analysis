@@ -1,7 +1,9 @@
 # tests/backend/mystic_auth/unit/test_login_unit.py
 import pytest
 from backend.mystic_auth.auth.login.login_handler import login_handler
-from backend.mystic_auth.auth.security.login_protection_service import login_protection_service
+from backend.mystic_auth.auth.security.login_protection_service import (
+    login_protection_service,
+)
 from backend.mystic_auth.auth.token_logic.token_schema import TokenPairResponseSchema
 
 VALID_TOKENS = TokenPairResponseSchema(access_token="access", refresh_token="refresh")

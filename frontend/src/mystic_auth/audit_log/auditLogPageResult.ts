@@ -2,7 +2,8 @@ import type { AxiosResponse } from "axios";
 
 /**
  * Shape every paged audit-log query hook resolves to, both in
- * authorization_log/queries.ts and security_log/queries.ts: the two tabs'
+ * authorization_log/authorizationLogQueries.ts and
+ * security_log/securityLogQueries.ts: the two tabs'
  * result shape is identical, so this lives here once rather than in either.
  */
 export interface AuditLogPageResult<T> {

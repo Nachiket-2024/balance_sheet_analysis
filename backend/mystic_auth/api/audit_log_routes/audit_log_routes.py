@@ -14,8 +14,8 @@ from ...database.connection import database
 
 router = APIRouter(prefix="/audit", tags=["Audit Logs"])
 
-# Admin/system-only dependency, mirroring api/pbac_routes/policy_permissions.py's
-# READ_DEPENDENCY pattern.
+# Permission-gated dependency (requires security_audit:read), mirroring
+# authorization/dependencies/policy_route_dependencies.py's READ_DEPENDENCY pattern.
 _READ_DEPENDENCY = Depends(require_authorization(Permission.SECURITY_AUDIT_READ.value, "security_audit"))
 
 

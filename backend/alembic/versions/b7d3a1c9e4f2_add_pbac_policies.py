@@ -129,7 +129,7 @@ def upgrade() -> None:
                 created_by="system",
             ).returning(policies_table.c.id)
         )
-        seeded_policy_ids[policy["name"]] = result.scalar_one()
+        seeded_policy_ids[str(policy["name"])] = result.scalar_one()
 
     # ---------------------------- Bridge existing users: role -> policy assignment ----------------------------
     # One-time data migration so upgrading never changes anyone's effective

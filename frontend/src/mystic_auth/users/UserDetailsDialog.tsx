@@ -4,11 +4,11 @@ import { Badge, Button, Dialog, HStack, Portal, Stack, Text } from "@chakra-ui/r
 import { DIALOG_BACKDROP_PROPS, DIALOG_CONTENT_PROPS } from "../ui/styles/dialogStyles";
 import { SECONDARY_BUTTON_PROPS } from "../ui/styles/buttonStyles";
 import { formatDateTime } from "../ui/dateFormat";
-import type { AdminUserRead } from "../api/users_api";
+import type { ManagedUserRead } from "../api/users_api";
 
 interface UserDetailsDialogProps {
     isOpen: boolean;
-    user: AdminUserRead | null;
+    user: ManagedUserRead | null;
     onClose: () => void;
 }
 

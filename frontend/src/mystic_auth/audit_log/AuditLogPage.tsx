@@ -4,9 +4,9 @@ import { Tabs } from "@chakra-ui/react";
 import PageContainer from "../ui/PageContainer";
 import { IfCan } from "../authorization/IfCan";
 import { PERMISSIONS } from "../authorization/permissions";
-import MyAuthorizationLog from "./authorization_log/MyAuthorizationLog";
+import MyAuthorizationLogSection from "./authorization_log/MyAuthorizationLogSection";
 import AllAuthorizationLogSection from "./authorization_log/AllAuthorizationLogSection";
-import MySecurityLog from "./security_log/MySecurityLog";
+import MySecurityLogSection from "./security_log/MySecurityLogSection";
 import AllSecurityLogSection from "./security_log/AllSecurityLogSection";
 
 /**
@@ -16,10 +16,10 @@ import AllSecurityLogSection from "./security_log/AllSecurityLogSection";
  * security-event history (backend: GET /authorization/audit-log/me,
  * GET /audit/security-log/me, auth-only, no extra permission). A caller
  * who additionally holds policies:read / security_audit:read also sees an
- * "All users" tab for that log, backed by the corresponding admin endpoint.
+ * "All users" tab for that log, backed by the corresponding management endpoint.
  * The route itself carries no permission requirement: access to each tab
  * is decided per-tab via IfCan, mirroring exactly how the backend splits
- * self vs. admin visibility across these four endpoints.
+ * self vs. management visibility across these four endpoints.
  *
  * Category (Authorization decisions vs. Security events) and scope (My
  * activity vs. All users) are two independent tab bars rather than one
@@ -35,10 +35,10 @@ import AllSecurityLogSection from "./security_log/AllSecurityLogSection";
  *
  * Split across files by section, grouped into two subfolders matching the
  * two tabs - everything specific to just one tab lives inside it:
- * authorization_log/ (MyAuthorizationLog, AllAuthorizationLogSection,
- * AuthorizationFilterBar, its own columns.tsx/queries.ts/resourceTypes.ts)
- * and security_log/ (MySecurityLog, AllSecurityLogSection,
- * SecurityFilterBar, its own columns.tsx/queries.ts/eventTypes.ts, plus
+ * authorization_log/ (MyAuthorizationLogSection, AllAuthorizationLogSection,
+ * AuthorizationFilterBar, its own authorizationLogColumns.tsx/authorizationLogQueries.ts/authorizationLogResourceTypes.ts)
+ * and security_log/ (MySecurityLogSection, AllSecurityLogSection,
+ * SecurityFilterBar, its own securityLogColumns.tsx/securityLogQueries.ts/securityLogEventTypes.ts, plus
  * LoginTrendChart.tsx). What's genuinely identical for both tabs stays here
  * instead of being duplicated into each: auditLogListConfig.ts
  * (PAGE_SIZE/formatTimestamp/etc.) and auditLogPageResult.ts
@@ -64,7 +64,7 @@ const AuditLogPage: React.FC = () => {
                             </IfCan>
                         </Tabs.List>
                         <Tabs.Content value="mine">
-                            <MyAuthorizationLog />
+                            <MyAuthorizationLogSection />
                         </Tabs.Content>
                         <IfCan action={PERMISSIONS.POLICIES_READ}>
                             <Tabs.Content value="all">
@@ -83,7 +83,7 @@ const AuditLogPage: React.FC = () => {
                             </IfCan>
                         </Tabs.List>
                         <Tabs.Content value="mine">
-                            <MySecurityLog />
+                            <MySecurityLogSection />
                         </Tabs.Content>
                         <IfCan action={PERMISSIONS.SECURITY_AUDIT_READ}>
                             <Tabs.Content value="all">

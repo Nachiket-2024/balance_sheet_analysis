@@ -1,14 +1,14 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { getUserStatsApi, listUsersApi } from "../api/users_api";
-import type { AdminUserRead } from "../api/users_api";
+import type { ManagedUserRead } from "../api/users_api";
 import type { SortDirection } from "../ui/hooks/useSortState";
 
 export const USERS_QUERY_KEY = ["users"] as const;
 export const USER_STATS_QUERY_KEY = ["users", "stats"] as const;
 
 export interface UsersPage {
-    users: AdminUserRead[];
+    users: ManagedUserRead[];
     /** From the X-Total-Count response header; 0 if the header is somehow
      * missing rather than throwing, so a transient proxy/CORS misconfig
      * degrades to "no pages" instead of crashing the page. */

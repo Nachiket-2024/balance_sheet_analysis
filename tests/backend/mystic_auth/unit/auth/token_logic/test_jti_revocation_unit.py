@@ -111,7 +111,9 @@ async def test_verify_token_rejects_when_jti_is_already_claimed(mocker):
 
 @pytest.mark.asyncio
 async def test_revoke_all_tokens_for_user_bumps_the_account_version(mocker):
-    from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import refresh_token_service
+    from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import (
+        refresh_token_service,
+    )
 
     bump_mock = mocker.patch(
         "backend.mystic_auth.auth.refresh_token_logic.refresh_token_service.jwt_service.bump_account_version",
@@ -148,7 +150,9 @@ async def test_revoke_all_tokens_for_user_returns_zero_without_a_db(mocker):
     test-only convenience, matching every other best-effort session
     method) there's nothing to count from, so the returned count is just 0
     - the actual revoke (the version bump) still happens regardless."""
-    from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import refresh_token_service
+    from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import (
+        refresh_token_service,
+    )
 
     bump_mock = mocker.patch(
         "backend.mystic_auth.auth.refresh_token_logic.refresh_token_service.jwt_service.bump_account_version",
@@ -172,7 +176,9 @@ async def test_revoke_all_tokens_for_user_returns_zero_without_a_db(mocker):
 
 @pytest.mark.asyncio
 async def test_revoke_chain_for_user_bumps_only_that_chain(mocker):
-    from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import refresh_token_service
+    from backend.mystic_auth.auth.refresh_token_logic.refresh_token_service import (
+        refresh_token_service,
+    )
 
     bump_mock = mocker.patch(
         "backend.mystic_auth.auth.refresh_token_logic.refresh_token_service.jwt_service.bump_chain_version",

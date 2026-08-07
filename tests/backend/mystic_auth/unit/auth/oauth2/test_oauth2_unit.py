@@ -5,7 +5,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 from backend.mystic_auth.auth.oauth2.oauth2_login_handler import oauth2_login_handler
-from backend.mystic_auth.auth.oauth2.oauth2_service import OAUTH2_STATE_TTL_SECONDS, oauth2_service
+from backend.mystic_auth.auth.oauth2.oauth2_service import (
+    OAUTH2_STATE_TTL_SECONDS,
+    oauth2_service,
+)
 
 
 def _cookie_headers(response):
@@ -290,7 +293,7 @@ async def test_callback_proceeds_and_clears_state_cookie_on_valid_state(mocker):
     assert _cookie_value(response, "access_token") == "app-access-token"
     # oauth_state cookie must be cleared once its single-use state token is consumed
     cleared_cookie = next(h for h in _cookie_headers(response) if h.startswith("oauth_state="))
-    assert cleared_cookie.startswith("oauth_state=\"\"") or cleared_cookie.startswith("oauth_state=;")
+    assert cleared_cookie.startswith(("oauth_state=\"\"", "oauth_state=;"))
 
 
 @pytest.mark.asyncio

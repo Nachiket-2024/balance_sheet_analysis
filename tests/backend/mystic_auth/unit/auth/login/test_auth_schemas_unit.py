@@ -9,10 +9,16 @@
 # covered separately in integration tests) actually exercises these limits.
 import pytest
 from backend.mystic_auth.auth.login.login_schema import LoginSchema
-from backend.mystic_auth.auth.password_reset_confirm.password_reset_confirm_schema import PasswordResetConfirmSchema
-from backend.mystic_auth.auth.password_reset_request.password_reset_request_schema import PasswordResetRequestSchema
+from backend.mystic_auth.auth.password_reset_confirm.password_reset_confirm_schema import (
+    PasswordResetConfirmSchema,
+)
+from backend.mystic_auth.auth.password_reset_request.password_reset_request_schema import (
+    PasswordResetRequestSchema,
+)
 from backend.mystic_auth.auth.signup.signup_schema import SignupSchema
-from backend.mystic_auth.auth.verify_account.verify_account_schema import VerifyAccountSchema
+from backend.mystic_auth.auth.verify_account.verify_account_schema import (
+    VerifyAccountSchema,
+)
 from backend.mystic_auth.user_table.user_schema import UserCreate, UserUpdate
 from pydantic import ValidationError
 

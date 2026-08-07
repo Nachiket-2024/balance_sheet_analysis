@@ -50,7 +50,7 @@ function niceMax(value: number): number {
 /**
  * LoginTrendChart
  * ----------------------------
- * Daily login success/failure counts as a stacked bar chart, so an admin
+ * Daily login success/failure counts as a stacked bar chart, so an operator
  * (or a user checking their own activity) can spot a spike - a brute-force
  * run, a lockout wave - at a glance instead of paging/filtering through
  * individual rows below. Colors match this same page's own Result badges

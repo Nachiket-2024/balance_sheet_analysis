@@ -3,7 +3,7 @@ import { HStack, Input } from "@chakra-ui/react";
 
 import StyledSelect from "../../ui/StyledSelect";
 import { SEARCH_INPUT_PROPS } from "../../ui/styles/inputStyles";
-import { SECURITY_EVENT_TYPES } from "./eventTypes";
+import { SECURITY_EVENT_TYPES } from "./securityLogEventTypes";
 import { ALL_VALUE } from "../auditLogListConfig";
 
 interface SecurityFilterBarProps {

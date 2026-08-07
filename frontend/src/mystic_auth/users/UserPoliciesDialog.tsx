@@ -27,7 +27,7 @@ interface UserPoliciesDialogProps {
  * assign an additional policy or revoke an existing one. This is the
  * frontend surface for /authorization/users/{email}/policies: the actual
  * grant/revoke decision is enforced server-side either way, this is purely
- * the admin UI for it.
+ * the management UI for it.
  */
 const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEmail, onClose }) => {
     const [selectedPolicy, setSelectedPolicy] = useState("");
@@ -120,8 +120,8 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
                             <Stack gap={4}>
                                 {isSelf && (
                                     <Text fontSize="sm" color="fg.muted">
-                                        You cannot revoke your own policies from here : ask another admin,
-                                        or use a different account.
+                                        You cannot revoke your own policies from here : ask another user
+                                        with policy management access, or use a different account.
                                     </Text>
                                 )}
                                 {userPoliciesQuery.isLoading ? (

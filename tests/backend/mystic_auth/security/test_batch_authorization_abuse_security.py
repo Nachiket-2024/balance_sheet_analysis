@@ -5,9 +5,15 @@
 # batches rejected before evaluation, and a denied result never leaks
 # which policy was involved.
 import pytest
-from backend.mystic_auth.authorization.policies.default_policies import SELF_SERVICE_POLICY_NAME
-from backend.mystic_auth.authorization.repositories.policy_repository import policy_repository
-from backend.mystic_auth.authorization.schemas.batch_authorization_schema import MAX_BATCH_SIZE
+from backend.mystic_auth.authorization.policies.default_policies import (
+    SELF_SERVICE_POLICY_NAME,
+)
+from backend.mystic_auth.authorization.repositories.policy_repository import (
+    policy_repository,
+)
+from backend.mystic_auth.authorization.schemas.batch_authorization_schema import (
+    MAX_BATCH_SIZE,
+)
 from backend.mystic_auth.database.connection import database
 
 from .conftest import create_verified_user, unique_email, unique_policy_name

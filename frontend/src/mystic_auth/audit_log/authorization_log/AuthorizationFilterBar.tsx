@@ -3,7 +3,7 @@ import { HStack } from "@chakra-ui/react";
 
 import StyledSelect from "../../ui/StyledSelect";
 import { PERMISSIONS } from "../../authorization/permissions";
-import { AUTHORIZATION_RESOURCE_TYPES } from "./resourceTypes";
+import { AUTHORIZATION_RESOURCE_TYPES } from "./authorizationLogResourceTypes";
 import { ALL_VALUE } from "../auditLogListConfig";
 
 interface AuthorizationFilterBarProps {

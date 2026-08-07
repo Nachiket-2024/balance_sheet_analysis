@@ -20,7 +20,7 @@ import type { SessionRead } from "../../api/auth_api";
  * ----------------------------
  * Lists the caller's own active login sessions (GET /auth/sessions) as a
  * table (device/browser, IP, first-signed-in, last-seen, an action column),
- * same shape as every other admin list in the app, since this list can grow
+ * same shape as every other management list in the app, since this list can grow
  * just like those do. Every row gets its own working "Log out", including
  * the current device's row ("This device" badge): that one goes through the
  * ordinary single-device logout (POST /auth/logout, same as the navbar's

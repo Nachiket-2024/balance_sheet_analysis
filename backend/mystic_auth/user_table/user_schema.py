@@ -15,6 +15,14 @@ class UserBase(BaseModel):
     name: str = Field(..., max_length=100)
     email: EmailStr
 
+    @field_validator("name")
+    @classmethod
+    def _reject_blank_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("name cannot be blank")
+        return stripped
+
     @field_validator("email")
     @classmethod
     def _normalize_email(cls, value: str) -> str:
@@ -30,9 +38,9 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     """Schema for user-controlled profile updates only. Role changes are
-    intentionally excluded : use admin endpoints for that.
+    intentionally excluded : use management endpoints for that.
 
-    Backs both PUT /users/me and PUT /users/{email} (admin), so the same
+    Backs both PUT /users/me and PUT /users/{email} (management), so the same
     max_length caps signup_schema.SignupSchema applies must apply here too :
     an unbounded password submitted through either of these routes would
     otherwise be fed straight into Argon2 hashing uncapped.
@@ -41,11 +49,21 @@ class UserUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=100)
     password: str | None = Field(default=None, max_length=128)
 
+    @field_validator("name")
+    @classmethod
+    def _reject_blank_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("name cannot be blank")
+        return stripped
+
     # Required (by PUT /users/me's own handler, not this schema) when an
     # account that already has a password is changing it via self-service :
     # a hijacked access-token cookie would otherwise be enough to fully lock
     # the legitimate owner out by just setting a new password, no proof of
-    # the old one needed. Not required for the admin route (PUT
+    # the old one needed. Not required for the management route (PUT
     # /users/{email}, which reuses this schema) or for an OAuth-only account
     # setting a password for the first time (nothing to confirm against).
     current_password: str | None = Field(default=None, max_length=128)
@@ -55,7 +73,7 @@ class UserStatsRead(BaseModel):
     """Aggregate counts backing the Users page's summary card. Independent
     of whatever page/filters the caller currently has applied to the main
     list - always reflects the whole table, so the card doesn't shift
-    numbers around as an admin pages/filters through the list below it."""
+    numbers around as an operator pages/filters through the list below it."""
 
     total: int
     verified: int
@@ -64,7 +82,7 @@ class UserStatsRead(BaseModel):
 
 
 class UserRoleUpdate(BaseModel):
-    """Schema used exclusively by admin endpoints to change a user's role.
+    """Schema used exclusively by management endpoints to change a user's role.
     Kept separate from UserUpdate to make privilege escalation explicit."""
 
     role: UserRole

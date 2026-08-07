@@ -31,6 +31,17 @@ def test_user_create_rejects_name_over_max_length():
         UserCreate(name="a" * 101, email="user@example.com", password="hunter2")
 
 
+def test_user_create_rejects_whitespace_only_name():
+    with pytest.raises(ValidationError):
+        UserCreate(name="   ", email="user@example.com", password="hunter2")
+
+
+def test_user_create_strips_surrounding_whitespace_from_name():
+    user = UserCreate(name="  Test User  ", email="user@example.com", password="hunter2")
+
+    assert user.name == "Test User"
+
+
 def test_user_update_allows_all_fields_omitted():
     update = UserUpdate()
 
@@ -42,6 +53,11 @@ def test_user_update_allows_all_fields_omitted():
 def test_user_update_rejects_password_over_max_length():
     with pytest.raises(ValidationError):
         UserUpdate(password="a" * 129)
+
+
+def test_user_update_rejects_whitespace_only_name():
+    with pytest.raises(ValidationError):
+        UserUpdate(name="   ")
 
 
 def test_user_read_has_password_true_when_hash_present():

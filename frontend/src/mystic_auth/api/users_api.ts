@@ -1,6 +1,6 @@
 import api from "./axiosInstance";
 
-export interface AdminUserRead {
+export interface ManagedUserRead {
     id: number;
     name: string;
     email: string;
@@ -17,7 +17,7 @@ export interface UserUpdatePayload {
     name?: string;
     password?: string;
     // Required by the backend when changing the password on an account that
-    // already has one (self-service PUT /users/me only; the admin route
+    // already has one (self-service PUT /users/me only; the management route
     // ignores it). Not needed when setting a password for the first time on
     // an OAuth-only account.
     current_password?: string;
@@ -34,7 +34,7 @@ export interface ListUsersParams {
     limit?: number;
     offset?: number;
     search?: string;
-    /** Exact match, one of AdminUserRead['role']'s real values. */
+    /** Exact match, one of ManagedUserRead['role']'s real values. */
     role?: string;
     isVerified?: boolean;
     /** One of "active" | "inactive" | "deleted" (see UsersPage.tsx's Status badge). */
@@ -59,7 +59,7 @@ function toApiParams({
 // stays a plain list, and the header is what UsersPage derives its page
 // count from (see userQueries.ts).
 export const listUsersApi = (params: ListUsersParams = {}) =>
-    api.get<AdminUserRead[]>("/users/", { params: toApiParams(params) });
+    api.get<ManagedUserRead[]>("/users/", { params: toApiParams(params) });
 
 // Aggregate counts (total/verified/unverified/inactive) across the whole
 // table, independent of the main list's current page/filters.
@@ -67,7 +67,7 @@ export const getUserStatsApi = () =>
     api.get<UserStatsRead>("/users/stats");
 
 export const updateUserApi = (userEmail: string, payload: UserUpdatePayload) =>
-    api.put<AdminUserRead>(`/users/${encodeURIComponent(userEmail)}`, payload);
+    api.put<ManagedUserRead>(`/users/${encodeURIComponent(userEmail)}`, payload);
 
 // Soft delete (default, reversible): sets is_active=false + deleted_at,
 // revokes active sessions, preserves the row and its audit history.
@@ -79,7 +79,7 @@ export const purgeUserApi = (userEmail: string) => api.delete(`/users/${encodeUR
 
 // Undo a soft delete, requires users:reactivate.
 export const reactivateUserApi = (userEmail: string) =>
-    api.patch<AdminUserRead>(`/users/${encodeURIComponent(userEmail)}/reactivate`);
+    api.patch<ManagedUserRead>(`/users/${encodeURIComponent(userEmail)}/reactivate`);
 
 export const updateUserRoleApi = (userEmail: string, role: string) =>
     api.patch(`/users/${encodeURIComponent(userEmail)}/role`, { role });

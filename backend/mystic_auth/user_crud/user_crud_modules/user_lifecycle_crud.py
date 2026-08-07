@@ -34,7 +34,7 @@ class UserLifecycleCRUD:
     async def reactivate(self, db_obj, db: AsyncSession):
         """Sets is_active=True and clears deleted_at. Deliberately does NOT
         touch policy assignments : whatever the account held before deletion
-        is what it holds again, restored exactly as an admin left it, not
+        is what it holds again, restored exactly as it was left, not
         silently re-granted or reset."""
         if not db_obj:
             return None

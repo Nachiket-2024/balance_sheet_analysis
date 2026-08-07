@@ -3,7 +3,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 from backend.mystic_auth.auth.oauth2.oauth2_service import oauth2_service
-from backend.mystic_auth.authorization.policies.default_policies import SELF_SERVICE_POLICY_NAME
+from backend.mystic_auth.authorization.policies.default_policies import (
+    SELF_SERVICE_POLICY_NAME,
+)
 from backend.mystic_auth.user_table.user_model import UserRole
 
 MODULE = "backend.mystic_auth.auth.oauth2.oauth2_service"
@@ -96,8 +98,8 @@ async def test_login_or_create_user_rejects_reserved_system_account(mocker):
     # controls a Google account matching the (operator-chosen, potentially
     # real/Google-verifiable) email of the reserved system superuser could
     # sign in as it, entirely bypassing its password. Mirrors the identical
-    # role == UserRole.system guard in user_management_routes.py's update/delete/
-    # role-change endpoints.
+    # role == UserRole.system guard in user_management_update_routes.py's/
+    # user_lifecycle_routes.py's update/delete/role-change endpoints.
     system_user = _FakeUser()
     system_user.role = UserRole.system
     mocker.patch(f"{MODULE}.user_crud.get_by_email", return_value=system_user)

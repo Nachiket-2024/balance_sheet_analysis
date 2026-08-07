@@ -7,7 +7,9 @@
 # actions (Permission's vocabulary) that they don't already hold. Unit
 # tests already cover this with mocks; these hit the real API + real DB.
 import pytest
-from backend.mystic_auth.authorization.policies.default_policies import SYSTEM_SUPERUSER_POLICY_NAME
+from backend.mystic_auth.authorization.policies.default_policies import (
+    SYSTEM_SUPERUSER_POLICY_NAME,
+)
 
 from .conftest import (
     create_system_user,
@@ -116,6 +118,36 @@ async def test_policies_update_only_cannot_rollback_to_a_revision_holding_an_unh
         f"/authorization/policies/{policy_name}/history/{target_entry['id']}/rollback"
     )
     assert rollback_resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_policies_update_only_cannot_repoint_resource_type_to_activate_a_dormant_sensitive_action(
+    client, created_emails
+):
+    """A policy's actions can already contain a sensitive action while its
+    resource_type makes it inert for real routes. Changing only
+    resource_type (not actions) must still be guarded by
+    assert_authorized_to_grant, otherwise policies:update alone could
+    repoint an existing dormant grant to become live without the caller
+    ever holding the sensitive action themselves."""
+    system_email = unique_email("system")
+    await create_system_user(client, created_emails, system_email)
+
+    policy_name = unique_policy_name()
+    create_resp = await client.post(
+        "/authorization/policies",
+        json={"name": policy_name, "actions": ["users:purge"], "resource_type": "policies"},
+    )
+    assert create_resp.status_code == 201
+
+    attacker_email = unique_email("resource-type-escalate")
+    await create_user_with_custom_policy(client, created_emails, attacker_email, ["policies:update"])
+
+    resp = await client.put(
+        f"/authorization/policies/{policy_name}",
+        json={"resource_type": "users"},
+    )
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio

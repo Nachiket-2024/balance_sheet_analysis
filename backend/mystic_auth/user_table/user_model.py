@@ -68,7 +68,7 @@ class User(Base):
 
     # Soft-delete marker : set when an account is deleted via the default
     # (reversible) deletion flow. NULL means never deleted. Distinct from
-    # is_active=False alone so an admin can tell "deliberately deactivated"
+    # is_active=False alone so an operator can tell "deliberately deactivated"
     # apart from "deleted" if that distinction is ever needed, and so
     # reactivation can clear it explicitly. A soft-deleted row is NOT
     # removed : see user_management_routes.py's soft-delete vs purge (hard delete)

@@ -124,7 +124,7 @@ Three operations, two permissions, deliberately separate:
 
 Both soft-delete and purge write a security audit event (`account_deleted`/`account_purged`) *before or as part of* the operation. For purge specifically, the audit write happens **before** the row is deleted, since the event itself is what makes the irreversible action reviewable afterward.
 
-The system account (`role=UserRole.system`) is excluded from all three operations via the same target-account guard already used for its other admin-route protections (see `backend/mystic_auth/api/user_routes/user_management_routes.py`).
+The system account (`role=UserRole.system`) is excluded from all three operations via the same target-account guard already used for its other admin-route protections (see `backend/mystic_auth/api/user_routes/user_lifecycle_routes.py` and `user_management_update_routes.py`). The delete and purge routes also reject the caller's own account: the frontend disables those actions against your own row, but the backend enforces it independently, since a sole admin deleting or purging themselves would be an unrecoverable lockout.
 
 ---
 

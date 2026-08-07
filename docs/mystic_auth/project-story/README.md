@@ -32,7 +32,7 @@ What started as a shortcut for future projects became a project of its own.
 
 ## How it evolved
 
-The commit history shows the real evolution, not a fully planned architecture from day one. The first on 18 August, 2025 to the most recent on 6 August, 2026. There's a 4-month gap between October 2025 and February 2026. Below, days committed back-to-back are grouped into one range while an isolated day stands on its own.
+The commit history shows the real evolution, not a fully planned architecture from day one. The first on 18 August, 2025 to the most recent on 7 August, 2026. There's a 4-month gap between October 2025 and February 2026. Below, days committed back-to-back are grouped into one range while an isolated day stands on its own.
 
 ```mermaid
 timeline
@@ -58,6 +58,7 @@ timeline
             : Template docs, sync workflow, Docker/dev-up, logging
     August 2026: UI, backend changes, session/logout-all fixes
             : Sync-script safety nets, scripts/ reorganized
+            : Codebase restructure, PBAC/reset-token security fixes
 ```
 
 ### 18 August, 2025 - 23 August, 2025
@@ -239,6 +240,10 @@ Caught an `sdk.ts` import bypass, an event-loop-blocking token signature, logout
 The template changed across UI, backend behavior, Docker, CI, tests, and documentation. The UI changed across account settings, dashboards, user management, policies, audit logs, shared tables, filters, pagination, and screenshots. Backend work expanded session management, audit data, user stats, token/session handling, typing, logging, and tests, and the codebase was split into smaller feature-shaped files where modules had grown too large. Active Sessions and Last Login now update immediately after login and logout-all via real-time session events, "me"-scoped query caches are cleared correctly so data can't leak between accounts in the same browser tab, and password changes keep the current device's session while revoking every other one. Docker and deployment coverage expanded with `docker-compose.local-prod.yml`, `docker-compose.prod.yml`, and `docker/Caddyfile`, alongside strict auth cookies, access-log rotation, and Compose validation.
 
 Running a real upstream sync with Claude Code against another one of my projects surfaced four real gaps in `sync-upstream.sh`: a binary file mid-patch could make `git apply --3way` silently drop the rest of the diff while still looking like a normal result, nothing caught two migrations landing on the same alembic head, comment-only rewording upstream kept forcing the same conflict every sync, and Windows/Git Bash friction was still a manual workaround instead of just working. All four got fixed, `scripts/` was reorganized into `upstream-sync/`, `docker/`, and `db/` subfolders, and docs across the repo were updated to match.
+
+### 7 August, 2026
+
+A 202-file restructure renamed and relocated files across frontend and backend to match the feature-based layout, tests included, and split `user_management_routes.py` into lifecycle, query, and update route files. Assigning the system role now requires an explicit `users:assign_system_role` check instead of the broader `users:assign_role` permission alone, and password reset confirmation now uses a reset-scoped token check instead of the generic JWT verifier, which had accepted any validly-signed token for the target account.
 
 ---
 

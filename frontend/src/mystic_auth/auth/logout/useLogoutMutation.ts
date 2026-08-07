@@ -7,8 +7,8 @@ import { queryClient } from "../../core/queryClient";
 import { CURRENT_USER_QUERY_KEY } from "../current_user/useCurrentUserQuery";
 import { SESSIONS_QUERY_KEY } from "../../dashboard/manage_sessions/useSessionsQuery";
 import { MY_POLICIES_QUERY_KEY } from "../../policies/policyQueries";
-import { MY_AUTHORIZATION_AUDIT_LOG_QUERY_KEY } from "../../audit_log/authorization_log/queries";
-import { MY_SECURITY_AUDIT_LOG_QUERY_KEY } from "../../audit_log/security_log/queries";
+import { MY_AUTHORIZATION_AUDIT_LOG_QUERY_KEY } from "../../audit_log/authorization_log/authorizationLogQueries";
+import { MY_SECURITY_AUDIT_LOG_QUERY_KEY } from "../../audit_log/security_log/securityLogQueries";
 import type { LogoutResponse } from "./logout_types";
 
 // Marks the auth store unauthenticated immediately rather than waiting on a

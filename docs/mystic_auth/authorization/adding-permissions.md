@@ -67,7 +67,7 @@ def downgrade() -> None:
 - Never edit an already-applied migration's seed data in place: write a new migration.
 - A migration that changes a seeded policy's `actions` should also update `downgrade()` symmetrically (restore the previous array) so the migration is safely reversible.
 - If you rename or remove a `Permission` enum member that's referenced by a seeded policy, the seeded row's `actions` array (a plain string array in the database, not a foreign key to the enum) is completely unaffected: but update it via a new migration if the old action string should no longer be granted.
-- Test new fine-grained actions the same way the existing `policies:read/create/update/delete/assign/revoke` split was tested: real-API integration tests proving a caller holding *only* the new action can do the one thing it should, and nothing else (see `tests/backend/mystic_auth/integration/test_policy_action_separation_integration.py`'s `_attempt_policy_routes` pattern).
+- Test new fine-grained actions the same way the existing `policies:read/create/update/delete/assign/revoke` split was tested: real-API integration tests proving a caller holding *only* the new action can do the one thing it should, and nothing else (see `tests/backend/mystic_auth/integration/authorization/test_policy_action_separation_integration.py`'s `_attempt_policy_routes` pattern).
 
 ---
 

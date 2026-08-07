@@ -15,7 +15,7 @@ interface ConfirmDialogProps {
 }
 
 /**
- * Shared confirmation modal for destructive/irreversible admin actions
+ * Shared confirmation modal for destructive/irreversible management actions
  * (delete policy, delete user, revoke a policy assignment) so none of those
  * flows fire on a single accidental click. Controlled entirely by the
  * caller (isOpen/onConfirm/onCancel) rather than owning its own open state,

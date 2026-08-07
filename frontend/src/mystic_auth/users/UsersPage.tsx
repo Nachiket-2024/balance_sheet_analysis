@@ -20,7 +20,7 @@ import {
     useReactivateUserMutation,
     useUpdateUserRoleMutation,
 } from "./userMutations";
-import type { AdminUserRead } from "../api/users_api";
+import type { ManagedUserRead } from "../api/users_api";
 import UserPoliciesDialog from "./UserPoliciesDialog";
 import UserDetailsDialog from "./UserDetailsDialog";
 import { ROLE_OPTIONS, capitalize, buildUsersColumns } from "./usersColumns";
@@ -37,7 +37,7 @@ function toBoolFilter(value: string): boolean | undefined {
 /**
  * UsersPage
  * ----------------------------
- * Admin list of every user (backend: GET /users/), with per-row role
+ * Management list of every user (backend: GET /users/), with per-row role
  * change, delete, and a "Policies" dialog for assigning/
  * revoking individual policy grants. Route is gated by
  * ProtectedRoute permission="users:list_all"; each destructive/privileged
@@ -82,11 +82,11 @@ const UsersPage: React.FC = () => {
     const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
     const currentUserEmail = useAuthStore((s) => s.email);
 
-    const [deletingUser, setDeletingUser] = useState<AdminUserRead | null>(null);
-    const [purgingUser, setPurgingUser] = useState<AdminUserRead | null>(null);
-    const [pendingRoleChange, setPendingRoleChange] = useState<{ user: AdminUserRead; role: string } | null>(null);
+    const [deletingUser, setDeletingUser] = useState<ManagedUserRead | null>(null);
+    const [purgingUser, setPurgingUser] = useState<ManagedUserRead | null>(null);
+    const [pendingRoleChange, setPendingRoleChange] = useState<{ user: ManagedUserRead; role: string } | null>(null);
     const [policiesUserEmail, setPoliciesUserEmail] = useState<string | null>(null);
-    const [viewingUser, setViewingUser] = useState<AdminUserRead | null>(null);
+    const [viewingUser, setViewingUser] = useState<ManagedUserRead | null>(null);
 
     const deleteMutation = useDeleteUserMutation();
     const purgeMutation = usePurgeUserMutation();

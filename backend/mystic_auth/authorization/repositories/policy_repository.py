@@ -251,7 +251,7 @@ class PolicyRepository:
         user_email: str | None = None,
     ) -> UserPolicy:
         """
-        `assigned_by` is the email of the admin making the assignment, or
+        `assigned_by` is the email of the user making the assignment, or
         "system" for automated assignment (e.g. default policy at signup),
         for the audit trail.
 
@@ -260,7 +260,7 @@ class PolicyRepository:
         policy set (see AuthorizationCacheService). Optional and backward
         compatible: system-side self-assignment at signup/OAuth2/system-
         user-bootstrap doesn't pass it, since a brand-new user has nothing
-        cached yet to invalidate anyway; the admin-facing assign route
+        cached yet to invalidate anyway; the management-facing assign route
         (api/pbac_routes/policy_assignment_routes.py) does pass it, since that target user may
         already have a populated cache entry.
 

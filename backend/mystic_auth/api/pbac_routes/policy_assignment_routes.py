@@ -7,14 +7,18 @@ from ...audit_log.audit_log_service import POLICY_ASSIGNED, POLICY_REVOKED, log_
 # /users/me/policies, where a user inspects their own assignments regardless
 # of whether they hold policies:read.
 from ...auth.current_user.current_user_dependency import get_current_user
+from ...authorization.dependencies.policy_route_dependencies import (
+    ASSIGN_DEPENDENCY,
+    READ_DEPENDENCY,
+    REVOKE_DEPENDENCY,
+)
 from ...authorization.policies.default_policies import SYSTEM_SUPERUSER_POLICY_NAME
 from ...authorization.repositories.policy_repository import policy_repository
 from ...authorization.schemas.policy_schema import PolicyAssignmentRequest, PolicyRead, UserPoliciesRead
 from ...authorization.services.authorization_service import authorization_service
 from ...database.connection import database
 from ...user_crud.user_crud_collector import user_crud
-from ..get_or_404 import get_or_404
-from .policy_permissions import ASSIGN_DEPENDENCY, READ_DEPENDENCY, REVOKE_DEPENDENCY
+from ..get_or_404.get_or_404 import get_or_404
 
 router = APIRouter(prefix="/authorization", tags=["Authorization"])
 
@@ -58,7 +62,7 @@ async def assign_policy_to_user(
     # system_superuser itself - so an unrecorded grant here is a real gap
     # in the security audit trail, not just a nice-to-have. user_email is
     # the RECEIVING user (consistent with every other audit entry here
-    # being keyed on whose account was affected); the granting admin is
+    # being keyed on whose account was affected); the granting user is
     # in metadata, mirroring delete_any_user's assigned_by/deleted_by shape.
     await log_security_event(
         POLICY_ASSIGNED,
@@ -130,7 +134,7 @@ async def list_my_policies(
     not : for inspection, not an authorization decision). No policies:read
     required : a user inspecting their own assignments is not privileged
     information, mirroring GET /audit-log/me's own self-service rationale.
-    Same response shape as the admin GET /users/{email}/policies below,
+    Same response shape as the management GET /users/{email}/policies below,
     scoped to the caller.
     """
     policies = await policy_repository.get_policies_for_user(current_user["email"], db)

@@ -10,7 +10,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from backend.mystic_auth.audit_log import audit_log_service
-from backend.mystic_auth.audit_log.audit_log_service import LOGIN_SUCCESS, log_security_event
+from backend.mystic_auth.audit_log.audit_log_service import (
+    LOGIN_SUCCESS,
+    log_security_event,
+)
 
 MODULE = "backend.mystic_auth.audit_log.audit_log_service"
 

@@ -11,7 +11,7 @@ class AuthorizationDecision:
 
     Exists so debugging "why was this denied" never requires manually
     re-tracing policies/conditions: the answer is already computed, right
-    here, every time a detailed evaluation is requested (admin inspection,
+    here, every time a detailed evaluation is requested (operator inspection,
     audit logging, tests). The engine still exposes a bare-bool `evaluate()`
     for the hot path (every real authorize() call); this richer object is
     for the "detailed" mode requirements ask for, not a replacement for it.

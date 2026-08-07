@@ -38,7 +38,7 @@ Working through ChatGPT's suggestions and adjusting them to fit the real codebas
 
 ---
 
-## 14 July, 2026 - 6 August, 2026
+## 14 July, 2026 - 7 August, 2026
 
 Two days before this stretch started, I bought a Claude Code Pro plan to try it out. The Claude Code loop above replaced the ChatGPT + VSCode loop for the rest of the project. The first commit with it, on 14 July, 2026, was the big one: PBAC, audit logging, security hardening, the Redux-to-Zustand/TanStack-Query migration, CI/CD pipelines, documentation, and 650+ tests, all in one sitting, because the existing feature-based architecture meant most of it could be added as new domains rather than a rewrite. I hit the 5-hour usage window 2-3 times and used roughly 65% of my weekly quota just on that one commit.
 

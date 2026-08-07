@@ -10,10 +10,10 @@ from ...authorization.dependencies.authorization_dependency import require_autho
 from ...authorization.permissions import Permission
 from ...database.connection import database
 from ...user_crud.user_crud_collector import user_crud
+from ...user_crud.user_crud_modules.user_update_payload_preparation import prepare_update_data
 from ...user_session.session_service import session_service
 from ...user_table.user_schema import UserRead, UserUpdate
-from ..get_or_404 import get_or_404
-from .user_update_payload import prepare_update_data
+from ..get_or_404.get_or_404 import get_or_404
 
 # Split from the combined user_routes.py: this file is exactly the two
 # self-service endpoints (a caller acting on their own account), so it's

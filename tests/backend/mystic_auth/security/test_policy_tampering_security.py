@@ -11,7 +11,9 @@ from backend.mystic_auth.authorization.policies.default_policies import (
     SYSTEM_SUPERUSER_POLICY_NAME,
     USER_ADMINISTRATION_POLICY_NAME,
 )
-from backend.mystic_auth.authorization.repositories.policy_repository import policy_repository
+from backend.mystic_auth.authorization.repositories.policy_repository import (
+    policy_repository,
+)
 from backend.mystic_auth.database.connection import database
 
 from .conftest import create_system_user, unique_email

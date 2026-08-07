@@ -1,4 +1,4 @@
 import api from "../api/axiosInstance";
-import type { AdminUserRead, UserUpdatePayload } from "../api/users_api";
+import type { ManagedUserRead, UserUpdatePayload } from "../api/users_api";
 
-export const updateMyAccountApi = (payload: UserUpdatePayload) => api.put<AdminUserRead>("/users/me", payload);
+export const updateMyAccountApi = (payload: UserUpdatePayload) => api.put<ManagedUserRead>("/users/me", payload);
