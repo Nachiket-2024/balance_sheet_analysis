@@ -1,5 +1,6 @@
 import traceback
 
+from ...authorization.policies.default_policies import assign_app_default_policies
 from ...logging.logging_config import get_logger
 from ...user_crud.user_crud_collector import user_crud
 
@@ -23,6 +24,10 @@ class UserVerificationService:
                 return False
 
             await user_crud.update_by_email(email, {"is_verified": True}, db)
+
+            # self_service was already assigned at signup; app defaults only
+            # apply once verified, which is now.
+            await assign_app_default_policies(user.id, db)
 
             logger.info("User %s successfully marked as verified", email)
 

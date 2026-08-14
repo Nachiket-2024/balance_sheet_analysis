@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...audit_log.audit_log_service import POLICY_ASSIGNED, POLICY_REVOKED, log_security_event
@@ -16,6 +16,7 @@ from ...authorization.policies.default_policies import SYSTEM_SUPERUSER_POLICY_N
 from ...authorization.repositories.policy_repository import policy_repository
 from ...authorization.schemas.policy_schema import PolicyAssignmentRequest, PolicyRead, UserPoliciesRead
 from ...authorization.services.authorization_service import authorization_service
+from ...core.errors import AppError
 from ...database.connection import database
 from ...user_crud.user_crud_collector import user_crud
 from ..get_or_404.get_or_404 import get_or_404
@@ -45,8 +46,8 @@ async def assign_policy_to_user(
     PBAC : never a role change. Role may be used for display/grouping, but
     must never select policies automatically.
     """
-    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
-    policy = await get_or_404(policy_repository.get_by_name(assignment.policy_name, db), "Policy not found")
+    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
+    policy = await get_or_404(policy_repository.get_by_name(assignment.policy_name, db), "Policy not found", code="POLICY_NOT_FOUND")
 
     await authorization_service.assert_authorized_to_grant(
         current_user["email"], policy.actions, policy.resource_type, db
@@ -85,8 +86,8 @@ async def remove_policy_from_user(
 ):
     """404 if the user didn't hold this policy (or either identifier
     doesn't resolve)."""
-    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
-    policy = await get_or_404(policy_repository.get_by_name(policy_name, db), "Policy not found")
+    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
+    policy = await get_or_404(policy_repository.get_by_name(policy_name, db), "Policy not found", code="POLICY_NOT_FOUND")
 
     # Lockout protection: removing the last remaining assignment of
     # system_superuser would leave no one able to manage the authorization
@@ -94,8 +95,9 @@ async def remove_policy_from_user(
     if policy_name == SYSTEM_SUPERUSER_POLICY_NAME:
         holder_count = await policy_repository.count_assignments(policy.id, db)
         if holder_count <= 1:
-            raise HTTPException(
+            raise AppError(
                 status_code=status.HTTP_409_CONFLICT,
+                code="CANNOT_REMOVE_LAST_SUPERUSER_ASSIGNMENT",
                 detail="Cannot remove the last remaining assignment of 'system_superuser'",
             )
 
@@ -103,9 +105,11 @@ async def remove_policy_from_user(
         user_id=user.id, policy_id=policy.id, db=db, user_email=user.email
     )
     if not removed:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_404_NOT_FOUND,
+            code="POLICY_NOT_HELD_BY_USER",
             detail=f"{user_email} does not hold policy '{policy_name}'",
+            params={"userEmail": user_email, "policyName": policy_name},
         )
 
     await log_security_event(
@@ -154,7 +158,7 @@ async def list_user_policies(
 ):
     """Every policy assigned to this user (active or not : for inspection,
     not an authorization decision)."""
-    await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
+    await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
 
     policies = await policy_repository.get_policies_for_user(user_email, db)
     return UserPoliciesRead(user_email=user_email, policies=[PolicyRead.model_validate(p) for p in policies])

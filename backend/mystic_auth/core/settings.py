@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""                            # Optional. Sentry-protocol error-monitoring DSN (works with Sentry itself, or a self-hosted Sentry-SDK-compatible server like Bugsink; see docs/mystic_auth/error-monitoring/overview.md). Empty (default) = error monitoring disabled entirely, no SDK call is ever made.
     SENTRY_ENVIRONMENT: str = ""                    # Optional. Tag reported alongside every event (e.g. "production", "staging"). Falls back to ENVIRONMENT if unset.
 
+    DEFAULT_APP_POLICIES: str = ""                  # Optional, comma-separated policy names auto-assigned to every user once verified, alongside self_service. Empty (default) = self_service only. See authorization/policies/default_policies.py.
+
     # The root .env is shared with docker-compose.yml/docker-compose.prod.yml's
     # `env_file:` directive, which also passes it to infra-only services
     # (e.g. REDIS_PASSWORD for redis-server, BUGSINK_* for the optional
@@ -96,6 +98,14 @@ class Settings(BaseSettings):
         # error messages/logs deterministically, never for CORS semantics
         # itself (allow_origins is checked as an unordered set of matches).
         return list(dict.fromkeys([self.FRONTEND_BASE_URL, *(o for o in extra if o)]))
+
+    @property
+    def default_app_policy_names(self) -> list[str]:
+        """Parsed, deduplicated DEFAULT_APP_POLICIES. Empty list when unset,
+        so a downstream app that never sets this behaves exactly like
+        upstream did before this setting existed: self_service only."""
+        names = (name.strip() for name in self.DEFAULT_APP_POLICIES.split(","))
+        return list(dict.fromkeys(name for name in names if name))
 
 
 settings = Settings()

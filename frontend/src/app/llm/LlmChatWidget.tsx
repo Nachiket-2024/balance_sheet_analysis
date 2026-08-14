@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Box, Button, Stack, Text, Textarea } from "@chakra-ui/react";
 import { useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { Card, FormAlert } from "../sdk";
 import { BRAND_SOLID_HOVER_PROPS, SEARCH_INPUT_PROPS } from "../app_sdk";
@@ -23,6 +24,7 @@ interface Exchange {
  * client-side; it only renders whatever the backend agrees to answer.
  */
 const LlmChatWidget: React.FC<LlmChatWidgetProps> = ({ companyId }) => {
+    const { t } = useTranslation("llm");
     const [question, setQuestion] = useState("");
     const [history, setHistory] = useState<Exchange[]>([]);
 
@@ -43,7 +45,7 @@ const LlmChatWidget: React.FC<LlmChatWidgetProps> = ({ companyId }) => {
     return (
         <Card p={5}>
             <Text fontWeight="semibold" mb={3}>
-                Ask about this company's performance
+                {t("widgetTitle")}
             </Text>
 
             {history.length > 0 && (
@@ -63,7 +65,7 @@ const LlmChatWidget: React.FC<LlmChatWidgetProps> = ({ companyId }) => {
 
             {mutation.isError && (
                 <Box mb={3}>
-                    <FormAlert status="error">Unable to reach the LLM, please try again.</FormAlert>
+                    <FormAlert status="error">{t("unableToReach")}</FormAlert>
                 </Box>
             )}
 
@@ -73,7 +75,7 @@ const LlmChatWidget: React.FC<LlmChatWidgetProps> = ({ companyId }) => {
                         value={question}
                         onChange={(e) => setQuestion(e.target.value)}
                         fontSize="md"
-                        placeholder="e.g. How has total debt changed over the last few years?"
+                        placeholder={t("questionPlaceholder")}
                         rows={2}
                         {...SEARCH_INPUT_PROPS}
                     />
@@ -84,7 +86,7 @@ const LlmChatWidget: React.FC<LlmChatWidgetProps> = ({ companyId }) => {
                         loading={mutation.isPending}
                         {...BRAND_SOLID_HOVER_PROPS}
                     >
-                        Ask
+                        {t("ask")}
                     </Button>
                 </Stack>
             </form>

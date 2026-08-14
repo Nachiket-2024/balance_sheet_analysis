@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Button, Field, Input, Stack } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import Card from "../ui/Card";
 import FormAlert from "../ui/FormAlert";
@@ -25,6 +26,7 @@ interface ProfileNameCardProps {
  * password card, and vice versa.
  */
 const ProfileNameCard: React.FC<ProfileNameCardProps> = ({ name, onDirtyChange }) => {
+    const { t } = useTranslation("account_settings");
     const [editedName, setEditedName] = useState(name ?? "");
     const [nameError, setNameError] = useState("");
 
@@ -40,7 +42,7 @@ const ProfileNameCard: React.FC<ProfileNameCardProps> = ({ name, onDirtyChange }
         setNameError("");
 
         if (!editedName || editedName === name) {
-            setNameError("No changes to save");
+            setNameError(t("profileName.noChanges"));
             return;
         }
 
@@ -48,7 +50,7 @@ const ProfileNameCard: React.FC<ProfileNameCardProps> = ({ name, onDirtyChange }
             { name: editedName },
             {
                 onSuccess: (updated) => {
-                    toaster.create({ title: "Profile updated", type: "success" });
+                    toaster.create({ title: t("profileName.updatedToast"), type: "success" });
                     setEditedName(updated.name);
                 },
             }
@@ -59,7 +61,7 @@ const ProfileNameCard: React.FC<ProfileNameCardProps> = ({ name, onDirtyChange }
         <Card p={5}>
             <Stack as="form" onSubmit={handleNameSubmit} gap={4}>
                 <Field.Root>
-                    <Field.Label>Name</Field.Label>
+                    <Field.Label>{t("profileName.nameLabel")}</Field.Label>
                     <Input
                         value={editedName}
                         onChange={(e) => setEditedName(e.target.value)}
@@ -77,10 +79,10 @@ const ProfileNameCard: React.FC<ProfileNameCardProps> = ({ name, onDirtyChange }
                     colorPalette="brand"
                     alignSelf="flex-start"
                     loading={nameMutation.isPending}
-                    loadingText="Saving..."
+                    loadingText={t("ui_text:saving")}
                     {...BRAND_SOLID_HOVER_PROPS}
                 >
-                    Save changes
+                    {t("profileName.saveChanges")}
                 </Button>
             </Stack>
         </Card>

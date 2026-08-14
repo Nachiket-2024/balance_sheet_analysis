@@ -1,0 +1,69 @@
+{
+    "page": {
+        "title": "ऑडिट लॉग",
+        "description": "प्राधिकरण निर्णय और सुरक्षा घटनाएं।"
+    },
+    "tabs": {
+        "authorizationDecisions": "प्राधिकरण निर्णय",
+        "securityEvents": "सुरक्षा घटनाएं",
+        "myActivity": "मेरी गतिविधि",
+        "allUsers": "सभी उपयोगकर्ता"
+    },
+    "authorization": {
+        "results": {
+            "allowed": "स्वीकृत",
+            "denied": "अस्वीकृत"
+        },
+        "filterBar": {
+            "filterByAction": "कार्रवाई के अनुसार फ़िल्टर करें",
+            "allActions": "सभी कार्रवाइयां",
+            "filterByResourceType": "संसाधन प्रकार के अनुसार फ़िल्टर करें",
+            "allResources": "सभी संसाधन",
+            "filterByResult": "परिणाम के अनुसार फ़िल्टर करें",
+            "allResults": "सभी परिणाम"
+        },
+        "columns": {
+            "when": "कब",
+            "user": "उपयोगकर्ता",
+            "action": "कार्रवाई",
+            "resource": "संसाधन",
+            "result": "परिणाम"
+        },
+        "searchPlaceholder": "उपयोगकर्ता ईमेल से खोजें...",
+        "emptyFiltered": "इन फ़िल्टरों से कोई प्राधिकरण निर्णय मेल नहीं खाता",
+        "emptySearch": "इस खोज से कोई प्राधिकरण निर्णय मेल नहीं खाता"
+    },
+    "security": {
+        "results": {
+            "success": "सफल",
+            "failed": "विफल"
+        },
+        "filterBar": {
+            "filterByEvent": "घटना के अनुसार फ़िल्टर करें",
+            "allEvents": "सभी घटनाएं",
+            "filterByIpPlaceholder": "IP के अनुसार फ़िल्टर करें...",
+            "filterByIpAddress": "IP पते के अनुसार फ़िल्टर करें",
+            "filterByResult": "परिणाम के अनुसार फ़िल्टर करें",
+            "allResults": "सभी परिणाम"
+        },
+        "columns": {
+            "when": "कब",
+            "user": "उपयोगकर्ता",
+            "unknownUser": "अज्ञात उपयोगकर्ता",
+            "event": "घटना",
+            "ip": "IP",
+            "unknownIp": "अज्ञात",
+            "result": "परिणाम"
+        },
+        "searchPlaceholder": "उपयोगकर्ता ईमेल से खोजें...",
+        "emptyFiltered": "इन फ़िल्टरों से कोई सुरक्षा घटना मेल नहीं खाती",
+        "emptySearch": "इस खोज से कोई सुरक्षा घटना मेल नहीं खाती",
+        "loginActivity": "लॉगिन गतिविधि",
+        "failedToLoadTrend": "लॉगिन ट्रेंड लोड करने में विफल",
+        "successCount": "सफल ({{count}})",
+        "failedCount": "विफल ({{count}})",
+        "chartAriaLabel": "पिछले {{days}} दिनों में दैनिक लॉगिन प्रयास: {{success}} सफल, {{failure}} विफल",
+        "successLabel": "सफल:",
+        "failedLabel": "विफल:"
+    }
+}

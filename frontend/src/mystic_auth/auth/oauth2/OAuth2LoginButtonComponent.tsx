@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, Button, Flex } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 // Shared error/success feedback component: replaces the ad hoc
 // <p style={{ color: "red"/"green" }}> pattern, which also carried no
@@ -21,6 +22,8 @@ const OAuth2LoginButtonComponent: React.FC<OAuth2LoginButtonComponentProps> = ({
     globalAuth,
     onLogin,
 }) => {
+    const { t } = useTranslation("auth");
+
     return (
         <Box w="full" mt={4}>
             <Button
@@ -41,6 +44,7 @@ const OAuth2LoginButtonComponent: React.FC<OAuth2LoginButtonComponentProps> = ({
                     borderColor: "#8E918F",
                     _hover: { bg: "#303030" },
                 }}
+                transition="background-color 0.1s ease"
                 size="lg"
                 onClick={onLogin}
             >
@@ -51,7 +55,7 @@ const OAuth2LoginButtonComponent: React.FC<OAuth2LoginButtonComponentProps> = ({
                         <path fill="#FBBC05" d="M118.3 323.2c-10.7-32-10.7-66.6 0-98.6v-70.8h-90.6c-40.2 78.7-40.2 171.1 0 249.8l90.6-70.4z"/>
                         <path fill="#EA4335" d="M272 107.7c39.8-.6 77.7 14 106.6 40.8l79.9-79.9C405.9 21 345.7-4.3 272 0 166 0 72.8 60.1 27.5 150.1l90.6 70.8C139.8 155.8 200.5 107.7 272 107.7z"/>
                     </svg>
-                    <span>Sign in with Google</span>
+                    <span>{t("oauth2.signInWithGoogle")}</span>
                 </Flex>
             </Button>
 
@@ -64,7 +68,7 @@ const OAuth2LoginButtonComponent: React.FC<OAuth2LoginButtonComponentProps> = ({
             {(isAuthenticated || globalAuth) && user && (
                 <Box mt={2}>
                     <FormAlert status="success">
-                        Welcome, {user.email}! (role: {user.role})
+                        {t("oauth2.welcomeUser", { email: user.email, role: user.role })}
                     </FormAlert>
                 </Box>
             )}

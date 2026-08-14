@@ -1,0 +1,33 @@
+{
+    "save": "सेव करें",
+    "cancel": "रद्द करें",
+    "delete": "हटाएं",
+    "edit": "संपादन",
+    "create": "बनाएं",
+    "close": "बंद करें",
+    "confirm": "पुष्टि करें",
+    "back": "वापस",
+    "loading": "लोड हो रहा है...",
+    "saving": "सेव हो रहा है...",
+    "yes": "हां",
+    "no": "नहीं",
+    "active": "सक्रिय",
+    "inactive": "निष्क्रिय",
+    "enabled": "सक्षम",
+    "disabled": "अक्षम",
+    "failedToLoadData": "डेटा लोड करने में विफल",
+    "noDataAvailable": "कोई डेटा उपलब्ध नहीं",
+    "errorBoundary": {
+        "title": "कुछ गलत हो गया",
+        "description": "एक अप्रत्याशित त्रुटि हुई। पृष्ठ को फिर से लोड करने से आमतौर पर यह ठीक हो जाता है।",
+        "reload": "फिर से लोड करें"
+    },
+    "filterLabel": "फ़िल्टर: {{label}}",
+    "pagination": {
+        "previousPage": "पिछला पृष्ठ",
+        "prev": "पिछला",
+        "nextPage": "अगला पृष्ठ",
+        "next": "अगला",
+        "page": "पृष्ठ {{page}}"
+    }
+}

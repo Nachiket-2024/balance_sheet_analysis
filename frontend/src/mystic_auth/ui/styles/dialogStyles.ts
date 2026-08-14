@@ -4,9 +4,16 @@
 // wasn't enough separation and the dialog read as blending into the page
 // behind it. A visible border plus a stronger shadow, and a blurred/darker
 // backdrop, is the standard "elevated panel over a dimmed page" treatment.
+// The dialog machine sets `document.body { pointer-events: none }` while
+// open (to make the real page behind it inert) and only opts the dialog
+// *content* back in to `pointer-events: auto`. The backdrop inherits that
+// `none` from body since nothing here overrode it, so without this the
+// visible area around the dialog silently swallows clicks instead of
+// dismissing it - "click anywhere in the background to close" didn't work.
 export const DIALOG_BACKDROP_PROPS = {
     bg: "blackAlpha.600",
     backdropFilter: "blur(2px)",
+    pointerEvents: "auto",
 };
 
 // Chakra's own Dialog recipe already defaults placement="top" (so the

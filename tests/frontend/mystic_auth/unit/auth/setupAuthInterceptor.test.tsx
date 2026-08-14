@@ -8,7 +8,10 @@ import { useAuthStore } from '@/store/authStore';
 import { setupAuthInterceptor } from '@/auth/session_lifecycle/setupAuthInterceptor';
 import { queryClient } from '@/core/queryClient';
 import { useCurrentUserQuery } from '@/auth/current_user/useCurrentUserQuery';
-import { trackSessionRotatingRequest } from '@/auth/session_lifecycle/sessionRotationGuard';
+import {
+  trackSessionRotatingRequest,
+  resetSessionRotationGuardForTests,
+} from '@/auth/session_lifecycle/sessionRotationGuard';
 
 const mock = new MockAdapter(api);
 
@@ -19,6 +22,7 @@ describe('setupAuthInterceptor', () => {
 
   beforeEach(() => {
     mock.reset();
+    resetSessionRotationGuardForTests();
     useAuthStore.getState().setAuthenticated(true);
     useAuthStore.getState().setProfile({
       name: 'Test User', email: 'test@example.com', role: 'user', permissions: ['documents:view'], has_password: true,

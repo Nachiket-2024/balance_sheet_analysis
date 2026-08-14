@@ -16,7 +16,8 @@ _ = load_dotenv(dotenv_path=BASE_DIR / ".env")
 from .api.balance_sheet_routes import balance_sheet_routes  # noqa: E402 (must follow load_dotenv() above)
 from .api.company_routes import company_routes  # noqa: E402
 from .api.llm_routes import llm_routes  # noqa: E402
-from .sdk import (  # noqa: E402 (must follow load_dotenv() above, since sdk.py reads env-dependent settings at import time)
+from .sdk import (  # noqa: E402, must follow load_dotenv() above, since sdk.py reads env-dependent settings at import time
+    AppError,
     CorrelationIdMiddleware,
     LoggingMiddleware,
     SecurityHeadersMiddleware,
@@ -112,6 +113,19 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 # Added last so it becomes outermost (see note above).
 app.add_middleware(CorrelationIdMiddleware)
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    # Same {"detail": ...} shape FastAPI's default HTTPException handler
+    # returns, plus "code"/"params" so the frontend (apiError.ts) can look
+    # up a translated message in translations/languages/*/errors.json instead
+    # of displaying this English `detail` string directly.
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail, "code": exc.code, "params": exc.params},
+        headers=exc.headers,
+    )
 
 
 @app.exception_handler(Exception)

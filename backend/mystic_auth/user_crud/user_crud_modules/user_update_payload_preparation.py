@@ -1,4 +1,4 @@
-from fastapi import HTTPException, status
+from fastapi import status
 
 # UserUpdate's `password` field name intentionally does not match any column on
 # the User model (only `hashed_password` is a real column); it must be hashed
@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 # is silently discarded (set as an unmapped attribute SQLAlchemy never
 # persists) and the account keeps its old/no password.
 from ...auth.password_logic.password_service import password_service
+from ...core.errors import AppError
 from ...user_table.user_schema import UserUpdate
 
 
@@ -29,8 +30,9 @@ async def prepare_update_data(update_data: UserUpdate) -> dict:
     plain_password = data.pop("password", None)
     if plain_password is not None:
         if not await password_service.validate_password_strength(plain_password):
-            raise HTTPException(
+            raise AppError(
                 status_code=status.HTTP_400_BAD_REQUEST,
+                code="PASSWORD_TOO_WEAK",
                 detail="Password does not meet minimum strength requirements",
             )
         data["hashed_password"] = await password_service.hash_password(plain_password)

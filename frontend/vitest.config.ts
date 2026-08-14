@@ -103,6 +103,10 @@ export default defineConfig({
 
     setupFiles: [
       './src/mystic_auth/__tests__/setup.ts',
+      // App-owned counterpart: registers this app's own translation
+      // resources (see that file's own comment for why this is separate
+      // from the upstream-owned setup.ts above).
+      '../tests/frontend/app/setup.ts',
     ],
 
     coverage: {

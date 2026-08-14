@@ -51,6 +51,10 @@ flowchart TD
 
 `self_service`, `user_administration`, and `system_superuser` can never be deleted or renamed via the management API, regardless of who's calling: every default account assignment (signup, OAuth2, `create_system_user.py`) looks them up by these exact names. Their other fields (description, actions, conditions) can still be edited.
 
+### Giving every user a second default policy
+
+`self_service` is assigned unconditionally at signup, before the account is even verified. If your app wants every user to *also* get one of its own policies by default, once verified, set `DEFAULT_APP_POLICIES` (`.env`, comma-separated policy names) rather than editing `signup_service.py`/`oauth2_service.py`/`user_verification_service.py` directly: those three call a shared, downstream-configurable hook (`authorization/policies/default_policies.py::assign_app_default_policies`) the moment an account transitions to verified (email-link verification, or OAuth2, which verifies on the spot). Empty (the default) is a no-op — self_service only, same as before this setting existed. The policies it names must already exist (create them the normal way: `POST /authorization/policies` or your own Alembic migration) or the assignment is skipped with a logged error, not a failure of the signup/login request that triggered it.
+
 ### Policy history and rollback
 
 Every create/update/delete stages an immutable row in `policy_history` in the same transaction as the mutation:

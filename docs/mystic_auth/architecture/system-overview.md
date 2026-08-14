@@ -23,10 +23,10 @@ flowchart TD
 ```
 
 - **Frontend**: React + TypeScript + Chakra UI + Zustand (client state) + TanStack Query (server state). Built as a static SPA, served by nginx in production-style Compose files or Vite's dev server locally (`docker-compose.yml`).
-- **Backend**: FastAPI, async throughout (SQLAlchemy async engine, async Redis client). One process type (`backend/app/main.py`), shared by the `backend`, `taskiq_worker`, and `alembic` containers via the same Docker image (`docker/backend.Dockerfile`) with different `command:` overrides.
+- **Backend**: FastAPI, async throughout (SQLAlchemy async engine, async Redis client). One process type (`backend/app/main.py`), shared by the `backend`, `taskiq_worker`, `taskiq_scheduler`, and `alembic` containers via the same Docker image (`docker/backend.Dockerfile`) with different `command:` overrides.
 - **PostgreSQL**: system of record: users, policies, policy history, both audit log tables (authorization decisions and security events).
 - **Redis**: ephemeral/derived state only, never the source of truth for anything that must survive a flush: rate-limit/lockout counters, the account/chain token-version counters (logout-all and single-session revocation), single-use refresh-token rotation claims, single-use password-reset/email-verification/OAuth2-state tokens (all with TTLs matching their expiry). Also Taskiq's broker/result backend.
-- **Email queue**: uses Taskiq and Redis. Auth flows enqueue email jobs with `send_email_task.kiq(...)`, and the `taskiq_worker` sends them through the configured SMTP sender.
+- **Email queue**: uses Taskiq and Redis. Auth flows enqueue email jobs with `send_email_task.kiq(...)`, and the `taskiq_worker` sends them through the configured SMTP sender. Failed sends are retried with exponential backoff via a `taskiq_scheduler` container polling a Redis-backed schedule.
 - **Bugsink**: self-hosted error monitoring, enabled by default: starts with the stack alongside everything else. Backend and frontend both report unhandled exceptions to it over the Sentry SDK wire protocol. Runs as its own container, using a second database on the same Postgres server (not a second Postgres instance). See [Error Monitoring](../error-monitoring/overview.md).
 
 ---
@@ -35,7 +35,7 @@ flowchart TD
 
 - **Redis vs. Postgres**: everything in Redis is either a cache, a rate/lockout counter, or a single-use token: losing it on a restart degrades gracefully (a user re-requests a password reset; a rate limit resets) rather than corrupting state. Nothing that needs to survive indefinitely (users, policies, audit history) lives there.
 - **Queued email**: email delivery is the one slow, failure-prone I/O call in the auth flows. Queuing it means signup and password-reset requests are not held open waiting on SMTP. Taskiq fits this stack because Redis and a worker already run in Docker and self-hosted deployments.
-- **One backend image, three roles**: `backend`, `taskiq_worker`, and `alembic` all run from `docker/backend.Dockerfile` with different commands, rather than three separate images: keeps dependency versions/code identical across all three by construction, at the cost of the worker/alembic containers also containing an unused `uvicorn` entrypoint they never run.
+- **One backend image, four roles**: `backend`, `taskiq_worker`, `taskiq_scheduler`, and `alembic` all run from `docker/backend.Dockerfile` with different commands, rather than four separate images: keeps dependency versions/code identical across all four by construction, at the cost of the worker/scheduler/alembic containers also containing an unused `uvicorn` entrypoint they never run.
 
 ---
 

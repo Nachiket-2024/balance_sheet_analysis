@@ -1,0 +1,33 @@
+{
+    "save": "સાચવો",
+    "cancel": "રદ કરો",
+    "delete": "કાઢી નાખો",
+    "edit": "સંપાદિત કરો",
+    "create": "બનાવો",
+    "close": "બંધ કરો",
+    "confirm": "પુષ્ટિ કરો",
+    "back": "પાછળ",
+    "loading": "લોડ થઈ રહ્યું છે...",
+    "saving": "સાચવી રહ્યાં છીએ...",
+    "yes": "હા",
+    "no": "ના",
+    "active": "સક્રિય",
+    "inactive": "નિષ્ક્રિય",
+    "enabled": "સક્ષમ",
+    "disabled": "અક્ષમ",
+    "failedToLoadData": "ડેટા લોડ કરવામાં નિષ્ફળ",
+    "noDataAvailable": "કોઈ ડેટા ઉપલબ્ધ નથી",
+    "errorBoundary": {
+        "title": "કંઈક ખોટું થયું",
+        "description": "એક અનપેક્ષિત ભૂલ આવી. પેજ ફરીથી લોડ કરવાથી સામાન્ય રીતે આ ઠીક થાય છે.",
+        "reload": "ફરીથી લોડ કરો"
+    },
+    "filterLabel": "ફિલ્ટર: {{label}}",
+    "pagination": {
+        "previousPage": "પાછલું પેજ",
+        "prev": "પાછળ",
+        "nextPage": "આગલું પેજ",
+        "next": "આગળ",
+        "page": "પેજ {{page}}"
+    }
+}

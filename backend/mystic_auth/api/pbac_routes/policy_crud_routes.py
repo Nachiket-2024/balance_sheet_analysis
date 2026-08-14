@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Rejects a malformed `conditions` block before it's ever persisted: unknown
@@ -15,6 +15,7 @@ from ...authorization.dependencies.policy_route_dependencies import (
 from ...authorization.repositories.policy_repository import policy_repository
 from ...authorization.schemas.policy_schema import PolicyCreate, PolicyRead, PolicyUpdate
 from ...authorization.services.authorization_service import authorization_service
+from ...core.errors import AppError
 from ...database.connection import database
 from ..get_or_404.get_or_404 import get_or_404
 
@@ -32,15 +33,19 @@ async def create_policy(
     try:
         validate_conditions(policy_data.conditions)
     except ConditionValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.errors) from exc
+        raise AppError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, code="INVALID_CONDITIONS", detail=exc.errors
+        ) from exc
 
     # Reject a duplicate name up front with a clear 409, rather than letting
     # the database's unique constraint raise an opaque 500.
     existing = await policy_repository.get_by_name(policy_data.name, db)
     if existing:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_409_CONFLICT,
+            code="POLICY_NAME_EXISTS",
             detail=f"A policy named '{policy_data.name}' already exists",
+            params={"policyName": policy_data.name},
         )
 
     # Privilege-escalation guard: the caller cannot mint a policy granting an
@@ -74,7 +79,7 @@ async def get_policy(
     db: AsyncSession = Depends(database.get_session),
 ):
     """The named policy, or 404 if it doesn't exist."""
-    return await get_or_404(policy_repository.get_by_name(policy_name, db), "Policy not found")
+    return await get_or_404(policy_repository.get_by_name(policy_name, db), "Policy not found", code="POLICY_NOT_FOUND")
 
 
 @router.put("/policies/{policy_name}", response_model=PolicyRead)
@@ -105,7 +110,7 @@ async def update_policy(
     could silently re-grant an existing (possibly widely-assigned) policy
     new, more powerful actions the caller doesn't themselves have.
     """
-    policy = await get_or_404(policy_repository.get_by_name(policy_name, db), "Policy not found")
+    policy = await get_or_404(policy_repository.get_by_name(policy_name, db), "Policy not found", code="POLICY_NOT_FOUND")
 
     fields = update_data.model_dump(exclude_unset=True, exclude={"change_reason"})
 
@@ -116,12 +121,16 @@ async def update_policy(
         try:
             validate_conditions(fields["conditions"])
         except ConditionValidationError as exc:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.errors) from exc
+            raise AppError(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, code="INVALID_CONDITIONS", detail=exc.errors
+            ) from exc
 
     if policy.name in PROTECTED_POLICY_NAMES and "name" in fields and fields["name"] != policy.name:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="BASELINE_POLICY_CANNOT_BE_RENAMED",
             detail=f"Baseline policy '{policy.name}' cannot be renamed",
+            params={"policyName": policy.name},
         )
 
     # Reject a rename that collides with another existing policy up front
@@ -130,15 +139,19 @@ async def update_policy(
     if "name" in fields and fields["name"] != policy.name:
         existing = await policy_repository.get_by_name(fields["name"], db)
         if existing:
-            raise HTTPException(
+            raise AppError(
                 status_code=status.HTTP_409_CONFLICT,
+                code="POLICY_NAME_EXISTS",
                 detail=f"A policy named '{fields['name']}' already exists",
+                params={"policyName": fields["name"]},
             )
 
     if policy.name in PROTECTED_POLICY_NAMES and fields.get("is_active") is False:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="BASELINE_POLICY_CANNOT_BE_DEACTIVATED",
             detail=f"Baseline policy '{policy.name}' cannot be deactivated",
+            params={"policyName": policy.name},
         )
 
     if "actions" in fields or "resource_type" in fields:
@@ -166,16 +179,18 @@ async def delete_policy(
     (see UserPolicy's ondelete="CASCADE"). The policy's definition survives
     in policy_history (see /policies/{policy_name}/history) even after this
     deletion."""
-    policy = await get_or_404(policy_repository.get_by_name(policy_name, db), "Policy not found")
+    policy = await get_or_404(policy_repository.get_by_name(policy_name, db), "Policy not found", code="POLICY_NOT_FOUND")
 
     # Baseline policies are load-bearing: signup, oauth2, and
     # create_system_user.py all look them up by name and assume they exist.
     # Deleting one would silently leave every future account with no
     # default access.
     if policy_name in PROTECTED_POLICY_NAMES:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="BASELINE_POLICY_CANNOT_BE_DELETED",
             detail=f"Baseline policy '{policy_name}' cannot be deleted",
+            params={"policyName": policy_name},
         )
 
     await policy_repository.delete(policy, db, changed_by=current_user["email"], change_reason=reason)

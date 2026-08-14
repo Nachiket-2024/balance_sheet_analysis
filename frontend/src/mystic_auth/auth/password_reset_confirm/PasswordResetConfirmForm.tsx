@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Stack, Input, Button, Text } from "@chakra-ui/react";
 import { Field as ChakraField } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import { usePasswordResetConfirmMutation } from "./usePasswordResetConfirmMutation";
 import FormAlert from "../../ui/FormAlert";
@@ -16,6 +17,7 @@ interface PasswordResetConfirmFormProps {
 }
 
 const PasswordResetConfirmForm: React.FC<PasswordResetConfirmFormProps> = ({ token: propToken }) => {
+    const { t } = useTranslation("auth");
     // Token typed into the manual-entry field, used only when no token was
     // supplied via the URL. `token` derives from whichever source applies
     // instead of syncing propToken into state via an effect.
@@ -36,14 +38,14 @@ const PasswordResetConfirmForm: React.FC<PasswordResetConfirmFormProps> = ({ tok
     const handleSubmit = (e: React.SubmitEvent<HTMLDivElement>) => {
         e.preventDefault();
 
-        const passwordError = validatePassword(newPassword);
+        const passwordError = validatePassword(newPassword, t);
         if (passwordError) {
             setLocalError(passwordError);
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            setLocalError("Passwords do not match");
+            setLocalError(t("passwordResetConfirm.passwordsDoNotMatch"));
             return;
         }
 
@@ -63,12 +65,12 @@ const PasswordResetConfirmForm: React.FC<PasswordResetConfirmFormProps> = ({ tok
         <Stack as="form" onSubmit={handleSubmit} w="full" gap={4}>
             {!hasTokenFromUrl && (
                 <ChakraField.Root required>
-                    <ChakraField.Label>Reset token</ChakraField.Label>
+                    <ChakraField.Label>{t("passwordResetConfirm.resetTokenLabel")}</ChakraField.Label>
                     <Input
                         type="text"
                         value={token}
                         onChange={(e) => setManualToken(e.target.value)}
-                        placeholder="Token from email"
+                        placeholder={t("passwordResetConfirm.resetTokenPlaceholder")}
                         size="lg"
                         autoFocus
                     />
@@ -76,12 +78,12 @@ const PasswordResetConfirmForm: React.FC<PasswordResetConfirmFormProps> = ({ tok
             )}
 
             <ChakraField.Root required>
-                <ChakraField.Label>New password</ChakraField.Label>
+                <ChakraField.Label>{t("passwordResetConfirm.newPasswordLabel")}</ChakraField.Label>
                 <Input
                     type="password"
                     value={newPassword}
                     onChange={(e) => handlePasswordChange(e.target.value)}
-                    placeholder="New Password"
+                    placeholder={t("passwordResetConfirm.newPasswordPlaceholder")}
                     size="lg"
                     autoFocus={hasTokenFromUrl}
                     aria-invalid={!!localError || resetConfirmMutation.isError}
@@ -102,18 +104,18 @@ const PasswordResetConfirmForm: React.FC<PasswordResetConfirmFormProps> = ({ tok
                     passwordStrength === "Strong" ? "green.500" : "fg.muted"
                 }
             >
-                Strength: {passwordStrength || "-"}
+                {t("passwordResetConfirm.strengthLabel", { strength: passwordStrength || "-" })}
             </Text>
 
             <PasswordRulesChecklist rules={rules} fontSize="15px" />
 
             <ChakraField.Root required>
-                <ChakraField.Label>Confirm new password</ChakraField.Label>
+                <ChakraField.Label>{t("passwordResetConfirm.confirmNewPasswordLabel")}</ChakraField.Label>
                 <Input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm New Password"
+                    placeholder={t("passwordResetConfirm.confirmNewPasswordPlaceholder")}
                     size="lg"
                     aria-invalid={!!localError}
                     aria-describedby={localError ? "password-reset-confirm-local-error" : undefined}
@@ -126,10 +128,10 @@ const PasswordResetConfirmForm: React.FC<PasswordResetConfirmFormProps> = ({ tok
                 size="lg"
                 w="full"
                 loading={resetConfirmMutation.isPending}
-                loadingText="Resetting..."
+                loadingText={t("passwordResetConfirm.resetting")}
                 {...BRAND_SOLID_HOVER_PROPS}
             >
-                Reset Password
+                {t("passwordResetConfirm.submitButton")}
             </Button>
 
             {localError && <FormAlert status="error" id="password-reset-confirm-local-error">{localError}</FormAlert>}

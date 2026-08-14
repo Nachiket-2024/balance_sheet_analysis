@@ -1,0 +1,9 @@
+{
+    "notAuthorized": {
+        "message": "You don't have permission to view this page"
+    },
+    "notFound": {
+        "message": "Oops! Page Not Found"
+    },
+    "goHome": "Go Home"
+}

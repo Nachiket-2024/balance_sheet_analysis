@@ -4,6 +4,7 @@ from fastapi import HTTPException, Request, status
 from sqlalchemy.exc import SQLAlchemyError
 
 from ...audit_log.audit_log_service import SESSION_REVOKED, log_security_event
+from ...core.errors import AppError
 from ...logging.logging_config import get_logger
 from ...user_crud.user_crud_collector import user_crud
 from ...user_session.session_repository import session_repository
@@ -32,11 +33,11 @@ class SessionRevokeHandler:
 
             user = await user_crud.get_by_email(email, db)
             if not user:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+                raise AppError(status_code=status.HTTP_404_NOT_FOUND, code="SESSION_NOT_FOUND", detail="Session not found")
 
             target = await session_repository.get_by_id(db, session_id)
             if not target or target.user_id != user.id or target.revoked_at is not None:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+                raise AppError(status_code=status.HTTP_404_NOT_FOUND, code="SESSION_NOT_FOUND", detail="Session not found")
 
             current_chain_id = None
             if refresh_token:
@@ -51,14 +52,15 @@ class SessionRevokeHandler:
             # Compared by chain_id, not jti - see session_list_handler.py's
             # identical reasoning.
             if current_chain_id and target.chain_id == current_chain_id:
-                raise HTTPException(
+                raise AppError(
                     status_code=status.HTTP_400_BAD_REQUEST,
+                    code="CANNOT_REVOKE_CURRENT_SESSION",
                     detail="Use Logout to end your current session",
                 )
 
             revoked = await session_service.revoke_one_session(db, email, session_id)
             if not revoked:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+                raise AppError(status_code=status.HTTP_404_NOT_FOUND, code="SESSION_NOT_FOUND", detail="Session not found")
 
             await log_security_event(
                 SESSION_REVOKED,
@@ -76,14 +78,16 @@ class SessionRevokeHandler:
 
         except SQLAlchemyError as exc:
             logger.error("Database error revoking session:\n%s", traceback.format_exc())
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
+            raise AppError(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, code="DATABASE_ERROR", detail="Database error"
             ) from exc
 
         except Exception as exc:
             logger.error("Error revoking session:\n%s", traceback.format_exc())
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
+            raise AppError(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                code="INTERNAL_SERVER_ERROR",
+                detail="Internal server error",
             ) from exc
 
 

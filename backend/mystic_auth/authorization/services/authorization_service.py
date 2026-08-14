@@ -4,9 +4,10 @@ import traceback
 # anything caller-supplied (see context/request_context_builder.py)
 from datetime import UTC, datetime
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...core.errors import AppError
 from ...logging.logging_config import get_logger
 from ..evaluators.authorization_decision import AuthorizationDecision
 from ..evaluators.policy_evaluator import policy_evaluation_engine
@@ -279,8 +280,9 @@ class AuthorizationService:
             user_email, action, resource_type, db, resource=resource, context=context
         )
         if not allowed:
-            raise HTTPException(
+            raise AppError(
                 status_code=status.HTTP_403_FORBIDDEN,
+                code="INSUFFICIENT_PERMISSIONS",
                 detail="Insufficient permissions",
             )
 
@@ -329,9 +331,11 @@ class AuthorizationService:
                 continue
             allowed = await AuthorizationService.authorize(caller_email, action, resource_type, db)
             if not allowed:
-                raise HTTPException(
+                raise AppError(
                     status_code=status.HTTP_403_FORBIDDEN,
+                    code="CANNOT_GRANT_UNHELD_ACTION",
                     detail=f"Cannot grant action '{action}': you do not hold it yourself",
+                    params={"action": action},
                 )
 
 

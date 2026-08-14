@@ -1,0 +1,33 @@
+{
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "yes": "Yes",
+    "no": "No",
+    "active": "Active",
+    "inactive": "Inactive",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "failedToLoadData": "Failed to load data",
+    "noDataAvailable": "No data available",
+    "errorBoundary": {
+        "title": "Something went wrong",
+        "description": "An unexpected error occurred. Reloading the page usually fixes this.",
+        "reload": "Reload"
+    },
+    "filterLabel": "Filter: {{label}}",
+    "pagination": {
+        "previousPage": "Previous page",
+        "prev": "Prev",
+        "nextPage": "Next page",
+        "next": "Next",
+        "page": "Page {{page}}"
+    }
+}

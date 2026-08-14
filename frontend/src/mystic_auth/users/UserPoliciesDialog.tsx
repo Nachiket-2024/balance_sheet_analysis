@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Badge, Box, Button, Dialog, HStack, Portal, Stack, Text, Wrap } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import { useUserPoliciesQuery, usePoliciesQuery } from "../policies/policyQueries";
 import { useAssignPolicyMutation, useRevokePolicyMutation } from "../policies/policyMutations";
@@ -30,6 +31,7 @@ interface UserPoliciesDialogProps {
  * the management UI for it.
  */
 const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEmail, onClose }) => {
+    const { t } = useTranslation(["users", "ui_text"]);
     const [selectedPolicy, setSelectedPolicy] = useState("");
     const [revokingPolicy, setRevokingPolicy] = useState<string | null>(null);
 
@@ -81,7 +83,7 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
             { userEmail, policyName: selectedPolicy },
             {
                 onSuccess: () => {
-                    toaster.create({ title: `Assigned "${selectedPolicy}"`, type: "success" });
+                    toaster.create({ title: t("users:policiesDialog.assignedToast", { policyName: selectedPolicy }), type: "success" });
                     setSelectedPolicy("");
                 },
                 onError: (error) => toaster.create({ title: error.message, type: "error" }),
@@ -96,7 +98,7 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
             { userEmail, policyName },
             {
                 onSuccess: () => {
-                    toaster.create({ title: `Revoked "${policyName}"`, type: "success" });
+                    toaster.create({ title: t("users:policiesDialog.revokedToast", { policyName }), type: "success" });
                     setRevokingPolicy(null);
                 },
                 onError: (error) => {
@@ -108,28 +110,32 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
     };
 
     return (
-        <Dialog.Root open={isOpen} onOpenChange={(details) => !details.open && onClose()} size="lg">
+        <Dialog.Root
+            open={isOpen}
+            onOpenChange={(details) => !details.open && onClose()}
+            size="lg"
+            closeOnInteractOutside
+        >
             <Portal>
                 <Dialog.Backdrop {...DIALOG_BACKDROP_PROPS} />
                 <Dialog.Positioner>
                     <Dialog.Content {...DIALOG_CONTENT_PROPS}>
                         <Dialog.Header>
-                            <Dialog.Title>Policies for {userEmail}</Dialog.Title>
+                            <Dialog.Title>{t("users:policiesDialog.titleFor", { email: userEmail })}</Dialog.Title>
                         </Dialog.Header>
                         <Dialog.Body>
                             <Stack gap={4}>
                                 {isSelf && (
                                     <Text fontSize="sm" color="fg.muted">
-                                        You cannot revoke your own policies from here : ask another user
-                                        with policy management access, or use a different account.
+                                        {t("users:policiesDialog.cannotRevokeOwn")}
                                     </Text>
                                 )}
                                 {userPoliciesQuery.isLoading ? (
-                                    <LoadingState message="Loading policies..." />
+                                    <LoadingState message={t("users:policiesDialog.loadingPolicies")} />
                                 ) : userPoliciesQuery.isError ? (
-                                    <FormAlert status="error">Failed to load this user's policies</FormAlert>
+                                    <FormAlert status="error">{t("users:policiesDialog.failedToLoad")}</FormAlert>
                                 ) : (userPoliciesQuery.data?.policies ?? []).length === 0 ? (
-                                    <Text color="fg.muted">No policies assigned yet.</Text>
+                                    <Text color="fg.muted">{t("users:policiesDialog.noPoliciesAssigned")}</Text>
                                 ) : (
                                     <Wrap gap={2}>
                                         {(userPoliciesQuery.data?.policies ?? []).map((p) => (
@@ -140,10 +146,10 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
                                                         <Button
                                                             size="2xs"
                                                             variant="ghost"
-                                                            aria-label={`Revoke ${p.name}`}
+                                                            aria-label={t("users:policiesDialog.revokeAriaLabel", { policyName: p.name })}
                                                             onClick={() => setRevokingPolicy(p.name)}
                                                             disabled={isSelf}
-                                                            title={isSelf ? "You cannot revoke your own policies here" : undefined}
+                                                            title={isSelf ? t("users:policiesDialog.cannotRevokeOwnTitle") : undefined}
                                                             loading={
                                                                 revokeMutation.isPending &&
                                                                 revokeMutation.variables?.policyName === p.name
@@ -165,9 +171,9 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
                                                 w="full"
                                                 value={selectedPolicy}
                                                 onChange={setSelectedPolicy}
-                                                ariaLabel="Select a policy to assign"
+                                                ariaLabel={t("users:policiesDialog.selectPolicyAriaLabel")}
                                                 options={[
-                                                    { value: "", label: "Select a policy to assign..." },
+                                                    { value: "", label: t("users:policiesDialog.selectPolicyToAssign") },
                                                     ...availableToAssign.map((p) => ({ value: p.name, label: p.name })),
                                                 ]}
                                             />
@@ -180,7 +186,7 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
                                             loading={assignMutation.isPending}
                                             {...BRAND_SOLID_HOVER_PROPS}
                                         >
-                                            Assign
+                                            {t("users:policiesDialog.assign")}
                                         </Button>
                                     </HStack>
                                 </IfCan>
@@ -188,7 +194,7 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
                         </Dialog.Body>
                         <Dialog.Footer>
                             <Button onClick={onClose} {...SECONDARY_BUTTON_PROPS}>
-                                Close
+                                {t("ui_text:close")}
                             </Button>
                         </Dialog.Footer>
                         <Dialog.CloseTrigger />
@@ -203,9 +209,9 @@ const UserPoliciesDialog: React.FC<UserPoliciesDialogProps> = ({ isOpen, userEma
                 one-click "✕" button was the odd one out. */}
             <ConfirmDialog
                 isOpen={!!revokingPolicy}
-                title="Revoke policy"
-                description={`Revoke "${revokingPolicy}" from ${userEmail}? They will immediately lose the permissions it grants.`}
-                confirmLabel="Revoke"
+                title={t("users:policiesDialog.revokeDialogTitle")}
+                description={t("users:policiesDialog.revokeDialogDescription", { policyName: revokingPolicy, email: userEmail })}
+                confirmLabel={t("users:policiesDialog.revokeConfirmLabel")}
                 isLoading={revokeMutation.isPending}
                 onConfirm={handleRevokeConfirm}
                 onCancel={() => setRevokingPolicy(null)}

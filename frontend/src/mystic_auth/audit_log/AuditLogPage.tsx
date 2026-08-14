@@ -1,5 +1,6 @@
 import React from "react";
 import { Tabs } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import PageContainer from "../ui/PageContainer";
 import { IfCan } from "../authorization/IfCan";
@@ -46,29 +47,50 @@ import AllSecurityLogSection from "./security_log/AllSecurityLogSection";
  * This file is just the tab shell composing it all, not the ~500-line
  * single file this used to be.
  */
-const AuditLogPage: React.FC = () => {
+interface AuditLogPageProps {
+    /**
+     * Resource types/actions beyond this app's own PBAC vocabulary
+     * (authorizationLogResourceTypes.ts / permissions.ts), for downstream
+     * projects that extend PBAC for their own business domain. Same shape
+     * and spirit as AppLayout's extraNavItems: additive, optional, and a
+     * no-op on the "Authorization decisions" filter dropdowns when omitted.
+     * See docs/mystic_auth/template-usage/overview.md#shared-chrome-extension-points.
+     */
+    extraResourceTypes?: string[];
+    extraActions?: string[];
+}
+
+const AuditLogPage: React.FC<AuditLogPageProps> = ({ extraResourceTypes, extraActions }) => {
+    const { t } = useTranslation("audit_log");
+
     return (
-        <PageContainer title="Audit Log" description="Authorization decisions and security events.">
+        <PageContainer title={t("page.title")} description={t("page.description")}>
             <Tabs.Root defaultValue="authorization" mb={4} lazyMount unmountOnExit>
                 <Tabs.List>
-                    <Tabs.Trigger value="authorization" fontSize="15px">Authorization decisions</Tabs.Trigger>
-                    <Tabs.Trigger value="security" fontSize="15px">Security events</Tabs.Trigger>
+                    <Tabs.Trigger value="authorization" fontSize="15px">{t("tabs.authorizationDecisions")}</Tabs.Trigger>
+                    <Tabs.Trigger value="security" fontSize="15px">{t("tabs.securityEvents")}</Tabs.Trigger>
                 </Tabs.List>
 
                 <Tabs.Content value="authorization">
                     <Tabs.Root defaultValue="mine" lazyMount unmountOnExit>
                         <Tabs.List>
-                            <Tabs.Trigger value="mine" fontSize="15px">My activity</Tabs.Trigger>
+                            <Tabs.Trigger value="mine" fontSize="15px">{t("tabs.myActivity")}</Tabs.Trigger>
                             <IfCan action={PERMISSIONS.POLICIES_READ}>
-                                <Tabs.Trigger value="all" fontSize="15px">All users</Tabs.Trigger>
+                                <Tabs.Trigger value="all" fontSize="15px">{t("tabs.allUsers")}</Tabs.Trigger>
                             </IfCan>
                         </Tabs.List>
                         <Tabs.Content value="mine">
-                            <MyAuthorizationLogSection />
+                            <MyAuthorizationLogSection
+                                extraResourceTypes={extraResourceTypes}
+                                extraActions={extraActions}
+                            />
                         </Tabs.Content>
                         <IfCan action={PERMISSIONS.POLICIES_READ}>
                             <Tabs.Content value="all">
-                                <AllAuthorizationLogSection />
+                                <AllAuthorizationLogSection
+                                    extraResourceTypes={extraResourceTypes}
+                                    extraActions={extraActions}
+                                />
                             </Tabs.Content>
                         </IfCan>
                     </Tabs.Root>
@@ -77,9 +99,9 @@ const AuditLogPage: React.FC = () => {
                 <Tabs.Content value="security">
                     <Tabs.Root defaultValue="mine" lazyMount unmountOnExit>
                         <Tabs.List>
-                            <Tabs.Trigger value="mine" fontSize="15px">My activity</Tabs.Trigger>
+                            <Tabs.Trigger value="mine" fontSize="15px">{t("tabs.myActivity")}</Tabs.Trigger>
                             <IfCan action={PERMISSIONS.SECURITY_AUDIT_READ}>
-                                <Tabs.Trigger value="all" fontSize="15px">All users</Tabs.Trigger>
+                                <Tabs.Trigger value="all" fontSize="15px">{t("tabs.allUsers")}</Tabs.Trigger>
                             </IfCan>
                         </Tabs.List>
                         <Tabs.Content value="mine">

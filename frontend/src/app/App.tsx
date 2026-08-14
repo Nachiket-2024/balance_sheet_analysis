@@ -32,9 +32,13 @@ import { AppLayout, ProtectedRoute, PERMISSIONS, Toaster, useAuthStore, LoadingS
 import { APP_PERMISSIONS } from "./access/permissions";
 
 // order: 15 places Companies between Dashboard (10) and Users (20).
-// extraNavItems is the supported shared-chrome extension point.
+// extraNavItems is the supported shared-chrome extension point. label is a
+// "namespace:key" translation key, not a literal string: Sidebar.tsx
+// resolves it the same way it resolves its own built-in items' labels (see
+// NavItem's own doc comment in mystic_auth/layout/navItems.ts), so this
+// follows the user's chosen language instead of always rendering "Companies".
 const EXTRA_NAV_ITEMS: NavItem[] = [
-    { label: "Companies", to: "/companies", order: 15, permission: APP_PERMISSIONS.COMPANY_READ },
+    { label: "companies:navLabel", to: "/companies", order: 15, permission: APP_PERMISSIONS.COMPANY_READ },
 ];
 
 const App: React.FC = () => {
@@ -112,7 +116,17 @@ const App: React.FC = () => {
                     path="/audit-log"
                     element={
                         // No permission prop: every authenticated user can see
-                        // their own audit trail. AuditLogPage gates "All users".
+                        // their own audit trail (see AuditLogPage's docstring
+                        // for how the "All users" tab is gated separately).
+                        //
+                        // Added your own PBAC resource types or actions for
+                        // your own business domain? Give AuditLogPage
+                        // `extraResourceTypes`/`extraActions` (string[]) so
+                        // they show up in the "Authorization decisions"
+                        // filter dropdowns too, instead of hand-editing
+                        // mystic_auth/audit_log/authorization_log/authorizationLogResourceTypes.ts.
+                        // See
+                        // docs/mystic_auth/template-usage/overview.md#shared-chrome-extension-points.
                         <ProtectedRoute>
                             <AppLayout extraNavItems={EXTRA_NAV_ITEMS}>
                                 <AuditLogPage />

@@ -44,8 +44,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 128M
+          cpus: "1"
+          memory: 256M
 
   postgres:
     image: postgres:15
@@ -70,8 +70,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1"
-          memory: 1G
+          cpus: "2"
+          memory: 2G
 
   redis:
     image: redis:7
@@ -87,8 +87,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 256M
+          cpus: "1"
+          memory: 512M
 
   backend:
     build:
@@ -135,8 +135,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1"
-          memory: 512M
+          cpus: "2"
+          memory: 1G
 
   frontend:
     # Explicit, prod-specific tag. See docker-compose.yml's frontend
@@ -181,8 +181,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 256M
+          cpus: "1"
+          memory: 512M
 
   taskiq_worker:
     build:
@@ -203,6 +203,38 @@ services:
         condition: service_completed_successfully
     # Override the backend image healthcheck. This container serves no HTTP,
     # so check for the taskiq process directly via /proc.
+    healthcheck:
+      test: ["CMD-SHELL", "for p in /proc/[0-9]*/cmdline; do grep -aq taskiq \"$$p\" 2>/dev/null && exit 0; done; exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+
+  # Polls the schedule_source RedisScheduleSource for retries SmartRetryMiddleware
+  # scheduled with a backoff delay, and re-enqueues them onto taskiq_worker's
+  # broker once due. Without this process, retry delay/backoff labels are inert.
+  taskiq_scheduler:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    command: sh -c "taskiq scheduler mystic_auth.taskiq_tasks.email_tasks:scheduler"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "for p in /proc/[0-9]*/cmdline; do grep -aq taskiq \"$$p\" 2>/dev/null && exit 0; done; exit 1"]
       interval: 30s
@@ -315,8 +347,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1"
-          memory: 512M
+          cpus: "2"
+          memory: 1G
 
   # One-shot, idempotent Bugsink project seeder. No restart policy.
   bugsink-seed:

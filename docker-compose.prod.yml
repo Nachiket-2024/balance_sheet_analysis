@@ -204,6 +204,38 @@ services:
           cpus: "1"
           memory: 512M
 
+  # Polls the schedule_source RedisScheduleSource for retries SmartRetryMiddleware
+  # scheduled with a backoff delay, and re-enqueues them onto taskiq_worker's
+  # broker once due. Without this process, retry delay/backoff labels are inert.
+  taskiq_scheduler:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    command: sh -c "taskiq scheduler mystic_auth.taskiq_tasks.email_tasks:scheduler"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "for p in /proc/[0-9]*/cmdline; do grep -aq taskiq \"$$p\" 2>/dev/null && exit 0; done; exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+
   alembic:
     build:
       context: .

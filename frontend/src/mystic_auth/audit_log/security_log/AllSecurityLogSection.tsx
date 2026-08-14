@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Heading, Input } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import Card from "../../ui/Card";
 import DataTable from "../../ui/DataTable";
@@ -9,13 +10,18 @@ import { useSortState } from "../../ui/hooks/useSortState";
 import { usePageResetOn } from "../../ui/hooks/usePageResetOn";
 import { SEARCH_INPUT_PROPS } from "../../ui/styles/inputStyles";
 import { useSecurityAuditLogQuery, useLoginTrendQuery } from "./securityLogQueries";
-import { securityColumns } from "./securityLogColumns";
+import { getSecurityColumns } from "./securityLogColumns";
 import SecurityFilterBar from "./SecurityFilterBar";
 import LoginTrendChart from "./LoginTrendChart";
 import { ALL_VALUE, PAGE_SIZE, toBoolFilter, totalPagesFor } from "../auditLogListConfig";
+import { useLanguageStore } from "../../store/languageStore";
 
 // Same reasoning as AllAuthorizationLogSection.tsx.
 const AllSecurityLogSection: React.FC = () => {
+    const { t } = useTranslation("audit_log");
+    // See AllAuthorizationLogSection.tsx's matching comment: dates/month
+    // names use chromeLanguage, not pageLanguage.
+    const language = useLanguageStore((s) => s.chromeLanguage);
     const [search, setSearch] = useState("");
     const debouncedSearch = useDebouncedValue(search);
     const { sort, toggleSort } = useSortState("created_at");
@@ -41,11 +47,11 @@ const AllSecurityLogSection: React.FC = () => {
     return (
         <>
             <Card p={4} mb={4}>
-                <Heading as="h3" size="md" mb={3}>Login activity</Heading>
+                <Heading as="h3" size="md" mb={3}>{t("security.loginActivity")}</Heading>
                 <LoginTrendChart data={trend.data} isLoading={trend.isLoading} isError={trend.isError} />
             </Card>
             <Input
-                placeholder="Search by user email..."
+                placeholder={t("security.searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 mb={4}
@@ -60,12 +66,12 @@ const AllSecurityLogSection: React.FC = () => {
             />
             <Pagination page={page} totalPages={totalPages} onPageChange={setPage} mb={4} />
             <DataTable
-                columns={securityColumns}
+                columns={getSecurityColumns(t, language)}
                 rows={data?.rows}
                 rowKey={(e) => e.id}
                 isLoading={isLoading}
                 isError={isError}
-                emptyMessage={search ? "No security events match that search" : "No security events match these filters"}
+                emptyMessage={search ? t("security.emptySearch") : t("security.emptyFiltered")}
                 sort={sort}
                 onSortChange={toggleSort}
                 startIndex={(page - 1) * PAGE_SIZE}

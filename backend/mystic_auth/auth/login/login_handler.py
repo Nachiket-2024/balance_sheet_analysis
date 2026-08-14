@@ -24,7 +24,8 @@ class LoginHandler:
         # the same reason; defined once so the two call sites can't drift.
         return JSONResponse(
             content={
-                "error": "Too many failed login attempts, account temporarily locked"
+                "error": "Too many failed login attempts, account temporarily locked",
+                "code": "ACCOUNT_LOCKED",
             },
             status_code=429,
         )
@@ -47,7 +48,7 @@ class LoginHandler:
         try:
             if not email or not password:
                 return JSONResponse(
-                    content={"error": "Email and password are required"},
+                    content={"error": "Email and password are required", "code": "EMAIL_PASSWORD_REQUIRED"},
                     status_code=400,
                 )
 
@@ -112,7 +113,7 @@ class LoginHandler:
 
             if not tokens:
                 return JSONResponse(
-                    content={"error": "Invalid credentials or account locked"},
+                    content={"error": "Invalid credentials or account locked", "code": "INVALID_CREDENTIALS"},
                     status_code=401,
                 )
 
@@ -122,7 +123,7 @@ class LoginHandler:
         except Exception:
             logger.error("Error during login:\n%s", traceback.format_exc())
             return JSONResponse(
-                content={"error": "Internal Server Error"}, status_code=500
+                content={"error": "Internal Server Error", "code": "INTERNAL_SERVER_ERROR"}, status_code=500
             )
 
 

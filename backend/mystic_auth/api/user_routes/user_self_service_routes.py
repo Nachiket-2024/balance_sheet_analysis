@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth.password_logic.password_service import password_service
@@ -8,6 +8,7 @@ from ...auth.token_logic.token_cookie_handler import token_cookie_handler
 from ...auth.token_logic.token_schema import TokenPairResponseSchema
 from ...authorization.dependencies.authorization_dependency import require_authorization
 from ...authorization.permissions import Permission
+from ...core.errors import AppError
 from ...database.connection import database
 from ...user_crud.user_crud_collector import user_crud
 from ...user_crud.user_crud_modules.user_update_payload_preparation import prepare_update_data
@@ -33,7 +34,7 @@ async def get_my_profile(
     db: AsyncSession = Depends(database.get_session)
 ):
     email = current_user["email"]
-    user = await get_or_404(user_crud.get_by_email(email, db), "User not found")
+    user = await get_or_404(user_crud.get_by_email(email, db), "User not found", code="USER_NOT_FOUND")
     return user
 
 
@@ -46,7 +47,7 @@ async def update_my_profile(
     access_token: str = Cookie(None),
 ):
     email = current_user["email"]
-    user = await get_or_404(user_crud.get_by_email(email, db), "User not found")
+    user = await get_or_404(user_crud.get_by_email(email, db), "User not found", code="USER_NOT_FOUND")
 
     # A stolen access-token cookie (e.g. via XSS) is otherwise enough to
     # permanently lock the legitimate owner out by just setting a new
@@ -57,15 +58,17 @@ async def update_my_profile(
         if not update_data.current_password or not await password_service.verify_password(
             update_data.current_password, user.hashed_password
         ):
-            raise HTTPException(
+            raise AppError(
                 status_code=status.HTTP_400_BAD_REQUEST,
+                code="CURRENT_PASSWORD_INCORRECT",
                 detail="Current password is incorrect",
             )
         # Match password reset behavior: no-op password changes should not
         # succeed or revoke sessions.
         if await password_service.verify_password(update_data.password, user.hashed_password):
-            raise HTTPException(
+            raise AppError(
                 status_code=status.HTTP_400_BAD_REQUEST,
+                code="PASSWORD_MUST_DIFFER_FROM_CURRENT",
                 detail="New password must be different from the current password",
             )
 

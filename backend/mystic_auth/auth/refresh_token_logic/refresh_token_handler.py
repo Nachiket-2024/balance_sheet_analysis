@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...auth.refresh_token_logic.refresh_token_service import refresh_token_service
 from ...auth.security.login_protection_service import login_protection_service
 from ...auth.security.rate_limiter_service import rate_limiter_service
+from ...core.errors import AppError
 from ...logging.logging_config import get_logger
 
 # Resolves the real client IP, honoring X-Forwarded-For only from a configured
@@ -30,8 +31,9 @@ class RefreshTokenHandler:
             # "never had a session" from "had one that's now invalid" purely from
             # this response.
             if not refresh_token:
-                raise HTTPException(
+                raise AppError(
                     status_code=401,
+                    code="INVALID_OR_REVOKED_REFRESH_TOKEN",
                     detail="Invalid or revoked refresh token"
                 )
 
@@ -49,15 +51,17 @@ class RefreshTokenHandler:
 
             allowed = await rate_limiter_service.record_request(rate_key)
             if not allowed:
-                raise HTTPException(
+                raise AppError(
                     status_code=429,
+                    code="TOO_MANY_REFRESH_ATTEMPTS",
                     detail="Too many refresh attempts. Try again later."
                 )
 
             is_locked = await login_protection_service.is_locked(lock_key)
             if is_locked:
-                raise HTTPException(
+                raise AppError(
                     status_code=429,
+                    code="TOO_MANY_FAILED_REFRESH_ATTEMPTS",
                     detail="Too many failed refresh attempts. Try later."
                 )
 
@@ -68,8 +72,9 @@ class RefreshTokenHandler:
 
             if not tokens_dict or not tokens_dict.get("access_token"):
                 await login_protection_service.record_failed_attempt(lock_key)
-                raise HTTPException(
+                raise AppError(
                     status_code=401,
+                    code="INVALID_OR_REVOKED_REFRESH_TOKEN",
                     detail="Invalid or revoked refresh token"
                 )
 
@@ -88,7 +93,7 @@ class RefreshTokenHandler:
 
         except Exception as exc:
             logger.error("Error in refresh token handler:\n%s", traceback.format_exc())
-            raise HTTPException(status_code=500, detail="Internal Server Error") from exc
+            raise AppError(status_code=500, code="INTERNAL_SERVER_ERROR", detail="Internal Server Error") from exc
 
 
 refresh_token_handler = RefreshTokenHandler()

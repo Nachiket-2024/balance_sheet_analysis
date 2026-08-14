@@ -1,6 +1,7 @@
 import React from "react";
 import { useSearchParams, useNavigate } from "react-router";
 import { Heading, Text, VStack, Stack, StackSeparator } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import VerifyAccountButton from "./VerifyAccountButton";
 import VerificationEmailRequestForm from "./VerificationEmailRequestForm";
@@ -13,6 +14,7 @@ import Card from "../../ui/Card";
 import AuthLayout from "../../layout/AuthLayout";
 
 const VerifyAccountPage: React.FC = () => {
+    const { t } = useTranslation("auth");
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
 
@@ -29,11 +31,11 @@ const VerifyAccountPage: React.FC = () => {
                 page (Login, Signup, Forgot/Reset Password). */}
             <Card w="450px" maxW="md" p={{ base: 5, md: 7 }} textAlign="center">
                 <Heading size="xl" color="brand.fg" mb={2}>
-                    Verify Your Account
+                    {t("verifyAccountPage.heading")}
                 </Heading>
 
                 <Text fontSize="md" color="fg.muted" mb={6}>
-                    Click the button below to verify your account and activate access.
+                    {t("verifyAccountPage.subtitle")}
                 </Text>
 
                 <Stack
@@ -49,7 +51,7 @@ const VerifyAccountPage: React.FC = () => {
 
                     <VStack w="full" gap={3}>
                         <Text fontSize="md" color="fg.muted">
-                            Link expired or already used?
+                            {t("verifyAccountPage.linkExpired")}
                         </Text>
                         <VerificationEmailRequestForm initialEmail={email} />
                     </VStack>

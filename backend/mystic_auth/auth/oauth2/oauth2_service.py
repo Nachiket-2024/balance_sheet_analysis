@@ -12,7 +12,7 @@ from typing import cast
 import httpx
 from fastapi import Request
 
-from ...authorization.policies.default_policies import SELF_SERVICE_POLICY_NAME
+from ...authorization.policies.default_policies import SELF_SERVICE_POLICY_NAME, assign_app_default_policies
 
 # PBAC: new users get their access via an explicit default policy assignment,
 # never via their (metadata-only) role, see the role-as-metadata invariant. New
@@ -209,6 +209,10 @@ class OAuth2Service:
                         SELF_SERVICE_POLICY_NAME, email,
                     )
 
+                # Verified from the instant it's created (Google already
+                # confirmed the email above), so app defaults apply now too.
+                await assign_app_default_policies(user.id, db)
+
             # Google's confirmed email_verified is equally valid proof of
             # ownership as clicking our own verification email, so a pre-existing
             # unverified account is verified now. See the pre-hijacking note above
@@ -221,6 +225,9 @@ class OAuth2Service:
                 # deletion; role/email are unaffected either way.
                 if updated_user:
                     user = updated_user
+
+                # Just transitioned to verified: same grant as the branch above.
+                await assign_app_default_policies(user.id, db)
 
             # Mirrors login_service.py's same check for password-based login: a
             # deactivated account's tokens would ultimately be rejected by

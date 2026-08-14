@@ -1,0 +1,49 @@
+{
+    "page": {
+        "title": "नीतियां",
+        "description": "उपयोगकर्ताओं को अनुमतियां प्रदान करने वाली एक्सेस-नियंत्रण नीतियां परिभाषित करें और प्रबंधित करें।",
+        "searchPlaceholder": "नाम या संसाधन प्रकार से खोजें...",
+        "createPolicy": "नीति बनाएं",
+        "failedToLoadPolicies": "नीतियां लोड करने में विफल",
+        "noPoliciesMatchSearch": "आपकी खोज से कोई नीति मेल नहीं खाती",
+        "noPoliciesYet": "अभी तक कोई नीति नहीं : अनुमतियां देना शुरू करने के लिए एक बनाएं।",
+        "policyUpdatedToast": "नीति अपडेट की गई",
+        "policyCreatedToast": "नीति बनाई गई",
+        "policyDeletedToast": "नीति हटाई गई",
+        "deleteDialogTitle": "नीति हटाएं",
+        "deleteDialogDescription": "\"{{policyName}}\" हटाएं? इस नीति से निर्धारित किसी भी उपयोगकर्ता को इसके द्वारा दी गई अनुमतियां तुरंत मिलना बंद हो जाएंगी।"
+    },
+    "columns": {
+        "name": "नाम",
+        "resourceType": "संसाधन प्रकार",
+        "actions": "क्रियाएं",
+        "edit": "संपादन"
+    },
+    "formDialog": {
+        "editTitle": "नीति संपादन",
+        "createTitle": "नीति बनाएं",
+        "name": "नाम",
+        "namePlaceholder": "उदा. document_reviewer",
+        "description": "विवरण",
+        "descriptionPlaceholder": "यह नीति क्या देती है और क्यों",
+        "actions": "क्रियाएं",
+        "actionsPlaceholder": "उदा. documents:view, documents:edit",
+        "actionsHelperText": "अल्पविराम से अलग किए गए क्रिया पहचानकर्ता",
+        "resourceType": "संसाधन प्रकार",
+        "resourceTypePlaceholder": "उदा. \"documents\" या किसी के लिए \"*\"",
+        "conditions": "शर्तें (JSON, वैकल्पिक)",
+        "conditionsPlaceholder": "उदा. { \"self_only\": true }",
+        "conditionsInvalidJson": "शर्तें मान्य JSON होनी चाहिए",
+        "saveChanges": "परिवर्तन सेव करें",
+        "createPolicy": "नीति बनाएं",
+        "discardTitle": "असेव किए गए परिवर्तन छोड़ें?",
+        "discardDescription": "इस नीति में आपके परिवर्तन सेव नहीं किए गए हैं। अभी बंद करने से वे छोड़ दिए जाएंगे।",
+        "discard": "छोड़ें"
+    },
+    "statsCard": {
+        "totalPolicies": "कुल नीतियां",
+        "active": "सक्रिय",
+        "distinctActions": "अलग-अलग क्रियाएं",
+        "resourceTypes": "संसाधन प्रकार"
+    }
+}

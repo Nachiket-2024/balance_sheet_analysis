@@ -35,3 +35,17 @@ action for every persona:
    for a shared password at run time); it's a reference for the
    condition/action shape to replicate, not something that runs against a
    real OAuth-created account automatically.
+
+## Alternative: auto-granting a policy on signup
+
+mystic_auth's `DEFAULT_APP_POLICIES` setting (root `.env`, empty by default)
+auto-assigns a comma-separated list of policy names to every user alongside
+`self_service` the moment they verify, skipping the manual per-user
+assignment step above entirely. Not enabled here: this app currently grants
+company access per-user/per-group deliberately (see
+[Overview](overview.md)'s table), which a blanket default would bypass. If a
+future policy shape here is meant to apply to every user unconditionally
+(e.g. a truly org-wide `role_company_viewer`), set `DEFAULT_APP_POLICIES` in
+`.env` instead of assigning it by hand each time. See
+`backend/mystic_auth/core/settings.py`'s `DEFAULT_APP_POLICIES` and
+`authorization/policies/default_policies.py` for the mechanics.

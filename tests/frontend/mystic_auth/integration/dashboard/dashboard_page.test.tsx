@@ -95,7 +95,7 @@ describe('DashboardPage', () => {
     renderDashboard();
 
     await screen.findByText('Test User');
-    expect(screen.getByText('Jan 15, 2026')).toBeInTheDocument();
+    expect(screen.getByText('15 Jan 2026')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
     expect(screen.getByText('Active sessions')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Account Settings/i })).toBeInTheDocument();

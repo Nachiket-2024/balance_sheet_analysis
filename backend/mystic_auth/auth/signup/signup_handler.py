@@ -30,7 +30,10 @@ class SignupHandler:
         try:
             if not name or not email or not password:
                 return JSONResponse(
-                    content={"error": "Name, email, and password are required"},
+                    content={
+                        "error": "Name, email, and password are required",
+                        "code": "NAME_EMAIL_PASSWORD_REQUIRED",
+                    },
                     status_code=400
                 )
 
@@ -40,7 +43,10 @@ class SignupHandler:
             # doesn't reveal anything about other accounts.
             if not await password_service.validate_password_strength(password):
                 return JSONResponse(
-                    content={"error": "Password does not meet minimum strength requirements"},
+                    content={
+                        "error": "Password does not meet minimum strength requirements",
+                        "code": "PASSWORD_TOO_WEAK",
+                    },
                     status_code=400
                 )
 
@@ -69,7 +75,7 @@ class SignupHandler:
         except Exception:
             logger.error("Error during signup logic:\n%s", traceback.format_exc())
             return JSONResponse(
-                content={"error": "Internal Server Error"},
+                content={"error": "Internal Server Error", "code": "INTERNAL_SERVER_ERROR"},
                 status_code=500
             )
 

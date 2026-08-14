@@ -1,5 +1,6 @@
 import React from "react";
 import { SimpleGrid } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import Card from "../ui/Card";
 import StatTile from "../ui/StatTile";
@@ -34,6 +35,7 @@ interface UserStatsCardProps {
 const UserStatsCard: React.FC<UserStatsCardProps> = ({
     onFilterTotal, onFilterVerified, onFilterUnverified, onFilterInactive,
 }) => {
+    const { t } = useTranslation("users");
     const { data, isLoading, isError } = useUserStatsQuery();
 
     if (isError) return null;
@@ -42,20 +44,20 @@ const UserStatsCard: React.FC<UserStatsCardProps> = ({
         <Card p={4} w={{ base: "full", md: "280px" }}>
             <SimpleGrid columns={2} gap={4}>
                 <StatTile
-                    label="Total users" value={data?.total} isLoading={isLoading} onClick={onFilterTotal}
-                    ariaLabel="Filter users: Total users"
+                    label={t("users:statsCard.totalUsers")} value={data?.total} isLoading={isLoading} onClick={onFilterTotal}
+                    ariaLabel={t("users:statsCard.filterTotal")}
                 />
                 <StatTile
-                    label="Verified" value={data?.verified} isLoading={isLoading} color="green.500"
-                    onClick={onFilterVerified} ariaLabel="Filter users: Verified"
+                    label={t("users:statsCard.verified")} value={data?.verified} isLoading={isLoading} color="green.500"
+                    onClick={onFilterVerified} ariaLabel={t("users:statsCard.filterVerified")}
                 />
                 <StatTile
-                    label="Unverified" value={data?.unverified} isLoading={isLoading} color="yellow.500"
-                    onClick={onFilterUnverified} ariaLabel="Filter users: Unverified"
+                    label={t("users:statsCard.unverified")} value={data?.unverified} isLoading={isLoading} color="yellow.500"
+                    onClick={onFilterUnverified} ariaLabel={t("users:statsCard.filterUnverified")}
                 />
                 <StatTile
-                    label="Inactive" value={data?.inactive} isLoading={isLoading} color="red.500"
-                    onClick={onFilterInactive} ariaLabel="Filter users: Inactive"
+                    label={t("users:statsCard.inactive")} value={data?.inactive} isLoading={isLoading} color="red.500"
+                    onClick={onFilterInactive} ariaLabel={t("users:statsCard.filterInactive")}
                 />
             </SimpleGrid>
         </Card>

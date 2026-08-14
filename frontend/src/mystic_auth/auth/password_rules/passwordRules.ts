@@ -38,11 +38,19 @@ export function evaluatePasswordStrength(pwd: string): PasswordStrength {
     return "Strong";
 }
 
-export function validatePassword(pwd: string): string | null {
+/**
+ * `t` is threaded in (rather than this module calling useTranslation itself,
+ * which it can't - it's a plain function, not a component/hook) so callers
+ * reuse their own already-scoped translator. Keys are namespace-qualified
+ * ("auth:...") rather than bare, since callers outside the auth/ folder
+ * (e.g. account_settings/ChangePasswordCard.tsx) pass a `t` scoped to their
+ * own namespace, not "auth".
+ */
+export function validatePassword(pwd: string, t: (key: string) => string): string | null {
     const { lengthRule, upperRule, lowerRule, numberRule } = checkPasswordRules(pwd);
-    if (!lengthRule) return "Password must be at least 8 characters long";
-    if (!upperRule) return "Password must contain at least one uppercase letter";
-    if (!lowerRule) return "Password must contain at least one lowercase letter";
-    if (!numberRule) return "Password must contain at least one number";
+    if (!lengthRule) return t("auth:passwordRules.lengthError");
+    if (!upperRule) return t("auth:passwordRules.upperError");
+    if (!lowerRule) return t("auth:passwordRules.lowerError");
+    if (!numberRule) return t("auth:passwordRules.numberError");
     return null;
 }

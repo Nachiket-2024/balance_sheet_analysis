@@ -32,7 +32,7 @@ class PasswordResetConfirmHandler:
             payload = await self.password_service.verify_reset_token(token)
 
             if not payload or "email" not in payload:
-                return JSONResponse({"error": "Invalid or expired token"}, status_code=400)
+                return JSONResponse({"error": "Invalid or expired token", "code": "INVALID_OR_EXPIRED_RESET_TOKEN"}, status_code=400)
 
             email = payload["email"]
 
@@ -50,20 +50,27 @@ class PasswordResetConfirmHandler:
             )
 
             status = 200 if success else 400
-            content = {"message": "Password has been reset successfully"} if success else {"error": "Invalid token or password"}
+            content = (
+                {"message": "Password has been reset successfully"}
+                if success
+                else {"error": "Invalid token or password", "code": "INVALID_RESET_TOKEN_OR_PASSWORD"}
+            )
 
             allowed = await self.login_protection_service.check_and_record_action(
                 email_lock_key, success=(status == 200)
             )
 
             if not allowed:
-                return JSONResponse({"error": "Too many failed attempts, temporarily locked"}, status_code=429)
+                return JSONResponse(
+                    {"error": "Too many failed attempts, temporarily locked", "code": "ACCOUNT_LOCKED"},
+                    status_code=429,
+                )
 
             return JSONResponse(content, status_code=status)
 
         except Exception:
             logger.error("Error during password reset confirm logic:\n%s", traceback.format_exc())
-            return JSONResponse({"error": "Internal Server Error"}, status_code=500)
+            return JSONResponse({"error": "Internal Server Error", "code": "INTERNAL_SERVER_ERROR"}, status_code=500)
 
 
 password_reset_confirm_handler = PasswordResetConfirmHandler()

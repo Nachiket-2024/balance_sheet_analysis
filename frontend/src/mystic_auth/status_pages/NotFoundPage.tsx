@@ -1,17 +1,19 @@
 import React from "react";
 import { useNavigate } from "react-router";
 import { Flex, Heading, Text, VStack, Button } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import { BRAND_SOLID_HOVER_PROPS } from "../ui/styles/buttonStyles";
 
 const NotFoundPage: React.FC = () => {
+    const { t } = useTranslation("status_pages");
     const navigate = useNavigate();
     return (
         <Flex align="center" justify="center" h="100vh" bg="bg.canvas" px={4} textAlign="center">
             <VStack gap={4}>
                 <Heading color="fg.error" size="2xl">404</Heading>
 
-                <Text fontSize="xl" fontWeight="medium">Oops! Page Not Found</Text>
+                <Text fontSize="xl" fontWeight="medium">{t("notFound.message")}</Text>
 
                 <Button
                     colorPalette="brand"
@@ -20,7 +22,7 @@ const NotFoundPage: React.FC = () => {
                     onClick={() => navigate("/")}
                     {...BRAND_SOLID_HOVER_PROPS}
                 >
-                    Go Home
+                    {t("goHome")}
                 </Button>
             </VStack>
         </Flex>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Button, Dialog, Field, Input, Portal, Stack, Textarea } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import type { PolicyRead } from "../api/policies_api";
 import FormAlert from "../ui/FormAlert";
@@ -52,6 +53,7 @@ const PolicyFormDialog: React.FC<PolicyFormDialogProps> = ({
     onSubmit,
     onClose,
 }) => {
+    const { t } = useTranslation(["policies", "ui_text"]);
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [actionsText, setActionsText] = useState("");
@@ -114,7 +116,7 @@ const PolicyFormDialog: React.FC<PolicyFormDialogProps> = ({
             try {
                 conditions = JSON.parse(conditionsText);
             } catch {
-                setConditionsError("Conditions must be valid JSON");
+                setConditionsError(t("policies:formDialog.conditionsInvalidJson"));
                 return;
             }
         }
@@ -131,59 +133,63 @@ const PolicyFormDialog: React.FC<PolicyFormDialogProps> = ({
 
     return (
         <>
-            <Dialog.Root open={isOpen} onOpenChange={(details) => !details.open && requestClose()}>
+            <Dialog.Root
+                open={isOpen}
+                onOpenChange={(details) => !details.open && requestClose()}
+                closeOnInteractOutside
+            >
                 <Portal>
                     <Dialog.Backdrop {...DIALOG_BACKDROP_PROPS} />
                     <Dialog.Positioner>
                         <Dialog.Content {...DIALOG_CONTENT_PROPS}>
                             <Dialog.Header>
-                                <Dialog.Title>{policy ? "Edit Policy" : "Create Policy"}</Dialog.Title>
+                                <Dialog.Title>{policy ? t("policies:formDialog.editTitle") : t("policies:formDialog.createTitle")}</Dialog.Title>
                             </Dialog.Header>
                             <Dialog.Body>
                                 <Stack as="form" id="policy-form" onSubmit={handleSubmit} gap={4}>
                                     <Field.Root required>
-                                        <Field.Label>Name</Field.Label>
+                                        <Field.Label>{t("policies:formDialog.name")}</Field.Label>
                                         <Input
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
-                                            placeholder="e.g. document_reviewer"
+                                            placeholder={t("policies:formDialog.namePlaceholder")}
                                         />
                                     </Field.Root>
 
                                     <Field.Root>
-                                        <Field.Label>Description</Field.Label>
+                                        <Field.Label>{t("policies:formDialog.description")}</Field.Label>
                                         <Input
                                             value={description}
                                             onChange={(e) => setDescription(e.target.value)}
-                                            placeholder="What this policy grants and why"
+                                            placeholder={t("policies:formDialog.descriptionPlaceholder")}
                                         />
                                     </Field.Root>
 
                                     <Field.Root required>
-                                        <Field.Label>Actions</Field.Label>
+                                        <Field.Label>{t("policies:formDialog.actions")}</Field.Label>
                                         <Input
                                             value={actionsText}
                                             onChange={(e) => setActionsText(e.target.value)}
-                                            placeholder="e.g. documents:view, documents:edit"
+                                            placeholder={t("policies:formDialog.actionsPlaceholder")}
                                         />
-                                        <Field.HelperText>Comma-separated action identifiers</Field.HelperText>
+                                        <Field.HelperText>{t("policies:formDialog.actionsHelperText")}</Field.HelperText>
                                     </Field.Root>
 
                                     <Field.Root required>
-                                        <Field.Label>Resource type</Field.Label>
+                                        <Field.Label>{t("policies:formDialog.resourceType")}</Field.Label>
                                         <Input
                                             value={resourceType}
                                             onChange={(e) => setResourceType(e.target.value)}
-                                            placeholder='e.g. "documents" or "*" for any'
+                                            placeholder={t("policies:formDialog.resourceTypePlaceholder")}
                                         />
                                     </Field.Root>
 
                                     <Field.Root invalid={!!conditionsError}>
-                                        <Field.Label>Conditions (JSON, optional)</Field.Label>
+                                        <Field.Label>{t("policies:formDialog.conditions")}</Field.Label>
                                         <Textarea
                                             value={conditionsText}
                                             onChange={(e) => setConditionsText(e.target.value)}
-                                            placeholder='e.g. { "self_only": true }'
+                                            placeholder={t("policies:formDialog.conditionsPlaceholder")}
                                             rows={4}
                                             fontFamily="mono"
                                         />
@@ -195,17 +201,17 @@ const PolicyFormDialog: React.FC<PolicyFormDialogProps> = ({
                             </Dialog.Body>
                             <Dialog.Footer>
                                 <Button onClick={requestClose} disabled={isSaving} {...SECONDARY_BUTTON_PROPS}>
-                                    Cancel
+                                    {t("ui_text:cancel")}
                                 </Button>
                                 <Button
                                     type="submit"
                                     form="policy-form"
                                     colorPalette="brand"
                                     loading={isSaving}
-                                    loadingText="Saving..."
+                                    loadingText={t("ui_text:saving")}
                                     {...BRAND_SOLID_HOVER_PROPS}
                                 >
-                                    {policy ? "Save changes" : "Create policy"}
+                                    {policy ? t("policies:formDialog.saveChanges") : t("policies:formDialog.createPolicy")}
                                 </Button>
                             </Dialog.Footer>
                             <Dialog.CloseTrigger />
@@ -216,9 +222,9 @@ const PolicyFormDialog: React.FC<PolicyFormDialogProps> = ({
 
             <ConfirmDialog
                 isOpen={showDiscardConfirm}
-                title="Discard unsaved changes?"
-                description="Your edits to this policy haven't been saved. Closing now will discard them."
-                confirmLabel="Discard"
+                title={t("policies:formDialog.discardTitle")}
+                description={t("policies:formDialog.discardDescription")}
+                confirmLabel={t("policies:formDialog.discard")}
                 onConfirm={() => {
                     setShowDiscardConfirm(false);
                     onClose();

@@ -17,6 +17,16 @@ interface AppLayoutProps {
      * docs/mystic_auth/template-usage/overview.md#shared-chrome-extension-points.
      */
     extraNavItems?: NavItem[];
+    /**
+     * App-supplied content for the top bar's action cluster (buttons, icons,
+     * links, ...), rendered to the left of ThemeToggle/LogoutButton. See
+     * Navbar's own docstring for why this is a free-form ReactNode slot
+     * rather than an item list like `extraNavItems`. Pass the same node (or
+     * element) on every route the same way you would `extraNavItems`, so the
+     * top bar doesn't reshape as the user navigates. See
+     * docs/mystic_auth/template-usage/overview.md#shared-chrome-extension-points.
+     */
+    extraNavbarContent?: React.ReactNode;
 }
 
 /**
@@ -25,7 +35,7 @@ interface AppLayoutProps {
  * page component itself stays focused on its own content, not layout
  * chrome.
  */
-const AppLayout: React.FC<AppLayoutProps> = ({ children, extraNavItems }) => {
+const AppLayout: React.FC<AppLayoutProps> = ({ children, extraNavItems, extraNavbarContent }) => {
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
     // Escape closes the off-canvas nav, same as clicking the backdrop:
@@ -53,11 +63,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, extraNavItems }) => {
                     display={{ base: "block", md: "none" }}
                     onClick={() => setMobileNavOpen(false)}
                     aria-hidden="true"
+                    data-testid="mobile-nav-backdrop"
                 />
             )}
 
             <Flex direction="column" flex="1" minW={0}>
-                <Navbar onToggleSidebar={() => setMobileNavOpen((open) => !open)} />
+                <Navbar onToggleSidebar={() => setMobileNavOpen((open) => !open)} extraContent={extraNavbarContent} />
                 <Box as="main" flex="1" p={{ base: 4, md: 8 }} w="full">
                     {children}
                 </Box>

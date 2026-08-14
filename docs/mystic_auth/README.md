@@ -49,7 +49,7 @@ This is the template's own reference documentation, belonging to upstream and no
 
 ## Background Email Delivery
 
-- [Background Email Delivery](background-workers/taskiq.md): Taskiq worker setup, Redis broker behavior, failure handling
+- [Background Email Delivery](background-workers/taskiq.md): Taskiq worker/scheduler setup, Redis broker behavior, backoff retries, failure handling
 
 ---
 
@@ -64,6 +64,12 @@ This is the template's own reference documentation, belonging to upstream and no
 ## Error Monitoring
 
 - [Error Monitoring](error-monitoring/overview.md): enabled-by-default backend/frontend error reporting via the Sentry SDK protocol; self-hosted Bugsink quickstart and what gets reported
+
+---
+
+## Translations
+
+- [Translations Overview](translations/overview.md): supported languages (English, Hindi, Marathi, Gujarati) and mixed English-chrome modes, translation-store architecture, step-by-step tutorial for adding a new language
 
 ---
 

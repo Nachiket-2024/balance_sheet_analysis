@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...audit_log.audit_log_service import USER_ROLE_CHANGED, log_security_event
@@ -20,6 +20,7 @@ from ...authorization.dependencies.authorization_dependency import require_autho
 # static role-permission helpers.
 from ...authorization.permissions import Permission
 from ...authorization.services.authorization_service import authorization_service
+from ...core.errors import AppError
 from ...database.connection import database
 from ...emails.email_normalization import normalize_email
 from ...user_crud.user_crud_collector import user_crud
@@ -51,14 +52,15 @@ async def update_any_user(
     db: AsyncSession = Depends(database.get_session)
 ):
     user_email = normalize_email(user_email)
-    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
+    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
 
     # UserUpdate allows setting `password`, so without this guard anyone with
     # users:update_any could overwrite the system superuser's password and log
     # in as it.
     if user.role == UserRole.system:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="SYSTEM_USER_CANNOT_BE_MODIFIED",
             detail="System user cannot be modified"
         )
 
@@ -67,8 +69,9 @@ async def update_any_user(
         and user.hashed_password is not None
         and await password_service.verify_password(update_data.password, user.hashed_password)
     ):
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_400_BAD_REQUEST,
+            code="PASSWORD_MUST_DIFFER_FROM_CURRENT",
             detail="New password must be different from the current password",
         )
 
@@ -92,11 +95,12 @@ async def update_user_role(
     db: AsyncSession = Depends(database.get_session)
 ):
     user_email = normalize_email(user_email)
-    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
+    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
 
     if user.role == UserRole.system:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="SYSTEM_USER_ROLE_CANNOT_BE_CHANGED",
             detail="System user role cannot be changed"
         )
 

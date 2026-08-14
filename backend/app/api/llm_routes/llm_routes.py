@@ -34,7 +34,7 @@ async def chat(
     every request costs a real Groq API call; without this, one caller
     could run up API costs or exhaust the Groq rate limit for everyone.
     """
-    company = await get_or_404(get_company_by_id(payload.company_id, db), "Company not found")
+    company = await get_or_404(get_company_by_id(payload.company_id, db), "Company not found", code="COMPANY_NOT_FOUND")
 
     await authorization_service.require(
         current_user["email"],

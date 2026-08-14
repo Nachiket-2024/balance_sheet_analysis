@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { extractApiErrorMessage } from '@/api/apiError';
 
@@ -43,5 +43,25 @@ describe('extractApiErrorMessage', () => {
 
   it('falls back when the response body has neither error nor detail', () => {
     expect(extractApiErrorMessage(makeAxiosError({ message: 'something else' }), 'fallback')).toBe('fallback');
+  });
+
+  describe('when code has no matching translations entry', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('still returns the raw English detail instead of a blank/broken message', () => {
+      expect(
+        extractApiErrorMessage(makeAxiosError({ detail: 'Some new error', code: 'SOME_UNMAPPED_CODE' }), 'fallback')
+      ).toBe('Some new error');
+    });
+
+    it('logs a console.error so the missing translation is caught in development', () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      extractApiErrorMessage(makeAxiosError({ detail: 'Some new error', code: 'SOME_UNMAPPED_CODE' }), 'fallback');
+
+      expect(spy).toHaveBeenCalledWith(expect.stringContaining('SOME_UNMAPPED_CODE'));
+    });
   });
 });

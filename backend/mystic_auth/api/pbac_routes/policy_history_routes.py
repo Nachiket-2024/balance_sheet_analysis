@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...authorization.conditions.condition_validator import ConditionValidationError, validate_conditions
@@ -16,6 +16,7 @@ from ...authorization.schemas.policy_history_schema import (
 )
 from ...authorization.schemas.policy_schema import PolicyRead
 from ...authorization.services.authorization_service import authorization_service
+from ...core.errors import AppError
 from ...database.connection import database
 from ..get_or_404.get_or_404 import get_or_404
 
@@ -67,11 +68,18 @@ async def compare_policy_history(
 
     for entry, label in ((from_entry, "from_id"), (to_entry, "to_id")):
         if not entry:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"History entry for '{label}' not found")
+            raise AppError(
+                status_code=status.HTTP_404_NOT_FOUND,
+                code="HISTORY_ENTRY_NOT_FOUND",
+                detail=f"History entry for '{label}' not found",
+                params={"field": label},
+            )
         if entry.policy_name != policy_name:
-            raise HTTPException(
+            raise AppError(
                 status_code=status.HTTP_400_BAD_REQUEST,
+                code="HISTORY_ENTRY_POLICY_MISMATCH",
                 detail=f"History entry {entry.id} belongs to policy '{entry.policy_name}', not '{policy_name}'",
+                params={"entryId": entry.id, "entryPolicyName": entry.policy_name, "policyName": policy_name},
             )
 
     from_definition = _definition_for_entry(from_entry)
@@ -126,29 +134,39 @@ async def rollback_policy(
     re-grant a more powerful set of actions than update_policy would ever let
     the caller assign directly.
     """
-    policy = await get_or_404(policy_repository.get_by_name(policy_name, db), "Policy not found")
+    policy = await get_or_404(policy_repository.get_by_name(policy_name, db), "Policy not found", code="POLICY_NOT_FOUND")
 
     history_entry = await policy_history_repository.get_by_id(history_id, db)
     if not history_entry or history_entry.policy_name != policy_name:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="History entry not found for this policy")
+        raise AppError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="HISTORY_ENTRY_NOT_FOUND_FOR_POLICY",
+            detail="History entry not found for this policy",
+        )
 
     target_definition = _definition_for_entry(history_entry)
 
     try:
         validate_conditions((target_definition or {}).get("conditions"))
     except ConditionValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.errors) from exc
+        raise AppError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, code="INVALID_CONDITIONS", detail=exc.errors
+        ) from exc
 
     if policy.name in PROTECTED_POLICY_NAMES and (target_definition or {}).get("name") != policy.name:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="BASELINE_POLICY_CANNOT_BE_RENAMED",
             detail=f"Baseline policy '{policy.name}' cannot be renamed",
+            params={"policyName": policy.name},
         )
 
     if policy.name in PROTECTED_POLICY_NAMES and (target_definition or {}).get("is_active") is False:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="BASELINE_POLICY_CANNOT_BE_DEACTIVATED",
             detail=f"Baseline policy '{policy.name}' cannot be deactivated",
+            params={"policyName": policy.name},
         )
 
     await authorization_service.assert_authorized_to_grant(

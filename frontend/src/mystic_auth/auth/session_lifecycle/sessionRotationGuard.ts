@@ -19,20 +19,50 @@
  *
  * Deliberately narrow: only gates the interceptor's *last-resort* fallback
  * (see its own comment), never suppresses a 401 that's genuinely terminal -
- * once the tracked request settles, a still-failing refresh is treated as
+ * once the tracked request settles (plus a short grace window, see
+ * RECENTLY_ROTATED_GRACE_MS below), a still-failing refresh is treated as
  * real.
  */
 let pendingRotation: Promise<unknown> | null = null;
+let rotationSettledAt: number | null = null;
+
+// The rotating request settling only means ITS OWN response (and therefore
+// its Set-Cookie headers) has landed - it says nothing about any OTHER
+// request that was independently in flight at the same time (a background
+// poll, a sidebar permissions fetch, ...) using the same old cookies. That
+// request's own 401 can still be working its way back from the server a
+// few ticks after the rotation itself resolved, purely due to normal
+// network/scheduling jitter, not because the session actually died. Without
+// this grace window, such a straggler finds pendingRotation already cleared
+// and falls straight through to "session expired" even though a plain
+// retry (cookies are already fresh by then) would have succeeded.
+const RECENTLY_ROTATED_GRACE_MS = 3000;
 
 export function trackSessionRotatingRequest<T>(request: Promise<T>): Promise<T> {
     const tracked = request.catch(() => undefined);
     pendingRotation = tracked;
     tracked.finally(() => {
         if (pendingRotation === tracked) pendingRotation = null;
+        rotationSettledAt = Date.now();
     });
     return request;
 }
 
 export function getPendingSessionRotation(): Promise<unknown> | null {
     return pendingRotation;
+}
+
+/** True while a rotation is in flight, or settled recently enough that a
+ * fresh 401 might just be a straggler request that lost the race against
+ * it (see RECENTLY_ROTATED_GRACE_MS above). */
+export function wasSessionRecentlyRotated(): boolean {
+    if (pendingRotation) return true;
+    return rotationSettledAt !== null && Date.now() - rotationSettledAt < RECENTLY_ROTATED_GRACE_MS;
+}
+
+/** Test-only: clears tracked rotation state between test cases so one
+ * test's tracked rotation can't leak its grace window into the next. */
+export function resetSessionRotationGuardForTests(): void {
+    pendingRotation = null;
+    rotationSettledAt = null;
 }

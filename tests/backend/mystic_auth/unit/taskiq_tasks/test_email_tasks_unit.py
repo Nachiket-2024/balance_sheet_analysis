@@ -1,12 +1,12 @@
 # tests/backend/mystic_auth/unit/test_email_tasks_unit.py
 #
 # Regression guard for email delivery reliability: send_email_task previously
-# caught every exception and returned False, which SimpleRetryMiddleware
+# caught every exception and returned False, which the retry middleware
 # never sees (it only reacts to a raised exception) : so a transient SMTP
 # failure silently dropped the email with no retry. The fix makes the task
-# raise on failure (after logging) so the middleware can re-enqueue it, up
-# to max_retries, while every attempt still leaves a full traceback in the
-# logs.
+# raise on failure (after logging) so the middleware can schedule a
+# re-enqueue, up to max_retries, while every attempt still leaves a full
+# traceback in the logs.
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -16,7 +16,7 @@ from backend.mystic_auth.taskiq_tasks.email_tasks import (
     send_email_task,
 )
 from redis.exceptions import ConnectionError, ResponseError
-from taskiq import SimpleRetryMiddleware
+from taskiq import SmartRetryMiddleware
 
 MODULE = "backend.mystic_auth.taskiq_tasks.email_tasks"
 
@@ -45,7 +45,13 @@ async def test_send_email_task_logs_and_reraises_on_send_failure(mocker):
 
 
 def test_broker_has_retry_middleware_configured():
-    assert any(isinstance(m, SimpleRetryMiddleware) for m in broker.middlewares)
+    assert any(isinstance(m, SmartRetryMiddleware) for m in broker.middlewares)
+
+
+def test_broker_retry_middleware_uses_backoff_schedule_source():
+    retry_middleware = next(m for m in broker.middlewares if isinstance(m, SmartRetryMiddleware))
+    assert retry_middleware.schedule_source is not None
+    assert retry_middleware.use_delay_exponent is True
 
 
 def test_send_email_task_is_labeled_to_retry_on_error():

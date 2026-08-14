@@ -69,6 +69,7 @@ const StyledSelect: React.FC<StyledSelectProps> = ({
                     _hover={{ borderColor: "gray.600" }}
                     _focusVisible={{ borderColor: "brand.solid", boxShadow: "0 0 0 1px var(--chakra-colors-brand-solid)" }}
                     _dark={{ borderColor: "gray.600", _hover: { borderColor: "gray.400" } }}
+                    transition="border-color 0.1s ease, box-shadow 0.1s ease"
                 >
                     <Select.ValueText />
                     <Select.IndicatorGroup>

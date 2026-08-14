@@ -23,7 +23,7 @@ class LogoutHandler:
         try:
             if not refresh_token:
                 return JSONResponse(
-                    content={"error": "No refresh token cookie found"},
+                    content={"error": "No refresh token cookie found", "code": "NO_REFRESH_TOKEN_COOKIE"},
                     status_code=400
                 )
 
@@ -66,7 +66,7 @@ class LogoutHandler:
         except Exception:
             logger.error("Error during logout logic:\n%s", traceback.format_exc())
             return JSONResponse(
-                content={"error": "Internal Server Error"},
+                content={"error": "Internal Server Error", "code": "INTERNAL_SERVER_ERROR"},
                 status_code=500
             )
 

@@ -38,6 +38,9 @@ frontend/
     companies/          list/detail pages + react-query hooks (companyQueries.ts)
     balance-sheets/      chart + table + import/delete UI + react-query hooks
     llm/                chat widget
+    translations/        this app's own i18n namespaces (companies, balance_sheets, llm,
+                        errors), registered into mystic_auth's shared i18next instance
+                        (see translations.md)
     App.tsx             THIS app's routing: mounts mystic_auth's auth pages/layout plus
                         this app's own routes, and renders mystic_auth's own DashboardPage
                         directly at "/dashboard" (see sdk-and-extension-points.md)
@@ -49,3 +52,4 @@ See [Features](../features.md) for the LLM chat and yfinance-import implementati
 
 - [Conventions](conventions.md): why routes/API clients/access code are split the way they are
 - [SDK and Extension Points](sdk-and-extension-points.md): the `sdk`/`app_sdk` split, and how the sidebar/dashboard extend mystic_auth's shared chrome without editing it
+- [Translations](translations.md): how this app's UI text and error codes are translated into mystic_auth's four supported languages without editing any upstream-owned file

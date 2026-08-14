@@ -1,0 +1,49 @@
+{
+    "page": {
+        "title": "धोरणे",
+        "description": "वापरकर्त्यांना परवानग्या देणारी प्रवेश-नियंत्रण धोरणे परिभाषित करा आणि व्यवस्थापित करा.",
+        "searchPlaceholder": "नाव किंवा संसाधन प्रकाराने शोधा...",
+        "createPolicy": "धोरण तयार करा",
+        "failedToLoadPolicies": "धोरणे लोड करण्यात अयशस्वी",
+        "noPoliciesMatchSearch": "तुमच्या शोधाशी कोणतेही धोरण जुळत नाही",
+        "noPoliciesYet": "अद्याप कोणतेही धोरण नाही : परवानग्या देणे सुरू करण्यासाठी एक तयार करा.",
+        "policyUpdatedToast": "धोरण अद्यतनित केले",
+        "policyCreatedToast": "धोरण तयार केले",
+        "policyDeletedToast": "धोरण काढून टाकले",
+        "deleteDialogTitle": "धोरण काढा",
+        "deleteDialogDescription": "\"{{policyName}}\" काढून टाकायचे? या धोरणासह नियुक्त केलेल्या कोणत्याही वापरकर्त्याला त्याद्वारे मिळालेल्या परवानग्या लगेच काढून घेतल्या जातील."
+    },
+    "columns": {
+        "name": "नाव",
+        "resourceType": "संसाधन प्रकार",
+        "actions": "क्रिया",
+        "edit": "संपादन"
+    },
+    "formDialog": {
+        "editTitle": "धोरण संपादन",
+        "createTitle": "धोरण तयार करा",
+        "name": "नाव",
+        "namePlaceholder": "उदा. document_reviewer",
+        "description": "वर्णन",
+        "descriptionPlaceholder": "हे धोरण काय देते आणि का",
+        "actions": "क्रिया",
+        "actionsPlaceholder": "उदा. documents:view, documents:edit",
+        "actionsHelperText": "स्वल्पविरामाने वेगळे केलेले क्रिया ओळखकर्ते",
+        "resourceType": "संसाधन प्रकार",
+        "resourceTypePlaceholder": "उदा. \"documents\" किंवा कोणत्याहीसाठी \"*\"",
+        "conditions": "अटी (JSON, ऐच्छिक)",
+        "conditionsPlaceholder": "उदा. { \"self_only\": true }",
+        "conditionsInvalidJson": "अटी वैध JSON असाव्यात",
+        "saveChanges": "बदल जतन करा",
+        "createPolicy": "धोरण तयार करा",
+        "discardTitle": "जतन न केलेले बदल रद्द करायचे?",
+        "discardDescription": "या धोरणातील तुमचे बदल जतन केलेले नाहीत. आत्ता बंद केल्यास ते रद्द होतील.",
+        "discard": "रद्द करा"
+    },
+    "statsCard": {
+        "totalPolicies": "एकूण धोरणे",
+        "active": "सक्रिय",
+        "distinctActions": "वेगवेगळ्या क्रिया",
+        "resourceTypes": "संसाधन प्रकार"
+    }
+}

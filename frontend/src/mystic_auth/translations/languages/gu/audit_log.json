@@ -1,0 +1,69 @@
+{
+    "page": {
+        "title": "ઓડિટ લોગ",
+        "description": "ઓથોરાઇઝેશન નિર્ણયો અને સુરક્ષા ઘટનાઓ."
+    },
+    "tabs": {
+        "authorizationDecisions": "ઓથોરાઇઝેશન નિર્ણયો",
+        "securityEvents": "સુરક્ષા ઘટનાઓ",
+        "myActivity": "મારી પ્રવૃત્તિ",
+        "allUsers": "બધા વપરાશકર્તાઓ"
+    },
+    "authorization": {
+        "results": {
+            "allowed": "મંજૂર",
+            "denied": "નકારેલ"
+        },
+        "filterBar": {
+            "filterByAction": "ક્રિયા દ્વારા ફિલ્ટર કરો",
+            "allActions": "બધી ક્રિયાઓ",
+            "filterByResourceType": "સંસાધન પ્રકાર દ્વારા ફિલ્ટર કરો",
+            "allResources": "બધા સંસાધનો",
+            "filterByResult": "પરિણામ દ્વારા ફિલ્ટર કરો",
+            "allResults": "બધા પરિણામો"
+        },
+        "columns": {
+            "when": "ક્યારે",
+            "user": "વપરાશકર્તા",
+            "action": "ક્રિયા",
+            "resource": "સંસાધન",
+            "result": "પરિણામ"
+        },
+        "searchPlaceholder": "વપરાશકર્તા ઈમેલ દ્વારા શોધો...",
+        "emptyFiltered": "આ ફિલ્ટર્સ સાથે કોઈ ઓથોરાઇઝેશન નિર્ણય મેળ ખાતો નથી",
+        "emptySearch": "તે શોધ સાથે કોઈ ઓથોરાઇઝેશન નિર્ણય મેળ ખાતો નથી"
+    },
+    "security": {
+        "results": {
+            "success": "સફળ",
+            "failed": "નિષ્ફળ"
+        },
+        "filterBar": {
+            "filterByEvent": "ઘટના દ્વારા ફિલ્ટર કરો",
+            "allEvents": "બધી ઘટનાઓ",
+            "filterByIpPlaceholder": "IP દ્વારા ફિલ્ટર કરો...",
+            "filterByIpAddress": "IP સરનામા દ્વારા ફિલ્ટર કરો",
+            "filterByResult": "પરિણામ દ્વારા ફિલ્ટર કરો",
+            "allResults": "બધા પરિણામો"
+        },
+        "columns": {
+            "when": "ક્યારે",
+            "user": "વપરાશકર્તા",
+            "unknownUser": "અજ્ઞાત વપરાશકર્તા",
+            "event": "ઘટના",
+            "ip": "IP",
+            "unknownIp": "અજ્ઞાત",
+            "result": "પરિણામ"
+        },
+        "searchPlaceholder": "વપરાશકર્તા ઈમેલ દ્વારા શોધો...",
+        "emptyFiltered": "આ ફિલ્ટર્સ સાથે કોઈ સુરક્ષા ઘટના મેળ ખાતી નથી",
+        "emptySearch": "તે શોધ સાથે કોઈ સુરક્ષા ઘટના મેળ ખાતી નથી",
+        "loginActivity": "લોગિન પ્રવૃત્તિ",
+        "failedToLoadTrend": "લોગિન ટ્રેન્ડ લોડ કરવામાં નિષ્ફળ",
+        "successCount": "સફળ ({{count}})",
+        "failedCount": "નિષ્ફળ ({{count}})",
+        "chartAriaLabel": "છેલ્લા {{days}} દિવસમાં દૈનિક લોગિન પ્રયાસો: {{success}} સફળ થયા, {{failure}} નિષ્ફળ ગયા",
+        "successLabel": "સફળ:",
+        "failedLabel": "નિષ્ફળ:"
+    }
+}

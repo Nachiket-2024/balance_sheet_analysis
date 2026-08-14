@@ -48,7 +48,7 @@ async def check_user_authorization(
     for operators, not a real access decision, so there is nothing
     to forge: no actual authorization outcome depends on it.
     """
-    await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
+    await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
 
     decision = await authorization_service.authorize_detailed(
         user_email, check.action, check.resource_type, db,

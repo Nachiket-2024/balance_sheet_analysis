@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ChakraProvider, defaultSystem } from '@chakra-ui/react';
 
@@ -74,5 +74,20 @@ describe('ConfirmDialog', () => {
     renderDialog({ isLoading: true });
 
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  });
+
+  it('calls onCancel when clicking the backdrop behind the dialog', async () => {
+    const { onCancel } = renderDialog();
+
+    // The rest of the page is made inert while the dialog is open, so the
+    // backdrop is the only "background" surface a click can actually land
+    // on - clicking it is equivalent to clicking anywhere outside the
+    // dialog. The outside-click listener attaches on a deferred timer, so
+    // give it a tick before clicking.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    await userEvent.click(document.querySelector('[data-part="backdrop"]') as HTMLElement);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+
+    expect(onCancel).toHaveBeenCalledOnce();
   });
 });

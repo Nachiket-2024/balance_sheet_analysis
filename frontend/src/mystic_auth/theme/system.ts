@@ -56,13 +56,16 @@ const config: SystemConfig = {
                 // Page/app surfaces
                 "bg.canvas": { value: { _light: "{colors.gray.100}", _dark: "{colors.gray.900}" } },
                 "bg.surface": { value: { _light: "white", _dark: "{colors.gray.800}" } },
-                "border.default": { value: { _light: "{colors.gray.200}", _dark: "{colors.gray.700}" } },
+                // One step darker/lighter than Chakra's stock gray.200/gray.700: those blended
+                // into bg.surface/bg.canvas closely enough that table borders, card outlines,
+                // and dividers were barely visible in either color mode.
+                "border.default": { value: { _light: "{colors.gray.300}", _dark: "{colors.gray.600}" } },
                 // Overrides Chakra's own global `border` token (used by Input/Textarea/Select's
                 // outline variant, not just our own `border.default` above). Its stock dark value
                 // is gray.800, identical to bg.surface's dark value, so every form field's border
                 // was invisible against the card behind it. Same value as border.default above,
                 // just under the key Chakra's built-in recipes actually consume.
-                border: { value: { _light: "{colors.gray.200}", _dark: "{colors.gray.700}" } },
+                border: { value: { _light: "{colors.gray.300}", _dark: "{colors.gray.600}" } },
                 // Text
                 "fg.default": { value: { _light: "{colors.gray.700}", _dark: "{colors.gray.100}" } },
                 "fg.muted": { value: { _light: "{colors.gray.500}", _dark: "{colors.gray.400}" } },

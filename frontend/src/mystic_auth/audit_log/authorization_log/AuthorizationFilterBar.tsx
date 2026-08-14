@@ -1,5 +1,6 @@
 import React from "react";
 import { HStack } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import StyledSelect from "../../ui/StyledSelect";
 import { PERMISSIONS } from "../../authorization/permissions";
@@ -13,6 +14,16 @@ interface AuthorizationFilterBarProps {
     setResourceType: (v: string) => void;
     allowed: string;
     setAllowed: (v: string) => void;
+    /**
+     * Resource types beyond this app's own AUTHORIZATION_RESOURCE_TYPES,
+     * for downstream projects that extend the PBAC resource vocabulary
+     * for their own business domain (see authorizationLogResourceTypes.ts's
+     * docstring). Appended after the built-ins; omitting it renders the
+     * dropdown exactly as before this prop existed.
+     */
+    extraResourceTypes?: string[];
+    /** Same idea as extraResourceTypes, for actions beyond PERMISSIONS. */
+    extraActions?: string[];
 }
 
 /**
@@ -25,42 +36,49 @@ interface AuthorizationFilterBarProps {
  */
 const AuthorizationFilterBar: React.FC<AuthorizationFilterBarProps> = ({
     action, setAction, resourceType, setResourceType, allowed, setAllowed,
-}) => (
-    <HStack gap={3} mb={4} wrap="wrap">
-        <StyledSelect
-            w="220px"
-            ariaLabel="Filter by action"
-            value={action}
-            onChange={setAction}
-            options={[
-                { value: ALL_VALUE, label: "All actions" },
-                ...Object.values(PERMISSIONS).map((value) => ({ value, label: value })),
-            ]}
-        />
+    extraResourceTypes, extraActions,
+}) => {
+    const { t } = useTranslation("audit_log");
 
-        <StyledSelect
-            w="160px"
-            ariaLabel="Filter by resource type"
-            value={resourceType}
-            onChange={setResourceType}
-            options={[
-                { value: ALL_VALUE, label: "All resources" },
-                ...AUTHORIZATION_RESOURCE_TYPES.map((value) => ({ value, label: value })),
-            ]}
-        />
+    return (
+        <HStack gap={3} mb={4} wrap="wrap">
+            <StyledSelect
+                w="220px"
+                ariaLabel={t("authorization.filterBar.filterByAction")}
+                value={action}
+                onChange={setAction}
+                options={[
+                    { value: ALL_VALUE, label: t("authorization.filterBar.allActions") },
+                    ...Object.values(PERMISSIONS).map((value) => ({ value, label: value })),
+                    ...(extraActions ?? []).map((value) => ({ value, label: value })),
+                ]}
+            />
 
-        <StyledSelect
-            w="140px"
-            ariaLabel="Filter by result"
-            value={allowed}
-            onChange={setAllowed}
-            options={[
-                { value: ALL_VALUE, label: "All results" },
-                { value: "true", label: "Allowed" },
-                { value: "false", label: "Denied" },
-            ]}
-        />
-    </HStack>
-);
+            <StyledSelect
+                w="160px"
+                ariaLabel={t("authorization.filterBar.filterByResourceType")}
+                value={resourceType}
+                onChange={setResourceType}
+                options={[
+                    { value: ALL_VALUE, label: t("authorization.filterBar.allResources") },
+                    ...AUTHORIZATION_RESOURCE_TYPES.map((value) => ({ value, label: value })),
+                    ...(extraResourceTypes ?? []).map((value) => ({ value, label: value })),
+                ]}
+            />
+
+            <StyledSelect
+                w="140px"
+                ariaLabel={t("authorization.filterBar.filterByResult")}
+                value={allowed}
+                onChange={setAllowed}
+                options={[
+                    { value: ALL_VALUE, label: t("authorization.filterBar.allResults") },
+                    { value: "true", label: t("authorization.results.allowed") },
+                    { value: "false", label: t("authorization.results.denied") },
+                ]}
+            />
+        </HStack>
+    );
+};
 
 export default AuthorizationFilterBar;

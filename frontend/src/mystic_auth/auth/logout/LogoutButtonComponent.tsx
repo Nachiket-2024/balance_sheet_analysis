@@ -1,5 +1,8 @@
 import React from "react";
 import { Button, Text, Stack } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
+
+import { DESTRUCTIVE_SOLID_HOVER_PROPS } from "../../ui/styles/buttonStyles";
 
 interface LogoutButtonComponentProps {
     loading: boolean;
@@ -14,20 +17,22 @@ const LogoutButtonComponent: React.FC<LogoutButtonComponentProps> = ({
     successMessage,
     onLogout,
 }) => {
+    const { t } = useTranslation("auth");
+
     return (
         <Stack align="center">
             <Button
                 onClick={onLogout}
                 loading={loading}
-                loadingText="Logging out..."
+                loadingText={t("logout.loggingOut")}
                 bg="red.600"
-                _hover={{ bg: "red.700" }}
+                {...DESTRUCTIVE_SOLID_HOVER_PROPS}
                 color="white"
                 size="lg"
                 w="160px"
                 h="40px"
             >
-                Logout
+                {t("logout.logoutButton")}
             </Button>
 
             {error && (

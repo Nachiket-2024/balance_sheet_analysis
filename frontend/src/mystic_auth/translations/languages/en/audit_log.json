@@ -1,0 +1,69 @@
+{
+    "page": {
+        "title": "Audit Log",
+        "description": "Authorization decisions and security events."
+    },
+    "tabs": {
+        "authorizationDecisions": "Authorization decisions",
+        "securityEvents": "Security events",
+        "myActivity": "My activity",
+        "allUsers": "All users"
+    },
+    "authorization": {
+        "results": {
+            "allowed": "Allowed",
+            "denied": "Denied"
+        },
+        "filterBar": {
+            "filterByAction": "Filter by action",
+            "allActions": "All actions",
+            "filterByResourceType": "Filter by resource type",
+            "allResources": "All resources",
+            "filterByResult": "Filter by result",
+            "allResults": "All results"
+        },
+        "columns": {
+            "when": "When",
+            "user": "User",
+            "action": "Action",
+            "resource": "Resource",
+            "result": "Result"
+        },
+        "searchPlaceholder": "Search by user email...",
+        "emptyFiltered": "No authorization decisions match these filters",
+        "emptySearch": "No authorization decisions match that search"
+    },
+    "security": {
+        "results": {
+            "success": "Success",
+            "failed": "Failed"
+        },
+        "filterBar": {
+            "filterByEvent": "Filter by event",
+            "allEvents": "All events",
+            "filterByIpPlaceholder": "Filter by IP...",
+            "filterByIpAddress": "Filter by IP address",
+            "filterByResult": "Filter by result",
+            "allResults": "All results"
+        },
+        "columns": {
+            "when": "When",
+            "user": "User",
+            "unknownUser": "Unknown user",
+            "event": "Event",
+            "ip": "IP",
+            "unknownIp": "Unknown",
+            "result": "Result"
+        },
+        "searchPlaceholder": "Search by user email...",
+        "emptyFiltered": "No security events match these filters",
+        "emptySearch": "No security events match that search",
+        "loginActivity": "Login activity",
+        "failedToLoadTrend": "Failed to load login trend",
+        "successCount": "Success ({{count}})",
+        "failedCount": "Failed ({{count}})",
+        "chartAriaLabel": "Daily login attempts over the last {{days}} days: {{success}} succeeded, {{failure}} failed",
+        "successLabel": "Success:",
+        "failedLabel": "Failed:"
+    }
+}

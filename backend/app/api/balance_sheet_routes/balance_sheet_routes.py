@@ -36,7 +36,7 @@ async def list_company_balance_sheets(
     problem statement. Access-checked against this specific company (a
     single resource, not a list to filter), unlike company_routes'
     list_companies, which filters across many companies at once."""
-    company = await get_or_404(get_company_by_id(company_id, db), "Company not found")
+    company = await get_or_404(get_company_by_id(company_id, db), "Company not found", code="COMPANY_NOT_FOUND")
     await authorization_service.require(
         current_user["email"],
         BALANCE_SHEET_READ,
@@ -54,7 +54,7 @@ async def get_company_balance_sheet(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(database.get_session),
 ):
-    company = await get_or_404(get_company_by_id(company_id, db), "Company not found")
+    company = await get_or_404(get_company_by_id(company_id, db), "Company not found", code="COMPANY_NOT_FOUND")
     await authorization_service.require(
         current_user["email"],
         BALANCE_SHEET_READ,
@@ -62,7 +62,9 @@ async def get_company_balance_sheet(
         db,
         resource=resource_scope_dict(company.id, company.group_root_id),
     )
-    return await get_or_404(get_balance_sheet(company_id, year, db), "Balance sheet not found")
+    return await get_or_404(
+        get_balance_sheet(company_id, year, db), "Balance sheet not found", code="BALANCE_SHEET_NOT_FOUND"
+    )
 
 
 @router.post("/{company_id}/{year}", response_model=BalanceSheetResponse, status_code=status.HTTP_201_CREATED)
@@ -83,7 +85,7 @@ async def create_company_balance_sheet(
     Rate-limited (per-IP and per-account) since each import is a real
     outbound call to yfinance; without this, one caller could hammer
     yfinance through this endpoint."""
-    company = await get_or_404(get_company_by_id(company_id, db), "Company not found")
+    company = await get_or_404(get_company_by_id(company_id, db), "Company not found", code="COMPANY_NOT_FOUND")
     await authorization_service.require(
         current_user["email"],
         BALANCE_SHEET_IMPORT,
@@ -106,7 +108,7 @@ async def delete_company_balance_sheet(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(database.get_session),
 ):
-    company = await get_or_404(get_company_by_id(company_id, db), "Company not found")
+    company = await get_or_404(get_company_by_id(company_id, db), "Company not found", code="COMPANY_NOT_FOUND")
     await authorization_service.require(
         current_user["email"],
         BALANCE_SHEET_DELETE,
@@ -114,5 +116,7 @@ async def delete_company_balance_sheet(
         db,
         resource=resource_scope_dict(company.id, company.group_root_id),
     )
-    balance_sheet = await get_or_404(get_balance_sheet(company_id, year, db), "Balance sheet not found")
+    balance_sheet = await get_or_404(
+        get_balance_sheet(company_id, year, db), "Balance sheet not found", code="BALANCE_SHEET_NOT_FOUND"
+    )
     await delete_balance_sheet_row(balance_sheet, db)

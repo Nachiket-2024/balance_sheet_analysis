@@ -1,0 +1,36 @@
+{
+    "pageTitle": "ખાતાની સેટિંગ્સ",
+    "pageDescription": "તમારું નામ અને પાસવર્ડ અપડેટ કરો.",
+    "profileName": {
+        "nameLabel": "નામ",
+        "noChanges": "સાચવવા માટે કોઈ ફેરફાર નથી",
+        "updatedToast": "પ્રોફાઇલ અપડેટ થઈ",
+        "saveChanges": "ફેરફારો સાચવો"
+    },
+    "changePassword": {
+        "changeTitle": "પાસવર્ડ બદલો",
+        "setTitle": "પાસવર્ડ સેટ કરો",
+        "newPasswordLabel": "નવો પાસવર્ડ",
+        "setPasswordFieldLabel": "પાસવર્ડ સેટ કરો",
+        "placeholderKeepCurrent": "તમારો વર્તમાન પાસવર્ડ રાખવા માટે ખાલી છોડો",
+        "placeholderAddPassword": "Google વગર પણ સાઇન ઇન કરી શકો તે માટે પાસવર્ડ ઉમેરો",
+        "strengthLabel": "મજબૂતાઈ: {{strength}}",
+        "currentPasswordLabel": "વર્તમાન પાસવર્ડ",
+        "currentPasswordPlaceholder": "આ ફેરફારની પુષ્ટિ કરવા માટે જરૂરી",
+        "confirmCurrentRequired": "નવો પાસવર્ડ સેટ કરવા માટે તમારો વર્તમાન પાસવર્ડ દાખલ કરો",
+        "updatedToast": "પાસવર્ડ અપડેટ થયો",
+        "updateButton": "પાસવર્ડ અપડેટ કરો",
+        "setButton": "પાસવર્ડ સેટ કરો"
+    },
+    "accountStatus": {
+        "passwordLabel": "પાસવર્ડ",
+        "set": "સેટ થયેલ",
+        "notSet": "સેટ થયેલ નથી",
+        "hasPasswordDescription": "તમે તમારા ઈમેલ અને પાસવર્ડથી સાઇન ઇન કરી શકો છો. જો આ ઈમેલ Google ખાતા સાથે પણ જોડાયેલ છે, તો Google સાઇન-ઇન પણ કામ કરે છે.",
+        "noPasswordDescription": "આ ખાતું હાલમાં ફક્ત Google સાથે સાઇન ઇન થાય છે. ઈમેલ/પાસવર્ડ સાઇન-ઇન પણ સક્ષમ કરવા માટે પાસવર્ડ બદલો કાર્ડનો ઉપયોગ કરો.",
+        "myPermissions": "મારી પરવાનગીઓ",
+        "loadingPolicies": "તમારી નીતિઓ લોડ થઈ રહી છે...",
+        "failedLoadPolicies": "તમારી નીતિઓ લોડ કરવામાં નિષ્ફળ",
+        "noPolicies": "કોઈ નીતિ સોંપેલ નથી."
+    }
+}

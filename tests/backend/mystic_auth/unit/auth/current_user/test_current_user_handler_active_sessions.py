@@ -30,7 +30,7 @@ class _FakeUser:
 
 
 @pytest.fixture(autouse=True)
-def _common_mocks(mocker):
+def _mock_authenticated_user_dependencies(mocker):
     mocker.patch(
         f"{MODULE}.jwt_service.verify_token",
         new_callable=AsyncMock,

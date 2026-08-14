@@ -1,0 +1,17 @@
+{
+    "toggleNavigationMenu": "નેવિગેશન મેનૂ ટૉગલ કરો",
+    "signedInAs": "આ રીતે સાઇન ઇન થયેલ છે",
+    "switchToLightMode": "લાઇટ મોડ પર સ્વિચ કરો",
+    "switchToDarkMode": "ડાર્ક મોડ પર સ્વિચ કરો",
+    "language": "ભાષા",
+    "tagline": "સુરક્ષિત ઍક્સેસ, કેન્દ્રિય રીતે સંચાલિત",
+    "allRightsReserved": "સર્વાધિકાર સુરક્ષિત.",
+    "mainNavigation": "મુખ્ય નેવિગેશન",
+    "nav": {
+        "dashboard": "ડેશબોર્ડ",
+        "users": "વપરાશકર્તાઓ",
+        "policies": "નીતિઓ",
+        "auditLog": "ઓડિટ લોગ",
+        "accountSettings": "ખાતાની સેટિંગ્સ"
+    }
+}

@@ -1,5 +1,6 @@
 import React from "react";
 import { Button, Dialog, Portal } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 import { DIALOG_BACKDROP_PROPS, DIALOG_CONTENT_PROPS } from "./styles/dialogStyles";
 import { BRAND_SOLID_HOVER_PROPS, DESTRUCTIVE_SOLID_HOVER_PROPS, SECONDARY_BUTTON_PROPS } from "./styles/buttonStyles";
 
@@ -25,14 +26,20 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     isOpen,
     title,
     description,
-    confirmLabel = "Confirm",
+    confirmLabel,
     isDestructive = true,
     isLoading = false,
     onConfirm,
     onCancel,
 }) => {
+    const { t } = useTranslation("ui_text");
     return (
-        <Dialog.Root open={isOpen} onOpenChange={(details) => !details.open && onCancel()} role="alertdialog">
+        <Dialog.Root
+            open={isOpen}
+            onOpenChange={(details) => !details.open && onCancel()}
+            role="alertdialog"
+            closeOnInteractOutside
+        >
             <Portal>
                 <Dialog.Backdrop {...DIALOG_BACKDROP_PROPS} />
                 <Dialog.Positioner>
@@ -49,7 +56,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                         </Dialog.Body>
                         <Dialog.Footer>
                             <Button onClick={onCancel} disabled={isLoading} {...SECONDARY_BUTTON_PROPS}>
-                                Cancel
+                                {t("cancel")}
                             </Button>
                             <Button
                                 colorPalette={isDestructive ? "red" : "brand"}
@@ -57,7 +64,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                                 loading={isLoading}
                                 {...(isDestructive ? DESTRUCTIVE_SOLID_HOVER_PROPS : BRAND_SOLID_HOVER_PROPS)}
                             >
-                                {confirmLabel}
+                                {confirmLabel ?? t("confirm")}
                             </Button>
                         </Dialog.Footer>
                         <Dialog.CloseTrigger />

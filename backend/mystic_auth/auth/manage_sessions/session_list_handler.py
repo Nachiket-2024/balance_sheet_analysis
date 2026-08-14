@@ -3,6 +3,7 @@ import traceback
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 
+from ...core.errors import AppError
 from ...logging.logging_config import get_logger
 from ...user_session.session_service import session_service
 from ..current_user.current_user_handler import current_user_handler
@@ -55,14 +56,16 @@ class SessionListHandler:
 
         except SQLAlchemyError as exc:
             logger.error("Database error listing sessions:\n%s", traceback.format_exc())
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
+            raise AppError(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, code="DATABASE_ERROR", detail="Database error"
             ) from exc
 
         except Exception as exc:
             logger.error("Error listing sessions:\n%s", traceback.format_exc())
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
+            raise AppError(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                code="INTERNAL_SERVER_ERROR",
+                detail="Internal server error",
             ) from exc
 
 

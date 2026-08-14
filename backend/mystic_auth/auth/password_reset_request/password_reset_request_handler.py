@@ -51,7 +51,9 @@ class PasswordResetRequestHandler:
 
         except Exception:
             logger.error("Error during password reset request logic:\n%s", traceback.format_exc())
-            return JSONResponse(content={"error": "Internal Server Error"}, status_code=500)
+            return JSONResponse(
+                content={"error": "Internal Server Error", "code": "INTERNAL_SERVER_ERROR"}, status_code=500
+            )
 
 
 password_reset_request_handler = PasswordResetRequestHandler()

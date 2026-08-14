@@ -1,4 +1,5 @@
 import { Badge, HStack, Text } from "@chakra-ui/react";
+import type { TFunction } from "i18next";
 
 import type { DataTableColumn } from "../ui/DataTable";
 import TableActionButton from "../ui/TableActionButton";
@@ -14,6 +15,7 @@ export function capitalize(value: string): string {
 }
 
 interface BuildUsersColumnsParams {
+    t: TFunction<["users", "ui_text"]>;
     currentUserEmail: string | null | undefined;
     onRoleChangeRequest: (user: ManagedUserRead, role: string) => void;
     onView: (user: ManagedUserRead) => void;
@@ -31,6 +33,7 @@ interface BuildUsersColumnsParams {
  * these are built from a params object rather than exported as a plain
  * array. */
 export function buildUsersColumns({
+    t,
     currentUserEmail,
     onRoleChangeRequest,
     onView,
@@ -43,7 +46,7 @@ export function buildUsersColumns({
     return [
         {
             key: "name",
-            header: "Name",
+            header: t("users:columns.name"),
             sortable: true,
             width: "22%",
             truncate: true,
@@ -52,16 +55,16 @@ export function buildUsersColumns({
                     {u.name}
                     {u.email === currentUserEmail && (
                         <Badge ml={2} colorPalette="brand" variant="subtle" size="md">
-                            You
+                            {t("users:columns.you")}
                         </Badge>
                     )}
                 </Text>
             ),
         },
-        { key: "email", header: "Email", sortable: true, width: "26%", truncate: true, render: (u) => u.email },
+        { key: "email", header: t("users:columns.email"), sortable: true, width: "26%", truncate: true, render: (u) => u.email },
         {
             key: "role",
-            header: "Role",
+            header: t("users:columns.role"),
             sortable: true,
             width: "150px",
             render: (u) => (
@@ -69,7 +72,7 @@ export function buildUsersColumns({
                     action={PERMISSIONS.USERS_ASSIGN_ROLE}
                     fallback={
                         <Text textTransform="capitalize" color={u.role ? undefined : "fg.muted"}>
-                            {u.role ?? "No role assigned"}
+                            {u.role ?? t("users:columns.noRoleAssigned")}
                         </Text>
                     }
                 >
@@ -77,28 +80,28 @@ export function buildUsersColumns({
                         w="130px"
                         value={u.role ?? ""}
                         onChange={(value) => onRoleChangeRequest(u, value)}
-                        ariaLabel={`Change role for ${u.email}`}
+                        ariaLabel={t("users:columns.changeRoleAriaLabel", { email: u.email })}
                         textTransform="capitalize"
                         options={ROLE_OPTIONS.map((role) => ({ value: role, label: capitalize(role) }))}
                         disabled={u.email === currentUserEmail}
-                        title={u.email === currentUserEmail ? "You cannot change your own role" : undefined}
+                        title={u.email === currentUserEmail ? t("users:columns.cannotChangeOwnRole") : undefined}
                     />
                 </IfCan>
             ),
         },
         {
             key: "status",
-            header: "Status",
+            header: t("users:columns.status"),
             width: "170px",
             render: (u) => (
                 <HStack gap={1}>
                     <Badge colorPalette={u.is_verified ? "green" : "yellow"} size="md">
-                        {u.is_verified ? "Verified" : "Unverified"}
+                        {u.is_verified ? t("users:columns.verified") : t("users:columns.unverified")}
                     </Badge>
                     {u.deleted_at ? (
-                        <Badge colorPalette="red" size="md">Deleted</Badge>
+                        <Badge colorPalette="red" size="md">{t("users:columns.deleted")}</Badge>
                     ) : (
-                        !u.is_active && <Badge colorPalette="red" size="md">Inactive</Badge>
+                        !u.is_active && <Badge colorPalette="red" size="md">{t("ui_text:inactive")}</Badge>
                     )}
                 </HStack>
             ),
@@ -115,12 +118,12 @@ export function buildUsersColumns({
             width: "400px",
             render: (u) => (
                 <HStack justify="flex-end" gap={2} wrap="wrap">
-                    <TableActionButton onClick={() => onView(u)}>
-                        View
+                    <TableActionButton colorPalette="blue" onClick={() => onView(u)}>
+                        {t("users:columns.view")}
                     </TableActionButton>
                     <IfCan action={PERMISSIONS.POLICIES_READ}>
-                        <TableActionButton onClick={() => onPolicies(u.email)}>
-                            Policies
+                        <TableActionButton colorPalette="purple" onClick={() => onPolicies(u.email)}>
+                            {t("users:columns.policies")}
                         </TableActionButton>
                     </IfCan>
                     {u.deleted_at ? (
@@ -131,7 +134,7 @@ export function buildUsersColumns({
                                     onClick={() => onReactivate(u.email)}
                                     loading={reactivatingEmail === u.email}
                                 >
-                                    Reactivate
+                                    {t("users:columns.reactivate")}
                                 </TableActionButton>
                             </IfCan>
                             <IfCan action={PERMISSIONS.USERS_PURGE}>
@@ -140,7 +143,7 @@ export function buildUsersColumns({
                                     onClick={() => onPurgeRequest(u)}
                                     disabled={u.email === currentUserEmail}
                                 >
-                                    Purge
+                                    {t("users:columns.purge")}
                                 </TableActionButton>
                             </IfCan>
                         </>
@@ -151,7 +154,7 @@ export function buildUsersColumns({
                                 onClick={() => onDeleteRequest(u)}
                                 disabled={u.email === currentUserEmail}
                             >
-                                Delete
+                                {t("ui_text:delete")}
                             </TableActionButton>
                         </IfCan>
                     )}

@@ -1,5 +1,6 @@
 import React from "react";
 import { Stack, Heading, Text } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import SignupForm from "./SignupForm";
 
@@ -11,6 +12,8 @@ import Card from "../../ui/Card";
 import AuthLayout from "../../layout/AuthLayout";
 
 const SignupPage: React.FC = () => {
+    const { t } = useTranslation("auth");
+
     return (
         <AuthLayout>
             {/* Wider than the other auth cards since the form itself is
@@ -20,10 +23,10 @@ const SignupPage: React.FC = () => {
             <Card w="1000px" maxW="800px" p={{ base: 5, md: 7 }}>
                 <Stack textAlign="center" gap={3}>
                     <Heading size="2xl" color="brand.fg">
-                        Create your account
+                        {t("signupPage.heading")}
                     </Heading>
                     <Text fontSize="md" color="fg.muted">
-                        Get started in less than a minute
+                        {t("signupPage.subtitle")}
                     </Text>
 
                     <SignupForm />

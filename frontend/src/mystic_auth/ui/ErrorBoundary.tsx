@@ -3,6 +3,7 @@ import { Flex, Heading, Text, VStack, Button } from "@chakra-ui/react";
 
 import { reportError } from "../core/errorMonitoring";
 import { BRAND_SOLID_HOVER_PROPS } from "./styles/buttonStyles";
+import translations from "../translations/translations";
 
 interface ErrorBoundaryProps {
     children: React.ReactNode;
@@ -47,10 +48,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         return (
             <Flex align="center" justify="center" h="100vh" bg="bg.canvas" px={4} textAlign="center">
                 <VStack gap={4}>
-                    <Heading color="fg.error" size="2xl">Something went wrong</Heading>
+                    <Heading color="fg.error" size="2xl">{translations.t("ui_text:errorBoundary.title")}</Heading>
 
                     <Text fontSize="xl" fontWeight="medium">
-                        An unexpected error occurred. Reloading the page usually fixes this.
+                        {translations.t("ui_text:errorBoundary.description")}
                     </Text>
 
                     <Button
@@ -65,7 +66,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
                         onClick={() => window.location.assign("/")}
                         {...BRAND_SOLID_HOVER_PROPS}
                     >
-                        Reload
+                        {translations.t("ui_text:errorBoundary.reload")}
                     </Button>
                 </VStack>
             </Flex>

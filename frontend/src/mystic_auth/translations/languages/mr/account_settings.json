@@ -1,0 +1,36 @@
+{
+    "pageTitle": "खाते सेटिंग्ज",
+    "pageDescription": "तुमचे नाव आणि पासवर्ड अपडेट करा.",
+    "profileName": {
+        "nameLabel": "नाव",
+        "noChanges": "जतन करण्यासाठी कोणतेही बदल नाहीत",
+        "updatedToast": "प्रोफाइल अपडेट झाली",
+        "saveChanges": "बदल जतन करा"
+    },
+    "changePassword": {
+        "changeTitle": "पासवर्ड बदला",
+        "setTitle": "पासवर्ड सेट करा",
+        "newPasswordLabel": "नवीन पासवर्ड",
+        "setPasswordFieldLabel": "पासवर्ड सेट करा",
+        "placeholderKeepCurrent": "सध्याचा पासवर्ड ठेवण्यासाठी रिकामे सोडा",
+        "placeholderAddPassword": "Google शिवायही साइन इन करता यावे यासाठी पासवर्ड जोडा",
+        "strengthLabel": "मजबूती: {{strength}}",
+        "currentPasswordLabel": "सध्याचा पासवर्ड",
+        "currentPasswordPlaceholder": "हा बदल पुष्टी करण्यासाठी आवश्यक",
+        "confirmCurrentRequired": "नवीन पासवर्ड सेट करण्यासाठी तुमचा सध्याचा पासवर्ड टाका",
+        "updatedToast": "पासवर्ड अपडेट झाला",
+        "updateButton": "पासवर्ड अपडेट करा",
+        "setButton": "पासवर्ड सेट करा"
+    },
+    "accountStatus": {
+        "passwordLabel": "पासवर्ड",
+        "set": "सेट आहे",
+        "notSet": "सेट नाही",
+        "hasPasswordDescription": "तुम्ही तुमच्या ईमेल आणि पासवर्डने साइन इन करू शकता. जर हा ईमेल Google खात्याशीही जोडलेला असेल, तर Google साइन-इनही काम करेल.",
+        "noPasswordDescription": "हे खाते सध्या फक्त Google द्वारे साइन इन करते. ईमेल/पासवर्डने साइन इन सक्षम करण्यासाठी पासवर्ड बदला कार्ड वापरा.",
+        "myPermissions": "माझ्या परवानग्या",
+        "loadingPolicies": "तुमची धोरणे लोड होत आहेत...",
+        "failedLoadPolicies": "तुमची धोरणे लोड करण्यात अयशस्वी",
+        "noPolicies": "कोणतेही धोरण नियुक्त केलेले नाही."
+    }
+}

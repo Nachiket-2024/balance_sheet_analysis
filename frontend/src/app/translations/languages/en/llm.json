@@ -1,0 +1,6 @@
+{
+    "widgetTitle": "Ask about this company's performance",
+    "unableToReach": "Unable to reach the LLM, please try again.",
+    "questionPlaceholder": "e.g. How has total debt changed over the last few years?",
+    "ask": "Ask"
+}

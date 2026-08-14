@@ -1,6 +1,14 @@
 import { PERMISSIONS } from "../authorization/permissions";
 
 export interface NavItem {
+    /**
+     * Either a plain display string (rendered as-is - what app-supplied
+     * `extraNavItems` pass) or a "namespace:key" translation key (what the
+     * built-ins below pass, resolved via t() in Sidebar). Sidebar tells
+     * the two apart with i18next's own `exists()` check, so callers never
+     * need a separate flag - untranslated app strings and translated
+     * built-ins share this one field.
+     */
     label: string;
     to: string;
     /** Omit for links every authenticated user should see regardless of permissions. */
@@ -37,13 +45,13 @@ export interface NavItem {
  * docs/mystic_auth/template-usage/overview.md#shared-chrome-extension-points.
  */
 export const NAV_ITEMS: NavItem[] = [
-    { label: "Dashboard", to: "/dashboard", order: 10 },
-    { label: "Users", to: "/users", permission: PERMISSIONS.USERS_LIST_ALL, order: 20 },
-    { label: "Policies", to: "/policies", permission: PERMISSIONS.POLICIES_READ, order: 30 },
+    { label: "layout:nav.dashboard", to: "/dashboard", order: 10 },
+    { label: "layout:nav.users", to: "/users", permission: PERMISSIONS.USERS_LIST_ALL, order: 20 },
+    { label: "layout:nav.policies", to: "/policies", permission: PERMISSIONS.POLICIES_READ, order: 30 },
     // No permission required: every authenticated user can view their own
     // audit trail (GET /authorization/audit-log/me, GET /audit/security-log/me)
     // The page itself additionally shows an "All Users" tab gated by
     // policies:read/security_audit:read for callers who hold those.
-    { label: "Audit Log", to: "/audit-log", order: 40 },
-    { label: "Account Settings", to: "/account-settings", order: 50 },
+    { label: "layout:nav.auditLog", to: "/audit-log", order: 40 },
+    { label: "layout:nav.accountSettings", to: "/account-settings", order: 50 },
 ];

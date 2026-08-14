@@ -1,5 +1,6 @@
 import React from "react";
 import { IconButton } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import { useThemeStore } from "../store/themeStore";
 import { ICON_BUTTON_PROPS } from "../ui/styles/buttonStyles";
@@ -11,13 +12,14 @@ import { ICON_BUTTON_PROPS } from "../ui/styles/buttonStyles";
  * separate ColorModeProvider in Chakra v3 to reach for instead).
  */
 const ThemeToggle: React.FC = () => {
+    const { t } = useTranslation("layout");
     const colorMode = useThemeStore((s) => s.colorMode);
     const toggleColorMode = useThemeStore((s) => s.toggleColorMode);
     const isDark = colorMode === "dark";
 
     return (
         <IconButton
-            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={isDark ? t("switchToLightMode") : t("switchToDarkMode")}
             onClick={toggleColorMode}
             size="sm"
             {...ICON_BUTTON_PROPS}

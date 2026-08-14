@@ -1,3 +1,10 @@
+// Chakra's default recipe transition (~200ms) reads as sluggish for
+// something as immediate as a hover response, across every button style
+// below (and TableActionButton.tsx's own copy of this same value) - shared
+// here so the "snappy" feel stays identical everywhere instead of each
+// button style drifting to its own duration.
+export const FAST_HOVER_TRANSITION = "background-color 0.1s ease, border-color 0.1s ease, color 0.1s ease";
+
 // Solid variant's default hover is only colorPalette.solid at 90% opacity -
 // too subtle a shift to read as a hover state (originally fixed one-off on
 // LoginForm's/PasswordResetRequestForm's own Login/submit buttons; extracted
@@ -6,6 +13,7 @@
 // fix instead of each needing its own copy of this override).
 export const BRAND_SOLID_HOVER_PROPS = {
     _hover: { bg: "brand.700" },
+    transition: FAST_HOVER_TRANSITION,
 };
 
 // Same underlying problem as BRAND_SOLID_HOVER_PROPS, for an
@@ -19,6 +27,7 @@ export const BRAND_SOLID_HOVER_PROPS = {
 // keeps the button's own brand-colored border/text identity.
 export const BRAND_OUTLINE_HOVER_PROPS = {
     _hover: { bg: "brand.500", color: "white" },
+    transition: FAST_HOVER_TRANSITION,
 };
 
 // Same fix as BRAND_SOLID_HOVER_PROPS above, for solid colorPalette="red"
@@ -26,6 +35,7 @@ export const BRAND_OUTLINE_HOVER_PROPS = {
 // hover was too subtle a shift off red.600 to read as a real hover state.
 export const DESTRUCTIVE_SOLID_HOVER_PROPS = {
     _hover: { bg: "red.700" },
+    transition: FAST_HOVER_TRANSITION,
 };
 
 // Dialog secondary actions (Cancel/Close). variant="ghost" (no border, no
@@ -49,6 +59,7 @@ export const SECONDARY_BUTTON_PROPS = {
         bg: "gray.700",
         _hover: { bg: "gray.300", borderColor: "gray.300", color: "gray.900" },
     },
+    transition: FAST_HOVER_TRANSITION,
 };
 
 // Navbar's icon-only controls (theme toggle, mobile menu toggle).
@@ -69,4 +80,5 @@ export const ICON_BUTTON_PROPS = {
         bg: "gray.700",
         _hover: { bg: "gray.300", borderColor: "gray.300", color: "gray.900" },
     },
+    transition: FAST_HOVER_TRANSITION,
 };

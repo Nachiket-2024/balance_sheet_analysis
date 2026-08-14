@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Box, Button, HStack, Input, Stack } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import { PageContainer, DataTable, type DataTableColumn, LoadingState, FormAlert, ConfirmDialog, toaster, IfCan } from "../sdk";
 import { TableActionButton, BRAND_SOLID_HOVER_PROPS, SEARCH_INPUT_PROPS } from "../app_sdk";
@@ -21,6 +22,7 @@ import LlmChatWidget from "../llm/LlmChatWidget";
  * grounded LLM chat scoped to this same company.
  */
 const CompanyDetailPage: React.FC = () => {
+    const { t } = useTranslation(["companies", "balance_sheets"]);
     const navigate = useNavigate();
     const { companyId: companyIdParam } = useParams<{ companyId: string }>();
     const companyId = Number(companyIdParam);
@@ -41,8 +43,8 @@ const CompanyDetailPage: React.FC = () => {
     const [importYear, setImportYear] = useState("");
     const [deletingYear, setDeletingYear] = useState<number | null>(null);
 
-    if (companyLoading) return <LoadingState message="Loading company..." />;
-    if (companyError || !company) return <FormAlert status="error">Failed to load company</FormAlert>;
+    if (companyLoading) return <LoadingState message={t("companies:loadingCompany")} />;
+    if (companyError || !company) return <FormAlert status="error">{t("companies:failedToLoadCompany")}</FormAlert>;
 
     const handleImport = (e: React.SubmitEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -50,10 +52,10 @@ const CompanyDetailPage: React.FC = () => {
         if (!year) return;
         importMutation.mutate(year, {
             onSuccess: () => {
-                toaster.create({ title: `Imported ${year} balance sheet`, type: "success" });
+                toaster.create({ title: t("balance_sheets:importedBalanceSheet", { year }), type: "success" });
                 setImportYear("");
             },
-            onError: () => toaster.create({ title: "Import failed, check the ticker/year on yfinance", type: "error" }),
+            onError: () => toaster.create({ title: t("balance_sheets:importFailed"), type: "error" }),
         });
     };
 
@@ -61,28 +63,28 @@ const CompanyDetailPage: React.FC = () => {
         if (deletingYear === null) return;
         deleteMutation.mutate(deletingYear, {
             onSuccess: () => {
-                toaster.create({ title: `Deleted ${deletingYear} balance sheet`, type: "success" });
+                toaster.create({ title: t("balance_sheets:deletedBalanceSheet", { year: deletingYear }), type: "success" });
                 setDeletingYear(null);
             },
-            onError: () => toaster.create({ title: "Delete failed", type: "error" }),
+            onError: () => toaster.create({ title: t("balance_sheets:deleteFailed"), type: "error" }),
         });
     };
 
     const columns: DataTableColumn<BalanceSheet>[] = [
-        { key: "year", header: "Year", render: (s) => s.year },
+        { key: "year", header: t("balance_sheets:columnYear"), render: (s) => s.year },
         {
             key: "total_assets",
-            header: "Total assets",
+            header: t("balance_sheets:columnTotalAssets"),
             render: (s) => s.total_assets?.toLocaleString() ?? "—",
         },
         {
             key: "total_liabilities",
-            header: "Total liabilities",
+            header: t("balance_sheets:columnTotalLiabilities"),
             render: (s) => s.total_liabilities_net_minority_interest?.toLocaleString() ?? "—",
         },
         {
             key: "equity",
-            header: "Stockholders' equity",
+            header: t("balance_sheets:columnEquity"),
             render: (s) => s.stockholders_equity?.toLocaleString() ?? "—",
         },
         {
@@ -92,7 +94,7 @@ const CompanyDetailPage: React.FC = () => {
             render: (s) => (
                 <IfCan action={APP_PERMISSIONS.BALANCE_SHEET_DELETE}>
                     <TableActionButton colorPalette="red" onClick={() => setDeletingYear(s.year)}>
-                        Delete
+                        {t("balance_sheets:delete")}
                     </TableActionButton>
                 </IfCan>
             ),
@@ -113,7 +115,7 @@ const CompanyDetailPage: React.FC = () => {
                     onClick={() => navigate("/companies")}
                     {...BRAND_SOLID_HOVER_PROPS}
                 >
-                    ← Back to companies
+                    {t("companies:backToCompanies")}
                 </Button>
             </Box>
 
@@ -123,7 +125,7 @@ const CompanyDetailPage: React.FC = () => {
                     <form onSubmit={handleImport}>
                         <HStack mb={6} gap={2}>
                             <Input
-                                placeholder="Fiscal year (e.g. 2024)"
+                                placeholder={t("balance_sheets:fiscalYearPlaceholder")}
                                 value={importYear}
                                 onChange={(e) => setImportYear(e.target.value.replace(/\D/g, ""))}
                                 type="text"
@@ -132,7 +134,7 @@ const CompanyDetailPage: React.FC = () => {
                                 {...SEARCH_INPUT_PROPS}
                             />
                             <Button type="submit" colorPalette="brand" loading={importMutation.isPending} {...BRAND_SOLID_HOVER_PROPS}>
-                                Import from yfinance
+                                {t("balance_sheets:importFromYfinance")}
                             </Button>
                         </HStack>
                     </form>
@@ -146,8 +148,8 @@ const CompanyDetailPage: React.FC = () => {
                     rowKey={(s) => s.id}
                     isLoading={sheetsLoading}
                     isError={sheetsError}
-                    errorMessage="Failed to load balance sheets"
-                    emptyMessage="No balance sheets on file for this company yet"
+                    errorMessage={t("balance_sheets:failedToLoadBalanceSheets")}
+                    emptyMessage={t("balance_sheets:emptyBalanceSheets")}
                 />
 
                 <Stack mt={6}>
@@ -164,9 +166,12 @@ const CompanyDetailPage: React.FC = () => {
 
                 <ConfirmDialog
                     isOpen={deletingYear !== null}
-                    title="Delete balance sheet"
-                    description={`Delete the ${deletingYear} balance sheet for ${company.name}? This cannot be undone.`}
-                    confirmLabel="Delete"
+                    title={t("balance_sheets:deleteBalanceSheetTitle")}
+                    description={t("balance_sheets:deleteBalanceSheetDescription", {
+                        year: deletingYear,
+                        companyName: company.name,
+                    })}
+                    confirmLabel={t("balance_sheets:delete")}
                     isLoading={deleteMutation.isPending}
                     onConfirm={handleDeleteConfirm}
                     onCancel={() => setDeletingYear(null)}

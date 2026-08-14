@@ -1,0 +1,17 @@
+{
+    "toggleNavigationMenu": "Toggle navigation menu",
+    "signedInAs": "Signed in as",
+    "switchToLightMode": "Switch to light mode",
+    "switchToDarkMode": "Switch to dark mode",
+    "language": "Language",
+    "tagline": "Secure access, centrally managed",
+    "allRightsReserved": "All rights reserved.",
+    "mainNavigation": "Main navigation",
+    "nav": {
+        "dashboard": "Dashboard",
+        "users": "Users",
+        "policies": "Policies",
+        "auditLog": "Audit Log",
+        "accountSettings": "Account Settings"
+    }
+}

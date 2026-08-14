@@ -1,9 +1,12 @@
 import React from "react";
 import { Box, Skeleton, Table, EmptyState } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import FormAlert from "./FormAlert";
 import { ariaSortFor, renderHeaderCell } from "./DataTableSortableHeader";
 import type { SortState } from "./hooks/useSortState";
+import { useLanguageStore } from "../store/languageStore";
+import { formatNumber } from "../translations/numerals";
 
 export interface DataTableColumn<T> {
     key: string;
@@ -114,13 +117,15 @@ function DataTable<T>({
     rowKey,
     isLoading,
     isError,
-    errorMessage = "Failed to load data",
-    emptyMessage = "No data available",
+    errorMessage,
+    emptyMessage,
     skeletonRowCount = 5,
     sort,
     onSortChange,
     startIndex,
 }: DataTableProps<T>) {
+    const { t } = useTranslation("ui_text");
+    const language = useLanguageStore((s) => s.pageLanguage);
     const showRowNumbers = startIndex !== undefined;
 
     const colgroup = (
@@ -179,14 +184,14 @@ function DataTable<T>({
     }
 
     if (isError) {
-        return <FormAlert status="error">{errorMessage}</FormAlert>;
+        return <FormAlert status="error">{errorMessage ?? t("failedToLoadData")}</FormAlert>;
     }
 
     if (!rows || rows.length === 0) {
         return (
             <EmptyState.Root size="sm">
                 <EmptyState.Content>
-                    <EmptyState.Title>{emptyMessage}</EmptyState.Title>
+                    <EmptyState.Title>{emptyMessage ?? t("noDataAvailable")}</EmptyState.Title>
                 </EmptyState.Content>
             </EmptyState.Root>
         );
@@ -244,7 +249,7 @@ function DataTable<T>({
                     {rows.map((row, rowIndex) => (
                         <Table.Row key={rowKey(row)}>
                             {showRowNumbers && (
-                                <Table.Cell color="fg.muted">{(startIndex as number) + rowIndex + 1}</Table.Cell>
+                                <Table.Cell color="fg.muted">{formatNumber((startIndex as number) + rowIndex + 1, language)}</Table.Cell>
                             )}
                             {columns.map((col) => {
                                 const content = col.render(row);

@@ -63,6 +63,12 @@ services:
       BACKEND_BASE_URL: http://localhost:8000
       FRONTEND_BASE_URL: http://localhost:5173
       ENVIRONMENT: development
+      # Needed so `scripts/docker/backend-exec.sh` (which runs with -w /repo,
+      # not /app, to also see tests/backend and the top-level `backend`
+      # package) can still resolve the bare `mystic_auth`/`app` imports the
+      # application code itself uses. taskiq_worker/taskiq_scheduler/alembic
+      # below already set this for the same reason.
+      PYTHONPATH: /app
     depends_on:
       postgres:
         condition: service_healthy
@@ -125,6 +131,17 @@ services:
       fi
       exec npm run dev -- --host"
     environment:
+      # Only needed if this repo checkout lives on a Windows-mounted path
+      # (C:\... via Docker Desktop on Windows without WSL2, or a WSL2
+      # checkout under /mnt/c/...): native filesystem change events don't
+      # cross that bind-mount boundary, so Vite's watcher would otherwise
+      # never see edits. Polling adds constant background CPU and, on a
+      # Windows-mounted path, doesn't fix the slow per-file I/O that also
+      # slows down every dev-server transform - see docs/mystic_auth/deployment/dev.md.
+      # Not needed (and safe to omit) once the checkout itself lives inside
+      # WSL2's own filesystem (e.g. ~/projects/...), where inotify events
+      # work natively. This checkout lives on a Windows-mounted path
+      # (C:\...), so it's kept enabled here.
       CHOKIDAR_USEPOLLING: "true"
       BACKEND_BASE_URL: http://localhost:8000
       FRONTEND_BASE_URL: http://localhost:5173
@@ -168,6 +185,37 @@ services:
       - backend_logs:/app/logs
     # Override the backend image healthcheck. This container serves no HTTP,
     # so check for the taskiq process directly via /proc.
+    healthcheck:
+      test: ["CMD-SHELL", "for p in /proc/[0-9]*/cmdline; do grep -aq taskiq \"$$p\" 2>/dev/null && exit 0; done; exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # Polls the schedule_source RedisScheduleSource for retries SmartRetryMiddleware
+  # scheduled with a backoff delay, and re-enqueues them onto taskiq_worker's
+  # broker once due. Without this process, retry delay/backoff labels are inert.
+  taskiq_scheduler:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    working_dir: /app
+    env_file:
+      - ./.env
+    command: sh -c "taskiq scheduler mystic_auth.taskiq_tasks.email_tasks:scheduler"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - PYTHONPATH=/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully
+    volumes:
+      - ./backend:/app
+      - backend_logs:/app/logs
     healthcheck:
       test: ["CMD-SHELL", "for p in /proc/[0-9]*/cmdline; do grep -aq taskiq \"$$p\" 2>/dev/null && exit 0; done; exit 1"]
       interval: 10s

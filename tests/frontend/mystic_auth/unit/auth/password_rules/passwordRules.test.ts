@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
 import { checkPasswordRules, evaluatePasswordStrength, validatePassword } from '@/auth/password_rules/passwordRules';
+import translations from '@/translations/translations';
+
+const t = translations.t.bind(translations);
 
 describe('checkPasswordRules', () => {
   it('flags every rule as failing for an empty password', () => {
@@ -57,22 +60,22 @@ describe('evaluatePasswordStrength', () => {
 
 describe('validatePassword', () => {
   it('returns null when the password satisfies every rule', () => {
-    expect(validatePassword('Password1')).toBeNull();
+    expect(validatePassword('Password1', t)).toBeNull();
   });
 
   it('returns the length error first when the password is too short', () => {
-    expect(validatePassword('Ab1')).toBe('Password must be at least 8 characters long');
+    expect(validatePassword('Ab1', t)).toBe('Password must be at least 8 characters long');
   });
 
   it('returns the uppercase error when length is fine but uppercase is missing', () => {
-    expect(validatePassword('password1')).toBe('Password must contain at least one uppercase letter');
+    expect(validatePassword('password1', t)).toBe('Password must contain at least one uppercase letter');
   });
 
   it('returns the lowercase error when uppercase/length are fine but lowercase is missing', () => {
-    expect(validatePassword('PASSWORD1')).toBe('Password must contain at least one lowercase letter');
+    expect(validatePassword('PASSWORD1', t)).toBe('Password must contain at least one lowercase letter');
   });
 
   it('returns the number error when only the digit rule is missing', () => {
-    expect(validatePassword('Password')).toBe('Password must contain at least one number');
+    expect(validatePassword('Password', t)).toBe('Password must contain at least one number');
   });
 });

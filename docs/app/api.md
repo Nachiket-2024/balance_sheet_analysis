@@ -38,6 +38,15 @@ float fields (one per yfinance balance-sheet line item; see
 |--------|--------------|------------------|-------|
 | POST   | `/llm/chat`   | `llm:chat`        | `{company_id, years?, question}` -> `{answer}`. `years` omitted = every year on file for that company. The real balance-sheet figures are injected into the LLM prompt (see `llm_service.build_grounding_context`), so the answer is grounded, not speculative. Rate-limited (per-IP and per-account); each call is a real Groq API request. |
 
+## Error codes
+
+404s from this app's own routes (`get_or_404`, see `backend/mystic_auth/api/get_or_404/get_or_404.py`)
+carry a machine-readable `code` alongside the English `detail`, same shape as
+mystic_auth's own errors: `COMPANY_NOT_FOUND`, `BALANCE_SHEET_NOT_FOUND`. Both
+are translated into all four supported languages: see
+[Translations](architecture/translations.md) for how, since neither code has
+an entry in mystic_auth's own (upstream-owned) `errors.json` files.
+
 ## Rate limiting
 
 The LLM chat and balance-sheet import endpoints reuse mystic_auth's own

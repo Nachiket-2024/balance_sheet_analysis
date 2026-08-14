@@ -11,7 +11,7 @@ import { MY_POLICIES_QUERY_KEY } from "../../policies/policyQueries";
 import { MY_AUTHORIZATION_AUDIT_LOG_QUERY_KEY } from "../../audit_log/authorization_log/authorizationLogQueries";
 import { MY_SECURITY_AUDIT_LOG_QUERY_KEY } from "../../audit_log/security_log/securityLogQueries";
 import { toaster } from "../../ui/toaster/toasterInstance";
-import { getPendingSessionRotation } from "./sessionRotationGuard";
+import { getPendingSessionRotation, wasSessionRecentlyRotated } from "./sessionRotationGuard";
 
 // Marks a request as already retried once (post-refresh) so it can't be retried again. Without
 // this, a request that still 401s right after a successful refresh (e.g. the refresh rotated the
@@ -125,9 +125,16 @@ export function setupAuthInterceptor(): void {
             // from just having lost that race.
             if (originalRequest && !originalRequest._retriedAfterRotation) {
                 const pendingRotation = getPendingSessionRotation();
-                if (pendingRotation) {
+                // Even if the rotation isn't (or is no longer) pending, this 401 might
+                // still belong to a straggler request whose response was already on its
+                // way back with stale cookies when the rotation completed moments ago -
+                // see wasSessionRecentlyRotated's own comment. Retrying costs nothing
+                // extra here: cookies are already fresh by the time this runs, so a
+                // straggler succeeds immediately and a genuinely dead session just 401s
+                // again.
+                if (pendingRotation || wasSessionRecentlyRotated()) {
                     originalRequest._retriedAfterRotation = true;
-                    await pendingRotation;
+                    if (pendingRotation) await pendingRotation;
                     try {
                         return await api(originalRequest);
                     } catch {

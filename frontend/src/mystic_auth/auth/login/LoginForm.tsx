@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Input, Button, Stack, Text } from "@chakra-ui/react";
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import { useLoginMutation } from "./useLoginMutation";
 import FormAlert from "../../ui/FormAlert";
+import { FAST_HOVER_TRANSITION } from "../../ui/styles/buttonStyles";
 
 interface LoginFormProps {
     onSuccess?: () => void;
@@ -11,6 +13,7 @@ interface LoginFormProps {
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
+    const { t } = useTranslation("auth");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
@@ -44,7 +47,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
+                placeholder={t("login.emailPlaceholder")}
                 autoComplete="email"
                 bg="bg.canvas"
                 colorPalette="brand"
@@ -57,7 +60,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
+                placeholder={t("login.passwordPlaceholder")}
                 autoComplete="current-password"
                 bg="bg.canvas"
                 colorPalette="brand"
@@ -78,10 +81,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
                 fontSize="md"
                 w="full"
                 loading={loginMutation.isPending}
-                loadingText="Logging in..."
+                loadingText={t("login.loggingIn")}
                 _hover={{ bg: "brand.700" }}
+                transition={FAST_HOVER_TRANSITION}
             >
-                Login
+                {t("login.submitButton")}
             </Button>
 
             <Text
@@ -96,7 +100,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
                         fontWeight: 600,
                     }}
                 >
-                    Forgot Password?
+                    {t("login.forgotPassword")}
                 </Link>
             </Text>
 
@@ -108,7 +112,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onAttempt }) => {
 
             {loginMutation.isSuccess && (
                 <FormAlert status="success">
-                    Login successful!
+                    {t("login.loginSuccess")}
                 </FormAlert>
             )}
         </Stack>

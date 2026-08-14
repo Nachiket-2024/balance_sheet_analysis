@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Flex, Stack } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import PageContainer from "../ui/PageContainer";
 import { useAuthStore } from "../store/authStore";
@@ -28,6 +29,7 @@ import { useUnsavedChangesWarning } from "./useUnsavedChangesWarning";
  * doesn't care which card they're in.
  */
 const AccountSettingsPage: React.FC = () => {
+    const { t } = useTranslation("account_settings");
     const name = useAuthStore((s) => s.name);
     const hasPassword = useAuthStore((s) => s.hasPassword);
 
@@ -36,7 +38,7 @@ const AccountSettingsPage: React.FC = () => {
     useUnsavedChangesWarning(nameDirty || passwordDirty);
 
     return (
-        <PageContainer title="Account Settings" description="Update your name and password.">
+        <PageContainer title={t("pageTitle")} description={t("pageDescription")}>
             <Flex gap={6} align="stretch" wrap="wrap">
                 <Stack gap={5} flex="1 1 320px" maxW="lg">
                     <ProfileNameCard name={name} onDirtyChange={setNameDirty} />

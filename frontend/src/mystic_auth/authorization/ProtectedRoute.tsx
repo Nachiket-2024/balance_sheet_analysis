@@ -1,5 +1,6 @@
 import React from "react";
 import { Navigate } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import { useAuthorization } from "./useAuthorization";
 import LoadingState from "../ui/LoadingState";
@@ -21,6 +22,7 @@ interface ProtectedRouteProps {
  * `permission` is given, only to callers who currently hold that permission too.
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, permission, resourceType }) => {
+    const { t } = useTranslation("authorization");
     const { isAuthenticated, can } = useAuthorization();
 
     // Show a loader only while authentication status is truly unknown: permissions are
@@ -29,7 +31,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, permission, r
     // loading" gap to handle here. Never render protected (or unauthorized-redirect) content
     // before that's resolved, so there's no flash of either.
     if (isAuthenticated === null) {
-        return <LoadingState message="Verifying session..." fullScreen />;
+        return <LoadingState message={t("authorization:verifyingSession")} fullScreen />;
     }
 
     if (isAuthenticated === false) {

@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate, Link, Navigate } from "react-router";
 import { Stack, Heading, Text, StackSeparator } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import LoginForm from "./LoginForm";
 import OAuth2Button from "../oauth2/OAuth2LoginButton";
@@ -19,6 +20,7 @@ import AuthLayout from "../../layout/AuthLayout";
 // loading flag, which previously caused LoginForm to unmount mid-typing on
 // unrelated session-check requests.
 const LoginPage: React.FC = () => {
+    const { t } = useTranslation("auth");
     const navigate = useNavigate();
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
@@ -47,22 +49,22 @@ const LoginPage: React.FC = () => {
                     {/* Kept smaller than AuthLayout's own APP_NAME heading directly
                         above, so the two don't compete and the page fits a normal
                         laptop viewport without scrolling. */}
-                    <Heading size="xl" color="brand.fg">Welcome</Heading>
+                    <Heading size="xl" color="brand.fg">{t("loginPage.welcome")}</Heading>
                     {/* fg.default (not fg.muted) for stronger contrast: near-black in
                         light mode, near-white in dark mode, since this is the page's
                         primary supporting copy rather than deliberately de-emphasized
                         metadata. */}
                     <Text fontSize="md" color="fg.default">
-                        Sign in to continue to your dashboard
+                        {t("loginPage.subtitle")}
                     </Text>
 
                     <LoginForm onSuccess={handleLoginSuccess} />
                     <OAuth2Button onSuccess={handleLoginSuccess} />
 
                     <Text fontSize="16px" color="fg.muted">
-                        Don't have an account?{" "}
+                        {t("loginPage.noAccount")}{" "}
                         <Link to="/signup" style={{ color: "var(--chakra-colors-brand-fg)", fontWeight: 600 }}>
-                            Sign Up
+                            {t("loginPage.signUp")}
                         </Link>
                     </Text>
                 </Stack>

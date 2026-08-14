@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { HStack, Input, Stack } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import PageContainer from "../ui/PageContainer";
 import DataTable from "../ui/DataTable";
@@ -48,6 +49,7 @@ function toBoolFilter(value: string): boolean | undefined {
  * share ui/hooks/usePageResetOn.ts for the page-reset-on-filter-change logic).
  */
 const UsersPage: React.FC = () => {
+    const { t } = useTranslation(["users", "ui_text"]);
     const [search, setSearch] = useState("");
     // Debounced, not the raw keystroke value: search is now a real request
     // (server-side, since the table itself is paginated and no longer holds
@@ -100,7 +102,7 @@ const UsersPage: React.FC = () => {
             { userEmail: user.email, role },
             {
                 onSuccess: () => {
-                    toaster.create({ title: "Role updated", type: "success" });
+                    toaster.create({ title: t("users:page.roleUpdatedToast"), type: "success" });
                     setPendingRoleChange(null);
                 },
                 onError: (error) => toaster.create({ title: error.message, type: "error" }),
@@ -114,7 +116,7 @@ const UsersPage: React.FC = () => {
             { userEmail: deletingUser.email },
             {
                 onSuccess: () => {
-                    toaster.create({ title: "User deleted : this is reversible via Reactivate", type: "success" });
+                    toaster.create({ title: t("users:page.userDeletedToast"), type: "success" });
                     setDeletingUser(null);
                 },
                 onError: (error) => toaster.create({ title: error.message, type: "error" }),
@@ -128,7 +130,7 @@ const UsersPage: React.FC = () => {
             { userEmail: purgingUser.email },
             {
                 onSuccess: () => {
-                    toaster.create({ title: "User permanently removed", type: "success" });
+                    toaster.create({ title: t("users:page.userPurgedToast"), type: "success" });
                     setPurgingUser(null);
                 },
                 onError: (error) => toaster.create({ title: error.message, type: "error" }),
@@ -140,13 +142,14 @@ const UsersPage: React.FC = () => {
         reactivateMutation.mutate(
             { userEmail },
             {
-                onSuccess: () => toaster.create({ title: "User reactivated", type: "success" }),
+                onSuccess: () => toaster.create({ title: t("users:page.userReactivatedToast"), type: "success" }),
                 onError: (error) => toaster.create({ title: error.message, type: "error" }),
             }
         );
     };
 
     const columns = buildUsersColumns({
+        t,
         currentUserEmail,
         onRoleChangeRequest: (user, role) => setPendingRoleChange({ user, role }),
         onView: setViewingUser,
@@ -159,8 +162,8 @@ const UsersPage: React.FC = () => {
 
     return (
         <PageContainer
-            title="Users"
-            description="Manage user accounts, roles, and policy assignments."
+            title={t("users:page.title")}
+            description={t("users:page.description")}
             actions={
                 <UserStatsCard
                     onFilterTotal={() => {
@@ -192,7 +195,7 @@ const UsersPage: React.FC = () => {
             headerExtra={
                 <Stack gap={3}>
                     <Input
-                        placeholder="Search by name or email..."
+                        placeholder={t("users:page.searchPlaceholder")}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         maxW="sm"
@@ -202,38 +205,38 @@ const UsersPage: React.FC = () => {
                     <HStack gap={3} wrap="wrap">
                         <StyledSelect
                             w="140px"
-                            ariaLabel="Filter by role"
+                            ariaLabel={t("users:page.filterByRole")}
                             value={role}
                             onChange={setRole}
                             textTransform="capitalize"
                             options={[
-                                { value: ALL_VALUE, label: "All roles" },
+                                { value: ALL_VALUE, label: t("users:page.allRoles") },
                                 ...ROLE_OPTIONS.map((value) => ({ value, label: capitalize(value) })),
                             ]}
                         />
 
                         <StyledSelect
                             w="150px"
-                            ariaLabel="Filter by verified status"
+                            ariaLabel={t("users:page.filterByVerified")}
                             value={verified}
                             onChange={setVerified}
                             options={[
-                                { value: ALL_VALUE, label: "All verification" },
-                                { value: "true", label: "Verified" },
-                                { value: "false", label: "Unverified" },
+                                { value: ALL_VALUE, label: t("users:page.allVerification") },
+                                { value: "true", label: t("users:page.verified") },
+                                { value: "false", label: t("users:page.unverified") },
                             ]}
                         />
 
                         <StyledSelect
                             w="140px"
-                            ariaLabel="Filter by status"
+                            ariaLabel={t("users:page.filterByStatus")}
                             value={status}
                             onChange={setStatus}
                             options={[
-                                { value: ALL_VALUE, label: "All statuses" },
-                                { value: "active", label: "Active" },
-                                { value: "inactive", label: "Inactive" },
-                                { value: "deleted", label: "Deleted" },
+                                { value: ALL_VALUE, label: t("users:page.allStatuses") },
+                                { value: "active", label: t("ui_text:active") },
+                                { value: "inactive", label: t("ui_text:inactive") },
+                                { value: "deleted", label: t("users:page.deleted") },
                             ]}
                         />
                     </HStack>
@@ -248,8 +251,8 @@ const UsersPage: React.FC = () => {
                 rowKey={(u) => u.id}
                 isLoading={isLoading}
                 isError={isError}
-                errorMessage="Failed to load users"
-                emptyMessage={search ? "No users match your search" : "No users match these filters"}
+                errorMessage={t("users:page.failedToLoadUsers")}
+                emptyMessage={search ? t("users:page.noUsersMatchSearch") : t("users:page.noUsersMatchFilters")}
                 sort={sort}
                 onSortChange={toggleSort}
                 startIndex={(page - 1) * PAGE_SIZE}
@@ -271,9 +274,9 @@ const UsersPage: React.FC = () => {
 
             <ConfirmDialog
                 isOpen={!!deletingUser}
-                title="Delete user"
-                description={`Delete "${deletingUser?.email}"? This deactivates their account and ends every active session : it's reversible via Reactivate.`}
-                confirmLabel="Delete"
+                title={t("users:page.deleteDialogTitle")}
+                description={t("users:page.deleteDialogDescription", { email: deletingUser?.email })}
+                confirmLabel={t("ui_text:delete")}
                 isLoading={deleteMutation.isPending}
                 onConfirm={handleDeleteConfirm}
                 onCancel={() => setDeletingUser(null)}
@@ -281,9 +284,9 @@ const UsersPage: React.FC = () => {
 
             <ConfirmDialog
                 isOpen={!!purgingUser}
-                title="Permanently remove user"
-                description={`Permanently remove "${purgingUser?.email}"? This cannot be undone : the account, its policy assignments, and its ability to ever be reactivated are all gone. (Authorization/security audit history is preserved separately.)`}
-                confirmLabel="Permanently remove"
+                title={t("users:page.purgeDialogTitle")}
+                description={t("users:page.purgeDialogDescription", { email: purgingUser?.email })}
+                confirmLabel={t("users:page.purgeConfirmLabel")}
                 isLoading={purgeMutation.isPending}
                 onConfirm={handlePurgeConfirm}
                 onCancel={() => setPurgingUser(null)}
@@ -291,9 +294,12 @@ const UsersPage: React.FC = () => {
 
             <ConfirmDialog
                 isOpen={!!pendingRoleChange}
-                title="Change role"
-                description={`Change ${pendingRoleChange?.user.email}'s role to "${pendingRoleChange ? capitalize(pendingRoleChange.role) : ""}"? Role is display/grouping metadata only : this does not itself change what they're permitted to do.`}
-                confirmLabel="Change role"
+                title={t("users:page.changeRoleDialogTitle")}
+                description={t("users:page.changeRoleDialogDescription", {
+                    email: pendingRoleChange?.user.email,
+                    role: pendingRoleChange ? capitalize(pendingRoleChange.role) : "",
+                })}
+                confirmLabel={t("users:page.changeRoleConfirmLabel")}
                 isDestructive={false}
                 isLoading={roleMutation.isPending}
                 onConfirm={handleRoleChangeConfirm}

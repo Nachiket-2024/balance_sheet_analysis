@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Stack, Button, Spinner } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import { useVerifyAccountMutation } from "./useVerifyAccountMutation";
 import { BRAND_SOLID_HOVER_PROPS } from "../../ui/styles/buttonStyles";
@@ -12,6 +13,7 @@ interface VerifyAccountButtonProps {
 }
 
 const VerifyAccountButton: React.FC<VerifyAccountButtonProps> = ({ token, email, onSuccess }) => {
+    const { t } = useTranslation("auth");
     const verifyMutation = useVerifyAccountMutation();
 
     // Fires onSuccess exactly once per successful verification, not once
@@ -50,10 +52,10 @@ const VerifyAccountButton: React.FC<VerifyAccountButtonProps> = ({ token, email,
             >
                 {verifyMutation.isPending ? (
                     <>
-                        <Spinner size="sm" mr={2} /> Verifying...
+                        <Spinner size="sm" mr={2} /> {t("verifyAccountButton.verifying")}
                     </>
                 ) : (
-                    "Verify Account"
+                    t("verifyAccountButton.submitButton")
                 )}
             </Button>
 

@@ -5,6 +5,7 @@ import { extractApiErrorMessage } from "../../api/apiError";
 import { queryClient } from "../../core/queryClient";
 import { CURRENT_USER_QUERY_KEY } from "../../auth/current_user/useCurrentUserQuery";
 import { SESSIONS_QUERY_KEY } from "./useSessionsQuery";
+import translations from "../../translations/translations";
 
 // Deliberately uses invalidateQueries (a background refetch), not
 // useLogoutAllMutation/useLogoutMutation's setQueryData(..., null): that
@@ -21,7 +22,7 @@ export function useRevokeSessionMutation() {
                 const res = await revokeSessionApi(sessionId);
                 return res.data;
             } catch (error) {
-                throw new Error(extractApiErrorMessage(error, "Failed to end session"), { cause: error });
+                throw new Error(extractApiErrorMessage(error, translations.t("dashboard:manageSessions.failedEndSession")), { cause: error });
             }
         },
         onSuccess: () => {

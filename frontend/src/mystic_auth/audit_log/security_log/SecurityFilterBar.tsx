@@ -1,5 +1,6 @@
 import React from "react";
 import { HStack, Input } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import StyledSelect from "../../ui/StyledSelect";
 import { SEARCH_INPUT_PROPS } from "../../ui/styles/inputStyles";
@@ -17,40 +18,44 @@ interface SecurityFilterBarProps {
 
 const SecurityFilterBar: React.FC<SecurityFilterBarProps> = ({
     eventType, setEventType, ipAddress, setIpAddress, success, setSuccess,
-}) => (
-    <HStack gap={3} mb={4} wrap="wrap">
-        <StyledSelect
-            w="220px"
-            ariaLabel="Filter by event"
-            value={eventType}
-            onChange={setEventType}
-            options={[
-                { value: ALL_VALUE, label: "All events" },
-                ...SECURITY_EVENT_TYPES.map((value) => ({ value, label: value })),
-            ]}
-        />
+}) => {
+    const { t } = useTranslation("audit_log");
 
-        <Input
-            placeholder="Filter by IP..."
-            aria-label="Filter by IP address"
-            value={ipAddress}
-            onChange={(e) => setIpAddress(e.target.value)}
-            w="160px"
-            {...SEARCH_INPUT_PROPS}
-        />
+    return (
+        <HStack gap={3} mb={4} wrap="wrap">
+            <StyledSelect
+                w="220px"
+                ariaLabel={t("security.filterBar.filterByEvent")}
+                value={eventType}
+                onChange={setEventType}
+                options={[
+                    { value: ALL_VALUE, label: t("security.filterBar.allEvents") },
+                    ...SECURITY_EVENT_TYPES.map((value) => ({ value, label: value })),
+                ]}
+            />
 
-        <StyledSelect
-            w="140px"
-            ariaLabel="Filter by result"
-            value={success}
-            onChange={setSuccess}
-            options={[
-                { value: ALL_VALUE, label: "All results" },
-                { value: "true", label: "Success" },
-                { value: "false", label: "Failed" },
-            ]}
-        />
-    </HStack>
-);
+            <Input
+                placeholder={t("security.filterBar.filterByIpPlaceholder")}
+                aria-label={t("security.filterBar.filterByIpAddress")}
+                value={ipAddress}
+                onChange={(e) => setIpAddress(e.target.value)}
+                w="160px"
+                {...SEARCH_INPUT_PROPS}
+            />
+
+            <StyledSelect
+                w="140px"
+                ariaLabel={t("security.filterBar.filterByResult")}
+                value={success}
+                onChange={setSuccess}
+                options={[
+                    { value: ALL_VALUE, label: t("security.filterBar.allResults") },
+                    { value: "true", label: t("security.results.success") },
+                    { value: "false", label: t("security.results.failed") },
+                ]}
+            />
+        </HStack>
+    );
+};
 
 export default SecurityFilterBar;

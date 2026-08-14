@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Button, Field, Heading, Input, Stack, Text } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import Card from "../ui/Card";
 import FormAlert from "../ui/FormAlert";
@@ -27,6 +28,7 @@ interface ChangePasswordCardProps {
  * name card, and vice versa.
  */
 const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, onDirtyChange }) => {
+    const { t } = useTranslation("account_settings");
     const [newPassword, setNewPassword] = useState("");
     const [currentPassword, setCurrentPassword] = useState("");
     const [passwordError, setPasswordError] = useState("");
@@ -45,7 +47,7 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
         e.preventDefault();
         setPasswordError("");
 
-        const validationError = validatePassword(newPassword);
+        const validationError = validatePassword(newPassword, t);
         if (validationError) {
             setPasswordError(validationError);
             return;
@@ -54,7 +56,7 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
         // setting one for the first time on an OAuth-only account has
         // nothing to confirm against.
         if (hasPassword && !currentPassword) {
-            setPasswordError("Enter your current password to set a new one");
+            setPasswordError(t("changePassword.confirmCurrentRequired"));
             return;
         }
 
@@ -63,7 +65,7 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
 
         passwordMutation.mutate(payload, {
             onSuccess: () => {
-                toaster.create({ title: "Password updated", type: "success" });
+                toaster.create({ title: t("changePassword.updatedToast"), type: "success" });
                 setNewPassword("");
                 setCurrentPassword("");
             },
@@ -73,19 +75,19 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
     return (
         <Card p={5} flex="1 1 320px" maxW="lg">
             <Heading as="h2" size="md" mb={3}>
-                {hasPassword ? "Change password" : "Set a password"}
+                {hasPassword ? t("changePassword.changeTitle") : t("changePassword.setTitle")}
             </Heading>
             <Stack as="form" onSubmit={handlePasswordSubmit} gap={4}>
                 <Field.Root>
-                    <Field.Label>{hasPassword ? "New password" : "Set a password"}</Field.Label>
+                    <Field.Label>{hasPassword ? t("changePassword.newPasswordLabel") : t("changePassword.setPasswordFieldLabel")}</Field.Label>
                     <Input
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder={
                             hasPassword
-                                ? "Leave blank to keep your current password"
-                                : "Add a password so you can also sign in without Google"
+                                ? t("changePassword.placeholderKeepCurrent")
+                                : t("changePassword.placeholderAddPassword")
                         }
                         aria-invalid={!!passwordError || passwordMutation.isError}
                         aria-describedby={passwordError ? "password-local-error" : passwordMutation.isError ? "password-mutation-error" : undefined}
@@ -105,7 +107,7 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
                             strength === "Strong" ? "green.500" : "fg.muted"
                         }
                     >
-                        Strength: {strength || "-"}
+                        {t("changePassword.strengthLabel", { strength: strength || "-" })}
                     </Text>
                 </Field.Root>
 
@@ -123,12 +125,12 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
                     a field the instant you start typing. */}
                 {hasPassword && (
                     <Field.Root>
-                        <Field.Label>Current password</Field.Label>
+                        <Field.Label>{t("changePassword.currentPasswordLabel")}</Field.Label>
                         <Input
                             type="password"
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
-                            placeholder="Required to confirm this change"
+                            placeholder={t("changePassword.currentPasswordPlaceholder")}
                             aria-invalid={!!passwordError}
                             aria-describedby={passwordError ? "password-local-error" : undefined}
                             {...SEARCH_INPUT_PROPS}
@@ -144,10 +146,10 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
                     colorPalette="brand"
                     alignSelf="flex-start"
                     loading={passwordMutation.isPending}
-                    loadingText="Saving..."
+                    loadingText={t("ui_text:saving")}
                     {...BRAND_SOLID_HOVER_PROPS}
                 >
-                    {hasPassword ? "Update password" : "Set password"}
+                    {hasPassword ? t("changePassword.updateButton") : t("changePassword.setButton")}
                 </Button>
             </Stack>
         </Card>

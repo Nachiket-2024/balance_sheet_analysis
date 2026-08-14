@@ -1,0 +1,17 @@
+{
+    "toggleNavigationMenu": "नेविगेशन मेनू टॉगल करें",
+    "signedInAs": "इस रूप में साइन इन किया गया",
+    "switchToLightMode": "लाइट मोड पर स्विच करें",
+    "switchToDarkMode": "डार्क मोड पर स्विच करें",
+    "language": "भाषा",
+    "tagline": "सुरक्षित पहुंच, केंद्रीय रूप से प्रबंधित",
+    "allRightsReserved": "सर्वाधिकार सुरक्षित।",
+    "mainNavigation": "मुख्य नेविगेशन",
+    "nav": {
+        "dashboard": "डैशबोर्ड",
+        "users": "उपयोगकर्ता",
+        "policies": "नीतियां",
+        "auditLog": "ऑडिट लॉग",
+        "accountSettings": "खाता सेटिंग्स"
+    }
+}

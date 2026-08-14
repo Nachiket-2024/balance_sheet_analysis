@@ -1,0 +1,69 @@
+{
+    "page": {
+        "title": "ऑडिट लॉग",
+        "description": "प्राधिकरण निर्णय आणि सुरक्षा घटना."
+    },
+    "tabs": {
+        "authorizationDecisions": "प्राधिकरण निर्णय",
+        "securityEvents": "सुरक्षा घटना",
+        "myActivity": "माझी क्रियाकलाप",
+        "allUsers": "सर्व वापरकर्ते"
+    },
+    "authorization": {
+        "results": {
+            "allowed": "मंजूर",
+            "denied": "नाकारले"
+        },
+        "filterBar": {
+            "filterByAction": "कृतीनुसार फिल्टर करा",
+            "allActions": "सर्व कृती",
+            "filterByResourceType": "संसाधन प्रकारानुसार फिल्टर करा",
+            "allResources": "सर्व संसाधने",
+            "filterByResult": "निकालानुसार फिल्टर करा",
+            "allResults": "सर्व निकाल"
+        },
+        "columns": {
+            "when": "केव्हा",
+            "user": "वापरकर्ता",
+            "action": "कृती",
+            "resource": "संसाधन",
+            "result": "निकाल"
+        },
+        "searchPlaceholder": "वापरकर्ता ईमेलने शोधा...",
+        "emptyFiltered": "या फिल्टरशी कोणताही प्राधिकरण निर्णय जुळत नाही",
+        "emptySearch": "या शोधाशी कोणताही प्राधिकरण निर्णय जुळत नाही"
+    },
+    "security": {
+        "results": {
+            "success": "यशस्वी",
+            "failed": "अयशस्वी"
+        },
+        "filterBar": {
+            "filterByEvent": "घटनेनुसार फिल्टर करा",
+            "allEvents": "सर्व घटना",
+            "filterByIpPlaceholder": "IP नुसार फिल्टर करा...",
+            "filterByIpAddress": "IP पत्त्यानुसार फिल्टर करा",
+            "filterByResult": "निकालानुसार फिल्टर करा",
+            "allResults": "सर्व निकाल"
+        },
+        "columns": {
+            "when": "केव्हा",
+            "user": "वापरकर्ता",
+            "unknownUser": "अज्ञात वापरकर्ता",
+            "event": "घटना",
+            "ip": "IP",
+            "unknownIp": "अज्ञात",
+            "result": "निकाल"
+        },
+        "searchPlaceholder": "वापरकर्ता ईमेलने शोधा...",
+        "emptyFiltered": "या फिल्टरशी कोणतीही सुरक्षा घटना जुळत नाही",
+        "emptySearch": "या शोधाशी कोणतीही सुरक्षा घटना जुळत नाही",
+        "loginActivity": "लॉगिन क्रियाकलाप",
+        "failedToLoadTrend": "लॉगिन ट्रेंड लोड करण्यात अयशस्वी",
+        "successCount": "यशस्वी ({{count}})",
+        "failedCount": "अयशस्वी ({{count}})",
+        "chartAriaLabel": "मागील {{days}} दिवसांतील दैनंदिन लॉगिन प्रयत्न: {{success}} यशस्वी, {{failure}} अयशस्वी",
+        "successLabel": "यशस्वी:",
+        "failedLabel": "अयशस्वी:"
+    }
+}

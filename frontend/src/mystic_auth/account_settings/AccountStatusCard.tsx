@@ -1,5 +1,6 @@
 import React from "react";
 import { Badge, Box, Heading, Stack, Text, Wrap } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import Card from "../ui/Card";
 import LoadingState from "../ui/LoadingState";
@@ -22,6 +23,7 @@ interface AccountStatusCardProps {
  * normal laptop viewport.
  */
 const AccountStatusCard: React.FC<AccountStatusCardProps> = ({ hasPassword }) => {
+    const { t } = useTranslation("account_settings");
     const { data: myPolicies, isLoading: policiesLoading, isError: policiesError } = useMyPoliciesQuery();
 
     return (
@@ -33,20 +35,20 @@ const AccountStatusCard: React.FC<AccountStatusCardProps> = ({ hasPassword }) =>
                         read visibly paler/weaker next to it despite being
                         the same functional role, this card's other section
                         label, since "Authentication methods" was dropped. */}
-                    <Text fontWeight="semibold">Password</Text>
+                    <Text fontWeight="semibold">{t("accountStatus.passwordLabel")}</Text>
                     {/* size="md" to match the policy badges in "My
                         permissions" below - without it this one falls
                         back to Badge's smaller default size, reading
                         noticeably smaller next to them despite being
                         the same kind of status pill. */}
                     <Badge colorPalette={hasPassword ? "brand" : "gray"} variant="subtle" size="md">
-                        {hasPassword ? "Set" : "Not set"}
+                        {hasPassword ? t("accountStatus.set") : t("accountStatus.notSet")}
                     </Badge>
                 </Wrap>
                 <Text color="fg.muted" fontSize="sm">
                     {hasPassword
-                        ? "You can sign in with your email and password. If this email is also linked to a Google account, Google sign-in works too."
-                        : "This account currently signs in with Google only. Use the Change Password card to also enable email/password sign-in."}
+                        ? t("accountStatus.hasPasswordDescription")
+                        : t("accountStatus.noPasswordDescription")}
                 </Text>
             </Stack>
 
@@ -54,22 +56,22 @@ const AccountStatusCard: React.FC<AccountStatusCardProps> = ({ hasPassword }) =>
 
             <Stack gap={2}>
                 <Heading as="h2" size="md">
-                    My permissions
+                    {t("accountStatus.myPermissions")}
                 </Heading>
                 {policiesLoading ? (
-                    <LoadingState message="Loading your policies..." />
+                    <LoadingState message={t("accountStatus.loadingPolicies")} />
                 ) : policiesError ? (
-                    <FormAlert status="error">Failed to load your policies</FormAlert>
+                    <FormAlert status="error">{t("accountStatus.failedLoadPolicies")}</FormAlert>
                 ) : myPolicies && myPolicies.policies.length > 0 ? (
                     <Wrap gap={2}>
                         {myPolicies.policies.map((p) => (
-                            <Badge key={p.name} colorPalette="brand" variant="subtle" size="md" fontSize="14px">
+                            <Badge key={p.name} colorPalette="brand" variant="subtle" size="md" fontSize="15px">
                                 {p.name}
                             </Badge>
                         ))}
                     </Wrap>
                 ) : (
-                    <Text color="fg.muted">No policies assigned.</Text>
+                    <Text color="fg.muted">{t("accountStatus.noPolicies")}</Text>
                 )}
             </Stack>
         </Card>

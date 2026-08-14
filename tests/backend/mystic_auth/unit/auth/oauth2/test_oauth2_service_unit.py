@@ -54,6 +54,10 @@ async def test_login_or_create_user_marks_unverified_existing_user_verified(mock
     )
     mocker.patch(f"{MODULE}.jwt_service.create_access_token", return_value="access-token")
     mocker.patch(f"{MODULE}.jwt_service.create_refresh_token", return_value="refresh-token")
+    # assign_app_default_policies is DEFAULT_APP_POLICIES's own extension
+    # point, tested in isolation in test_default_policies_unit.py; mocked
+    # here so this test's assertions don't depend on that env var.
+    mocker.patch(f"{MODULE}.assign_app_default_policies", new_callable=AsyncMock)
 
     result = await oauth2_service.login_or_create_user(db=None, user_info={"email": "user@example.com"})
 
@@ -82,6 +86,7 @@ async def test_login_or_create_user_clears_password_on_pre_hijacked_unverified_a
     )
     mocker.patch(f"{MODULE}.jwt_service.create_access_token", return_value="access-token")
     mocker.patch(f"{MODULE}.jwt_service.create_refresh_token", return_value="refresh-token")
+    mocker.patch(f"{MODULE}.assign_app_default_policies", new_callable=AsyncMock)
 
     result = await oauth2_service.login_or_create_user(db=None, user_info={"email": "victim@example.com"})
 
@@ -145,6 +150,7 @@ async def test_login_or_create_user_creates_new_verified_user(mocker):
     assign_mock = mocker.patch(f"{MODULE}.policy_repository.assign_policy_to_user", new_callable=AsyncMock)
     mocker.patch(f"{MODULE}.jwt_service.create_access_token", return_value="access-token")
     mocker.patch(f"{MODULE}.jwt_service.create_refresh_token", return_value="refresh-token")
+    mocker.patch(f"{MODULE}.assign_app_default_policies", new_callable=AsyncMock)
 
     result = await oauth2_service.login_or_create_user(
         db=None, user_info={"email": "new@example.com", "name": "New User"}
@@ -177,6 +183,7 @@ async def test_login_or_create_user_assigns_self_service_policy_to_new_user(mock
     assign_mock = mocker.patch(f"{MODULE}.policy_repository.assign_policy_to_user", new_callable=AsyncMock)
     mocker.patch(f"{MODULE}.jwt_service.create_access_token", return_value="access-token")
     mocker.patch(f"{MODULE}.jwt_service.create_refresh_token", return_value="refresh-token")
+    default_policies_mock = mocker.patch(f"{MODULE}.assign_app_default_policies", new_callable=AsyncMock)
 
     await oauth2_service.login_or_create_user(
         db="fake-db", user_info={"email": "new@example.com", "name": "New User"}
@@ -186,6 +193,7 @@ async def test_login_or_create_user_assigns_self_service_policy_to_new_user(mock
     assign_mock.assert_awaited_once_with(
         user_id=42, policy_id=7, db="fake-db", assigned_by="system"
     )
+    default_policies_mock.assert_awaited_once_with(42, "fake-db")
 
 
 @pytest.mark.asyncio

@@ -5,9 +5,11 @@ import { ChakraProvider, defaultSystem } from '@chakra-ui/react';
 import { MemoryRouter } from 'react-router';
 
 import { useAuthStore } from '@/store/authStore';
+import { useLanguageStore } from '@/store/languageStore';
 import Sidebar from '@/layout/Sidebar';
 
 const initialAuthState = useAuthStore.getState();
+const initialLanguageState = useLanguageStore.getState();
 
 function seed(permissions: string[]) {
   useAuthStore.setState(initialAuthState, true);
@@ -39,6 +41,8 @@ function renderSidebar(
 describe('Sidebar', () => {
   beforeEach(() => {
     seed([]);
+    useLanguageStore.setState(initialLanguageState, true);
+    useLanguageStore.getState().setMode('en');
   });
 
   it('always shows links that require no permission', () => {
@@ -140,5 +144,32 @@ describe('Sidebar', () => {
     renderSidebar(['/'], [{ label: 'Extra A', to: '/extra-a', permission: 'extra:read' }]);
 
     expect(screen.getByRole('link', { name: 'Extra A' })).toBeInTheDocument();
+  });
+
+  it('keeps nav links in English in the mixed English+Hindi mode', () => {
+    useLanguageStore.getState().setMode('en+hi');
+
+    renderSidebar();
+
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Audit Log' })).toBeInTheDocument();
+  });
+
+  it('keeps nav links in English in the mixed English+Marathi mode', () => {
+    useLanguageStore.getState().setMode('en+mr');
+
+    renderSidebar();
+
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Account Settings' })).toBeInTheDocument();
+  });
+
+  it('translates nav links to Marathi in the plain "mr" mode (unlike the mixed modes)', () => {
+    useLanguageStore.getState().setMode('mr');
+
+    renderSidebar();
+
+    expect(screen.getByRole('link', { name: 'डॅशबोर्ड' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Dashboard' })).toBeNull();
   });
 });

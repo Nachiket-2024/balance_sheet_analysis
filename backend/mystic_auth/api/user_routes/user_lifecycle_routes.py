@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...audit_log.audit_log_service import (
@@ -19,6 +19,7 @@ from ...authorization.dependencies.authorization_dependency import require_autho
 # PBAC action vocabulary and policy-based authorization. Replaces the removed
 # static role-permission helpers.
 from ...authorization.permissions import Permission
+from ...core.errors import AppError
 from ...database.connection import database
 from ...emails.email_normalization import normalize_email
 from ...user_crud.user_crud_collector import user_crud
@@ -56,11 +57,12 @@ async def delete_any_user(
     removal is a separate, more sensitive operation (see purge_user below).
     """
     user_email = normalize_email(user_email)
-    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
+    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
 
     if user.role == UserRole.system:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="SYSTEM_USER_CANNOT_BE_DELETED",
             detail="System user cannot be deleted"
         )
 
@@ -70,8 +72,9 @@ async def delete_any_user(
     # sessions immediately and, for a sole admin, with no other admin left
     # to reactivate the account.
     if user_email == current_user["email"]:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="CANNOT_DELETE_OWN_ACCOUNT",
             detail="Cannot delete your own account through this endpoint"
         )
 
@@ -113,19 +116,21 @@ async def purge_user(
     (not a foreign key), so audit history survives even a purge.
     """
     user_email = normalize_email(user_email)
-    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
+    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
 
     if user.role == UserRole.system:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="SYSTEM_USER_CANNOT_BE_PURGED",
             detail="System user cannot be purged"
         )
 
     # Same reasoning as delete_any_user's self-action guard, and more
     # severe here since a purge is irreversible.
     if user_email == current_user["email"]:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
+            code="CANNOT_PURGE_OWN_ACCOUNT",
             detail="Cannot purge your own account through this endpoint"
         )
 
@@ -161,13 +166,14 @@ async def reactivate_user(
     db: AsyncSession = Depends(database.get_session)
 ):
     user_email = normalize_email(user_email)
-    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
+    user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
 
     # Reactivate is specifically the soft-delete undo path: nothing to
     # restore if the account was never soft-deleted.
     if user.deleted_at is None:
-        raise HTTPException(
+        raise AppError(
             status_code=status.HTTP_400_BAD_REQUEST,
+            code="USER_NOT_DELETED",
             detail="User is not deleted"
         )
 

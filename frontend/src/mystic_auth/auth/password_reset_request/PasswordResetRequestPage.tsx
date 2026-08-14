@@ -1,6 +1,7 @@
 import React from "react";
 import { Stack, Heading, Text, StackSeparator } from "@chakra-ui/react";
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import PasswordResetRequestForm from "./PasswordResetRequestForm";
 
@@ -12,24 +13,26 @@ import Card from "../../ui/Card";
 import AuthLayout from "../../layout/AuthLayout";
 
 const PasswordResetRequestPage: React.FC = () => {
+    const { t } = useTranslation("auth");
+
     return (
         <AuthLayout>
             <Card w="450px" maxW="md" p={{ base: 5, md: 7 }}>
                 <Stack align="center" textAlign="center" separator={<StackSeparator />}>
                     <Heading size="xl" color="brand.fg">
-                        Forgot Password?
+                        {t("passwordResetRequestPage.heading")}
                     </Heading>
 
                     <Text fontSize="md" color="fg.muted">
-                        Enter your email address and we'll send you a link to reset your password.
+                        {t("passwordResetRequestPage.subtitle")}
                     </Text>
 
                     <PasswordResetRequestForm />
 
                     <Text fontSize="16px" color="fg.muted">
-                        Remember your password?{" "}
+                        {t("passwordResetRequestPage.rememberPassword")}{" "}
                         <Link to="/login" style={{ color: "var(--chakra-colors-brand-fg)", fontWeight: 600 }}>
-                            Back to Login
+                            {t("passwordResetRequestPage.backToLogin")}
                         </Link>
                     </Text>
                 </Stack>

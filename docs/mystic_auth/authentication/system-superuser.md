@@ -4,7 +4,21 @@
 
 Run it after the stack is started and migrations have completed. Pick the command for the mode you are running.
 
-## Commands by run mode
+## Non-interactive bootstrap scripts
+
+`local-scripts/{dev,local-prod,prod}/` each hold a `create-system-user.{sh,ps1,bat}` that pipes the fresh-account prompts (email, name, password) into the right Compose file for that mode non-interactively, so you don't have to retype them at the interactive prompt every time you reset a local stack. They only cover the fresh-account path below, not promotion of an existing account: run the interactive command further down for that.
+
+To use one:
+
+```bash
+cp local-scripts/dev/system-user.env.example local-scripts/dev/system-user.env
+# edit local-scripts/dev/system-user.env with real values
+local-scripts/dev/create-system-user.sh        # or .ps1 / .bat
+```
+
+Same shape for `local-scripts/local-prod/` (against `docker-compose.local-prod.yml`) and `local-scripts/prod/` (against `docker-compose.prod.yml`, real production credentials). Each `system-user.env` is ignored by both `.gitignore` and `.dockerignore`, only the `.example` templates are tracked, so filling one in never risks committing real credentials.
+
+## Commands by run mode (interactive)
 
 ### Dev Docker
 

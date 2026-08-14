@@ -2,7 +2,7 @@
 
 ## Purpose
 
-FastAPI application (`backend/mystic_auth/`, with the entry point and extension surface, namely `main.py`, `sdk.py`, `app_sdk.py`, in the sibling `backend/app/`; see [Using This Repository as a Template: the `app/` + `mystic_auth/` split](../template-usage/overview.md#the-app--mystic_auth-split)), async throughout: SQLAlchemy async engine, async Redis client, async SMTP. One codebase, three container roles (`backend`, `taskiq_worker`, `alembic`) built from the same image with different `command:` overrides. See [Docker Overview](../docker/overview.md).
+FastAPI application (`backend/mystic_auth/`, with the entry point and extension surface, namely `main.py`, `sdk.py`, `app_sdk.py`, in the sibling `backend/app/`; see [Using This Repository as a Template: the `app/` + `mystic_auth/` split](../template-usage/overview.md#the-app--mystic_auth-split)), async throughout: SQLAlchemy async engine, async Redis client, async SMTP. One codebase, four container roles (`backend`, `taskiq_worker`, `taskiq_scheduler`, `alembic`) built from the same image with different `command:` overrides. See [Docker Overview](../docker/overview.md).
 
 ---
 

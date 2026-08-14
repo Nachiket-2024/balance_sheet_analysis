@@ -3,8 +3,8 @@ from asyncio import sleep
 from typing import Any
 
 from redis.exceptions import ConnectionError, ResponseError
-from taskiq import AsyncBroker, SimpleRetryMiddleware
-from taskiq_redis import RedisAsyncResultBackend, RedisStreamBroker
+from taskiq import AsyncBroker, SmartRetryMiddleware, TaskiqScheduler
+from taskiq_redis import ListRedisScheduleSource, RedisAsyncResultBackend, RedisStreamBroker
 
 from ..core.settings import settings
 from ..emails.email_sender import email_sender
@@ -13,6 +13,11 @@ from ..logging.logging_config import get_worker_logger
 logger = get_worker_logger(__name__)
 
 result_backend: RedisAsyncResultBackend[Any] = RedisAsyncResultBackend(redis_url=settings.REDIS_URL)
+
+# Stores each retry's due-time in Redis and is polled by the `taskiq_scheduler`
+# process, which re-enqueues the task onto `broker` once it's due. Without this,
+# SmartRetryMiddleware's delay/backoff labels are silently no-ops (see below).
+schedule_source = ListRedisScheduleSource(settings.REDIS_URL)
 
 
 class ResilientRedisStreamBroker(RedisStreamBroker):
@@ -36,16 +41,26 @@ class ResilientRedisStreamBroker(RedisStreamBroker):
                 await sleep(1)
 
 
-# SimpleRetryMiddleware re-enqueues a task immediately (no backoff/delay) up
-# to a task's own `max_retries` label when the task raises : it does NOT
-# add a scheduler-based delay the way SmartRetryMiddleware's docs suggest,
-# since that requires a TaskiqScheduler/schedule_source this project doesn't
-# run; an immediate retry is the correct, simple fit for the one task here.
+# SmartRetryMiddleware's delay/backoff labels only take effect when it's given
+# a schedule_source: it writes each retry's due-time there instead of
+# re-enqueuing immediately, and the `taskiq_scheduler` process (see
+# docker-compose's taskiq_scheduler service) polls that source and re-enqueues
+# once due. use_jitter avoids every retry of a bulk failure (e.g. an SMTP
+# outage) landing on the exact same schedule tick and re-hammering it at once.
 broker: AsyncBroker = ResilientRedisStreamBroker(
     url=settings.REDIS_URL,
 ).with_result_backend(result_backend).with_middlewares(
-    SimpleRetryMiddleware(default_retry_count=3)
+    SmartRetryMiddleware(
+        default_retry_count=3,
+        default_delay=5,
+        use_delay_exponent=True,
+        max_delay_exponent=60,
+        use_jitter=True,
+        schedule_source=schedule_source,
+    )
 )
+
+scheduler = TaskiqScheduler(broker=broker, sources=[schedule_source])
 
 
 @broker.task(retry_on_error=True, max_retries=3)
@@ -53,10 +68,11 @@ async def send_email_task(to_email: str, subject: str, body: str, is_html: bool 
     """Sends an email via the configured EmailSender. Returns True on success.
 
     Raises (rather than swallowing the exception) on failure so
-    SimpleRetryMiddleware can see it and re-enqueue : up to 3 attempts total.
-    Every attempt, including ones that will be retried, logs its own full
-    traceback, so a permanent failure that exhausts all retries still leaves
-    a clear trail in the logs, not a silently dropped email.
+    SmartRetryMiddleware can see it and schedule a re-enqueue with backoff :
+    up to 3 attempts total. Every attempt, including ones that will be
+    retried, logs its own full traceback, so a permanent failure that
+    exhausts all retries still leaves a clear trail in the logs, not a
+    silently dropped email.
     """
     logger.info("Sending email to %s", to_email)
     try:

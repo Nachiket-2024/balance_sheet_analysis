@@ -48,7 +48,10 @@ works:
 
 The CLI-created system superuser is separate from those normal-user paths. It
 is marked verified by the script and can sign in with its password without
-Google or SMTP. Regular password signups still need email delivery.
+Google or SMTP. Regular password signups still need email delivery. See
+[System Superuser](../authentication/system-superuser.md) for the interactive
+command, or `local-scripts/dev/create-system-user.*` for a non-interactive
+version.
 
 See [Environment variables](#environment-variables) below for the runtime
 rules, or the [Template Usage Guide](../template-usage/overview.md) for the
@@ -70,9 +73,9 @@ full first-run walkthrough (cloning, `.env`, first `docker compose up`).
 scripts\docker\dev-up.cmd       # Command Prompt
 ```
 
-The helper starts the stack detached, restarts `backend` and
-`taskiq_worker` so their startup banners are fresh, waits for health
-checks, then tails logs from `backend`/`frontend`/`taskiq_worker`. See
+The helper starts the stack detached, restarts `backend`,
+`taskiq_worker`, and `taskiq_scheduler` so their startup banners are fresh, waits for health
+checks, then tails logs from `backend`/`frontend`/`taskiq_worker`/`taskiq_scheduler`. See
 [Docker Overview: day-to-day dev-up helpers](../docker/overview.md#day-to-day-dev-up-helpers)
 for why this is preferred over plain `docker compose up`.
 

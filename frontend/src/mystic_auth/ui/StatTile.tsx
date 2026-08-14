@@ -1,5 +1,9 @@
 import React from "react";
 import { Box, Skeleton, Text } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
+
+import { useLanguageStore } from "../store/languageStore";
+import { formatNumber } from "../translations/numerals";
 
 export interface StatTileProps {
     label: string;
@@ -39,7 +43,10 @@ const STAT_TILE_HOVER_PROPS = {
  * A single labeled number in a summary card (UserStatsCard, PolicyStatsCard):
  * a large colored value with a muted label beneath it, optionally clickable.
  */
-const StatTile: React.FC<StatTileProps> = ({ label, value, isLoading, color = "fg.default", onClick, ariaLabel }) => (
+const StatTile: React.FC<StatTileProps> = ({ label, value, isLoading, color = "fg.default", onClick, ariaLabel }) => {
+    const { t } = useTranslation("ui_text");
+    const language = useLanguageStore((s) => s.pageLanguage);
+    return (
     <Box
         textAlign="center"
         rounded="md"
@@ -49,7 +56,7 @@ const StatTile: React.FC<StatTileProps> = ({ label, value, isLoading, color = "f
             type: "button",
             onClick,
             cursor: "pointer",
-            "aria-label": ariaLabel ?? `Filter: ${label}`,
+            "aria-label": ariaLabel ?? t("filterLabel", { label }),
             ...STAT_TILE_HOVER_PROPS,
         })}
     >
@@ -57,13 +64,14 @@ const StatTile: React.FC<StatTileProps> = ({ label, value, isLoading, color = "f
             <Skeleton height="30px" mx="auto" w="48px" />
         ) : (
             <Text fontSize="28px" fontWeight="bold" color={color} lineHeight="1">
-                {value ?? "-"}
+                {formatNumber(value, language)}
             </Text>
         )}
-        <Text fontSize="14px" color="fg.muted" mt={1} whiteSpace="nowrap">
+        <Text fontSize="16px" color="fg.muted" mt={1} whiteSpace="nowrap">
             {label}
         </Text>
     </Box>
-);
+    );
+};
 
 export default StatTile;

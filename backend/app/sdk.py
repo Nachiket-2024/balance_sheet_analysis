@@ -67,6 +67,10 @@ settings = _m("core.settings").settings
 # Small route helpers
 get_or_404 = _m("api.get_or_404.get_or_404").get_or_404
 
+# Machine-readable error codes for frontend translation, see
+# docs/mystic_auth/translations/overview.md
+AppError = _m("core.errors").AppError
+
 # Routers, mounted on the FastAPI app in main.py
 auth_router = _m("api.auth_routes.auth_routes").router
 refresh_token_router = _m("api.auth_routes.refresh_token_routes").router
@@ -118,6 +122,7 @@ __all__ = [
     "database",
     "settings",
     "get_or_404",
+    "AppError",
     "auth_router",
     "refresh_token_router",
     "user_self_service_router",

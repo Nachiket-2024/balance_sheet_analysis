@@ -51,7 +51,10 @@ Also rotate `SECRET_KEY`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`,
 opening password signup to users, because unverified password accounts cannot
 log in. Configure Google OAuth2 before showing Google login. The CLI-created
 system superuser can sign in without Google or SMTP because the script marks it
-verified. See
+verified. See [System Superuser](../authentication/system-superuser.md) for
+the interactive command, or `local-scripts/prod/create-system-user.*` for a
+non-interactive version (fill in real production credentials, not the dev
+placeholder). See also
 [Environment variables](#environment-variables) below for the runtime rules and
 [Choosing the right env template](guide.md#choosing-the-right-env-template)
 for the mode comparison.

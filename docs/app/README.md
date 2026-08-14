@@ -8,7 +8,9 @@ itself provides (login, PBAC, audit logging, Docker, CI/CD). This directory
 only documents what this project adds on top of it.
 
 - **[architecture/](architecture/README.md)**: feature-folder layout, the `app/`
-  vs `mystic_auth/` split in practice, and why it's structured the way it is.
+  vs `mystic_auth/` split in practice, why it's structured the way it is, and
+  how this app's own UI text/error codes are translated into mystic_auth's
+  four supported languages ([architecture/translations.md](architecture/translations.md)).
 - **[features.md](features.md)**: implementation notes for the LLM chat and
   yfinance balance-sheet import.
 - **[access-control/](access-control/README.md)**: the company-hierarchy access

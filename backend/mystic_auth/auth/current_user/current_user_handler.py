@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 # the identical role can hold different policies and therefore see different
 # permissions here.
 from ...authorization.repositories.policy_repository import policy_repository
+from ...core.errors import AppError
 from ...logging.logging_config import get_logger
 from ...user_crud.user_crud_collector import user_crud
 from ...user_session.session_service import session_service
@@ -25,38 +26,43 @@ class CurrentUserHandler:
     async def get_current_user(self, access_token: str, db, include_active_sessions: bool = False) -> dict:
         try:
             if not access_token:
-                raise HTTPException(
+                raise AppError(
                     status_code=status.HTTP_401_UNAUTHORIZED,
+                    code="NO_ACCESS_TOKEN",
                     detail="No access token provided"
                 )
 
             payload = await jwt_service.verify_token(access_token, expected_type="access")
 
             if not payload:
-                raise HTTPException(
+                raise AppError(
                     status_code=status.HTTP_401_UNAUTHORIZED,
+                    code="INVALID_OR_EXPIRED_TOKEN",
                     detail="Invalid or expired token"
                 )
 
             email = payload.get("email")
 
             if not email:
-                raise HTTPException(
+                raise AppError(
                     status_code=status.HTTP_401_UNAUTHORIZED,
+                    code="INVALID_TOKEN_PAYLOAD",
                     detail="Invalid token payload"
                 )
 
             user = await user_crud.get_by_email(email, db)
 
             if not user:
-                raise HTTPException(
+                raise AppError(
                     status_code=status.HTTP_401_UNAUTHORIZED,
+                    code="USER_NOT_FOUND",
                     detail="User not found"
                 )
 
             if not user.is_active:
-                raise HTTPException(
+                raise AppError(
                     status_code=status.HTTP_403_FORBIDDEN,
+                    code="ACCOUNT_DEACTIVATED",
                     detail="Account is deactivated"
                 )
 
@@ -98,8 +104,9 @@ class CurrentUserHandler:
 
         except SQLAlchemyError as exc:
             logger.error("Database error fetching current user:\n%s", traceback.format_exc())
-            raise HTTPException(
+            raise AppError(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                code="DATABASE_ERROR",
                 detail="Database error"
             ) from exc
 
@@ -108,8 +115,9 @@ class CurrentUserHandler:
 
         except Exception as exc:
             logger.error("Error fetching current user:\n%s", traceback.format_exc())
-            raise HTTPException(
+            raise AppError(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                code="INTERNAL_SERVER_ERROR",
                 detail="Internal server error"
             ) from exc
 

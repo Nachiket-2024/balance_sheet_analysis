@@ -1,0 +1,49 @@
+{
+    "page": {
+        "title": "Policies",
+        "description": "Define and manage the access-control policies that grant permissions to users.",
+        "searchPlaceholder": "Search by name or resource type...",
+        "createPolicy": "Create Policy",
+        "failedToLoadPolicies": "Failed to load policies",
+        "noPoliciesMatchSearch": "No policies match your search",
+        "noPoliciesYet": "No policies yet : create one to start granting permissions.",
+        "policyUpdatedToast": "Policy updated",
+        "policyCreatedToast": "Policy created",
+        "policyDeletedToast": "Policy deleted",
+        "deleteDialogTitle": "Delete policy",
+        "deleteDialogDescription": "Delete \"{{policyName}}\"? Any user assigned this policy will immediately lose the permissions it grants."
+    },
+    "columns": {
+        "name": "Name",
+        "resourceType": "Resource type",
+        "actions": "Actions",
+        "edit": "Edit"
+    },
+    "formDialog": {
+        "editTitle": "Edit Policy",
+        "createTitle": "Create Policy",
+        "name": "Name",
+        "namePlaceholder": "e.g. document_reviewer",
+        "description": "Description",
+        "descriptionPlaceholder": "What this policy grants and why",
+        "actions": "Actions",
+        "actionsPlaceholder": "e.g. documents:view, documents:edit",
+        "actionsHelperText": "Comma-separated action identifiers",
+        "resourceType": "Resource type",
+        "resourceTypePlaceholder": "e.g. \"documents\" or \"*\" for any",
+        "conditions": "Conditions (JSON, optional)",
+        "conditionsPlaceholder": "e.g. { \"self_only\": true }",
+        "conditionsInvalidJson": "Conditions must be valid JSON",
+        "saveChanges": "Save changes",
+        "createPolicy": "Create policy",
+        "discardTitle": "Discard unsaved changes?",
+        "discardDescription": "Your edits to this policy haven't been saved. Closing now will discard them.",
+        "discard": "Discard"
+    },
+    "statsCard": {
+        "totalPolicies": "Total policies",
+        "active": "Active",
+        "distinctActions": "Distinct actions",
+        "resourceTypes": "Resource types"
+    }
+}

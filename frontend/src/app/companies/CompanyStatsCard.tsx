@@ -1,5 +1,6 @@
 import React from "react";
 import { SimpleGrid } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import { Card } from "../sdk";
 import { StatTile } from "../app_sdk";
@@ -22,6 +23,7 @@ interface CompanyStatsCardProps {
 const CompanyStatsCard: React.FC<CompanyStatsCardProps> = ({
     onFilterTotal, onFilterGroupRoots, onFilterSubsidiaries,
 }) => {
+    const { t } = useTranslation("companies");
     const { data, isLoading, isError } = useCompanyStatsQuery();
 
     if (isError) return null;
@@ -37,16 +39,16 @@ const CompanyStatsCard: React.FC<CompanyStatsCardProps> = ({
         >
             <SimpleGrid columns={3} gap={4}>
                 <StatTile
-                    label="Total companies" value={data?.total} isLoading={isLoading} color="brand.fg"
-                    onClick={onFilterTotal} ariaLabel="Filter companies: Total companies"
+                    label={t("totalCompanies")} value={data?.total} isLoading={isLoading} color="brand.fg"
+                    onClick={onFilterTotal} ariaLabel={t("filterTotalCompaniesAria")}
                 />
                 <StatTile
-                    label="Group roots" value={data?.group_roots} isLoading={isLoading} color="green.500"
-                    onClick={onFilterGroupRoots} ariaLabel="Filter companies: Group roots"
+                    label={t("groupRoots")} value={data?.group_roots} isLoading={isLoading} color="green.500"
+                    onClick={onFilterGroupRoots} ariaLabel={t("filterGroupRootsAria")}
                 />
                 <StatTile
-                    label="Subsidiaries" value={data?.subsidiaries} isLoading={isLoading} color="purple.500"
-                    onClick={onFilterSubsidiaries} ariaLabel="Filter companies: Subsidiaries"
+                    label={t("subsidiaries")} value={data?.subsidiaries} isLoading={isLoading} color="purple.500"
+                    onClick={onFilterSubsidiaries} ariaLabel={t("filterSubsidiariesAria")}
                 />
             </SimpleGrid>
         </Card>

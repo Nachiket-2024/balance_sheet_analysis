@@ -40,7 +40,7 @@ describe('AppLayout', () => {
   it('does not show the mobile nav backdrop until the sidebar is toggled open', () => {
     const { container } = renderLayout();
 
-    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
+    expect(container.querySelector('[data-testid="mobile-nav-backdrop"]')).toBeNull();
   });
 
   it('shows the mobile nav backdrop after the hamburger button is clicked', async () => {
@@ -48,30 +48,30 @@ describe('AppLayout', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Toggle navigation menu' }));
 
-    expect(container.querySelector('[aria-hidden="true"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="mobile-nav-backdrop"]')).toBeTruthy();
   });
 
   it('closes the mobile nav when Escape is pressed while it is open', async () => {
     const { container } = renderLayout();
 
     await userEvent.click(screen.getByRole('button', { name: 'Toggle navigation menu' }));
-    expect(container.querySelector('[aria-hidden="true"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="mobile-nav-backdrop"]')).toBeTruthy();
 
     await userEvent.keyboard('{Escape}');
 
-    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
+    expect(container.querySelector('[data-testid="mobile-nav-backdrop"]')).toBeNull();
   });
 
   it('closes the mobile nav when the backdrop is clicked', async () => {
     const { container } = renderLayout();
 
     await userEvent.click(screen.getByRole('button', { name: 'Toggle navigation menu' }));
-    const backdrop = container.querySelector('[aria-hidden="true"]') as HTMLElement;
+    const backdrop = container.querySelector('[data-testid="mobile-nav-backdrop"]') as HTMLElement;
     expect(backdrop).toBeTruthy();
 
     await userEvent.click(backdrop);
 
-    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
+    expect(container.querySelector('[data-testid="mobile-nav-backdrop"]')).toBeNull();
   });
 
   it('renders no extra sidebar links when extraNavItems is omitted', () => {

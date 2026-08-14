@@ -1,0 +1,44 @@
+{
+    "loadingDetails": "तुमचा तपशील लोड होत आहे...",
+    "unableToFetch": "वापरकर्ता तपशील मिळवता आला नाही",
+    "noRole": "कोणतीही भूमिका नियुक्त केलेली नाही",
+    "memberSince": "सदस्य झाल्यापासून",
+    "lastLogin": "शेवटचा लॉगिन",
+    "activeSession": "सक्रिय सत्र",
+    "activeSessions": "सक्रिय सत्रे",
+    "accountSettingsButton": "खाते सेटिंग्ज",
+    "logoutAllButton": "सर्वांमधून लॉगआउट",
+    "noUserData": "वापरकर्ता डेटा उपलब्ध नाही",
+    "logoutAllDialog": {
+        "title": "सर्व उपकरणांवरून लॉगआउट",
+        "description": "यामुळे तुमच्या खात्याचे या उपकरणासह प्रत्येक उपकरणावरील सर्व सक्रिय सत्र संपुष्टात येतील. सुरू ठेवायचे?",
+        "confirmLabel": "सर्वांमधून लॉगआउट"
+    },
+    "manageSessions": {
+        "heading": "सत्र व्यवस्थापित करा",
+        "deviceColumn": "उपकरण",
+        "thisDeviceBadge": "हे उपकरण",
+        "ipColumn": "IP",
+        "ipUnknown": "अज्ञात",
+        "signedInColumn": "साइन इन केले",
+        "lastSeenColumn": "शेवटचे पाहिले",
+        "logOut": "लॉगआउट",
+        "sessionEndedToast": "सत्र संपले",
+        "errorLoadSessions": "तुमची सत्रे लोड करण्यात अयशस्वी",
+        "noActiveSessions": "कोणतेही सक्रिय सत्र नाही.",
+        "failedEndSession": "सत्र संपवण्यात अयशस्वी",
+        "endDialog": {
+            "logoutThisDeviceTitle": "या उपकरणावरून लॉगआउट",
+            "endSessionTitle": "सत्र संपवा",
+            "logoutThisDeviceDescription": "यामुळे तुम्ही आत्ताच या उपकरणावरून लॉगआउट व्हाल. सुरू ठेवायचे?",
+            "endSessionDescription": "\"{{device}}\"{{ipSuffix}} वरील सत्र संपवायचे? ते उपकरण लगेच साइन आउट केले जाईल.",
+            "confirmLabel": "लॉगआउट"
+        }
+    },
+    "parseUserAgent": {
+        "unknownDevice": "अज्ञात उपकरण",
+        "unknownBrowser": "अज्ञात ब्राउझर",
+        "unknownOS": "अज्ञात OS",
+        "deviceLabel": "{{browser}}, {{os}} वर"
+    }
+}

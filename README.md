@@ -69,6 +69,13 @@ The reserved system account, the only one that can reach the Users/Policies admi
 
 ---
 
+### Dashboard (System Superuser, Hindi)
+Same page, with the language toggle set to Hindi, one of the four languages this app's UI is translated into. See [Translations](docs/app/architecture/translations.md).
+
+![System superuser dashboard shown in Hindi](screenshots/app/dashboard_system_superuser_hindi.png)
+
+---
+
 ### Companies
 Every company the signed-in account's policies grant, scoped server-side, not filtered client-side. See [Access Control](docs/app/access-control/README.md).
 
@@ -119,6 +126,7 @@ This app's two ready-to-assign baseline policies, `role_company_viewer`/`role_co
 - **Company-hierarchy access control**: a CEO sees only their own company, a group executive sees their whole group, an analyst is scoped the same way, all built on PBAC conditions rather than a role check. See [Access Control](docs/app/access-control/README.md).
 - **Baseline RBAC-shaped policies, seeded automatically**: `role_company_viewer`/`role_company_manager` exist from the very first `docker compose up`, so a fresh install is usable immediately. Assign one from the Users/Policies UI, no conditions JSON to write by hand.
 - **Real authentication, not a demo login**: email+password with Argon2 hashing, Google OAuth2/PKCE, JWT access+refresh tokens as httpOnly cookies, refresh-token rotation with reuse detection, rate limiting, and audit logging, all inherited from mystic-auth. See [`docs/mystic_auth/`](docs/mystic_auth/README.md).
+- **Multi-language UI**: this app's own text (companies, balance sheets, LLM chat) and error codes are translated into the four languages mystic-auth ships (English, Hindi, Marathi, Gujarati), registered into mystic-auth's own i18next instance rather than editing any upstream-owned translation file. See [Translations](docs/app/architecture/translations.md).
 - **Error monitoring, on by default**: backend and frontend exceptions reported to self-hosted Bugsink, started automatically by `docker compose up`. See [Error Monitoring](docs/mystic_auth/error-monitoring/overview.md).
 
 ---
@@ -264,6 +272,13 @@ uvicorn backend.app.main:app --reload
 taskiq worker backend.mystic_auth.taskiq_tasks.email_tasks:broker --reload
 ```
 
+Also start the scheduler in a separate terminal, or backed-off email retries
+will sit in Redis and never fire:
+
+```bash
+PYTHONPATH=backend taskiq scheduler mystic_auth.taskiq_tasks.email_tasks:scheduler
+```
+
 #### 4. Run the React frontend
 
 ```bash
@@ -281,7 +296,14 @@ npm run dev
 
 After starting the app for the first time, create the reserved system account: a one-time step inherited from mystic-auth that seeds the account holding the `system_superuser` policy (and every other baseline policy). There is no API endpoint for this by design; CLI/shell access is the point. Pick the command for the mode you're actually running (this repo primarily uses **Dev Docker**; the other three are inherited from mystic-auth for completeness):
 
-### Dev Docker
+### Non-interactive (recommended for repeated resets)
+`local-scripts/{dev,local-prod,prod}/create-system-user.{sh,ps1,bat}` pipe the fresh-account prompts in for you against the matching Compose file, so you don't have to retype them every time you reset a local stack. Copy the `system-user.env.example` next to the script you're using, fill in real values, then run it. Each `system-user.env` is ignored by both `.gitignore` and `.dockerignore`, so filling it in never risks committing real credentials. See [System Superuser: Bootstrapping and Promotion](docs/mystic_auth/authentication/system-superuser.md#non-interactive-bootstrap-scripts) for details.
+
+---
+
+### Interactive, by run mode
+
+#### Dev Docker
 
 Use this with `.env.example` and `docker-compose.yml`, i.e. `./scripts/docker/dev-up.sh`/`dev-up.ps1`/`dev-up.cmd` above:
 
@@ -289,7 +311,7 @@ Use this with `.env.example` and `docker-compose.yml`, i.e. `./scripts/docker/de
 docker compose exec -it backend python -m mystic_auth.scripts.create_system_user
 ```
 
-### Local-prod Docker
+#### Local-prod Docker
 
 Use this with `.env.local-prod.example` and `docker-compose.local-prod.yml` (self-hosted Cloudflare Tunnel mode):
 
@@ -297,7 +319,7 @@ Use this with `.env.local-prod.example` and `docker-compose.local-prod.yml` (sel
 docker compose -f docker-compose.local-prod.yml exec -it backend python -m mystic_auth.scripts.create_system_user
 ```
 
-### Prod Docker
+#### Prod Docker
 
 Use this on the server running `.env.prod.example` and `docker-compose.prod.yml`:
 
@@ -305,7 +327,7 @@ Use this on the server running `.env.prod.example` and `docker-compose.prod.yml`
 docker compose -f docker-compose.prod.yml exec -it backend python -m mystic_auth.scripts.create_system_user
 ```
 
-### Local Backend Without Docker
+#### Local Backend Without Docker
 
 Only if the backend is running directly on your host and can reach the configured Postgres and Redis (Path 2 above):
 

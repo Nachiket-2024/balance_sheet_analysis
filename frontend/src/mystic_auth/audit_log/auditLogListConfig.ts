@@ -7,11 +7,27 @@
  * duplicating them.
  */
 
+import type { SupportedLanguage } from "../translations/translations";
+import { formatNumber } from "../translations/numerals";
+import { monthNameShort } from "../translations/monthNames";
+import { formatHourMinute } from "../translations/timeOfDay";
+
 export const PAGE_SIZE = 25;
 export const ALL_VALUE = "";
 
-export function formatTimestamp(iso: string): string {
-    return new Date(iso).toLocaleString();
+/** e.g. "14 Aug 2026, 8:58 PM" - fixed dd-Mon-yyyy (not the browser's locale
+ * format, which could read mm/dd/yyyy for a US-locale viewer looking at the
+ * same log row as a viewer elsewhere), so a timestamp reads unambiguously
+ * the same way for every operator regardless of their system locale, with
+ * the month name, digits, and time-of-day all localized to the active
+ * language (see timeOfDay.ts for hi/mr's native day-period words). */
+export function formatTimestamp(iso: string, language: SupportedLanguage): string {
+    const date = new Date(iso);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = monthNameShort(date.getMonth(), language);
+    const year = date.getFullYear();
+    const time = formatHourMinute(date, language);
+    return formatNumber(`${day} ${month} ${year}, ${time}`, language);
 }
 
 export function totalPagesFor(total: number): number {

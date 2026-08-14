@@ -9,14 +9,15 @@
 | `backend` | `docker/backend.Dockerfile` | FastAPI app (uvicorn) |
 | `frontend` | `docker/frontend.Dockerfile` (`dev` target locally, `production` target in prod) | React SPA: Vite dev server locally, nginx-served static build in prod |
 | `taskiq_worker` | `docker/backend.Dockerfile` (same image as `backend`, different `command:`) | Consumes the email-sending task queue: see [Background Workers](../background-workers/taskiq.md) |
-| `alembic` | `docker/backend.Dockerfile` (same image, one-shot) | Runs `alembic upgrade head` then exits. In prod, `backend` and `taskiq_worker` wait on its success |
+| `taskiq_scheduler` | `docker/backend.Dockerfile` (same image as `backend`, different `command:`) | Polls due retry schedules and re-enqueues them onto `taskiq_worker`'s broker: see [Background Workers](../background-workers/taskiq.md) |
+| `alembic` | `docker/backend.Dockerfile` (same image, one-shot) | Runs `alembic upgrade head` then exits. In prod, `backend`, `taskiq_worker`, and `taskiq_scheduler` wait on its success |
 | `bugsink` | `bugsink/bugsink:2` (pulled, not built) | Self-hosted error monitoring that starts by default with the stack. See [Error Monitoring](../error-monitoring/overview.md) |
 | `bugsink-seed` | `bugsink/bugsink:2` (same image, one-shot) | Runs once `bugsink` is healthy. It creates the "MysticAuth" team/project idempotently and writes seeded DSNs into the `bugsink_dsn` volume. Locally, both backend and frontend DSN forms are written and read at startup. In prod, only the backend form is written because `frontend`'s `VITE_SENTRY_DSN` is baked in at image build time |
 
-`backend`, `taskiq_worker`, and `alembic` all build from the same
-`docker/backend.Dockerfile` image with different `command:` overrides. This
-keeps dependency versions and application code identical across all three
-roles.
+`backend`, `taskiq_worker`, `taskiq_scheduler`, and `alembic` all build from
+the same `docker/backend.Dockerfile` image with different `command:`
+overrides. This keeps dependency versions and application code identical
+across all four roles.
 
 The `postgres` service mounts `docker/postgres-init/` to
 `/docker-entrypoint-initdb.d/`. On a fresh volume, it creates the separate
@@ -35,6 +36,7 @@ flowchart LR
         alembic["alembic<br/><small>runs once, exits</small>"]
         backend["backend"]
         taskiq["taskiq_worker"]
+        scheduler["taskiq_scheduler"]
         frontend["frontend"]
     end
 
@@ -47,10 +49,13 @@ flowchart LR
     redis --> alembic
     alembic -->|"prod: waits for<br/>success. dev: no gate"| backend
     alembic --> taskiq
+    alembic --> scheduler
     postgres --> backend
     redis --> backend
     postgres --> taskiq
     redis --> taskiq
+    postgres --> scheduler
+    redis --> scheduler
     backend -->|healthy| frontend
     postgres --> bugsink
     bugsink -->|healthy| bugsinkseed

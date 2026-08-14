@@ -85,7 +85,11 @@ class RateLimiterService:
 
                 if not allowed:
                     return JSONResponse(
-                        content={"error": f"Too many {endpoint_name} attempts"},
+                        content={
+                            "error": f"Too many {endpoint_name} attempts",
+                            "code": "TOO_MANY_ATTEMPTS",
+                            "params": {"endpoint": endpoint_name},
+                        },
                         status_code=429
                     )
 
@@ -111,7 +115,11 @@ class RateLimiterService:
 
                         if not account_allowed:
                             return JSONResponse(
-                                content={"error": f"Too many {endpoint_name} attempts"},
+                                content={
+                                    "error": f"Too many {endpoint_name} attempts",
+                                    "code": "TOO_MANY_ATTEMPTS",
+                                    "params": {"endpoint": endpoint_name},
+                                },
                                 status_code=429
                             )
 

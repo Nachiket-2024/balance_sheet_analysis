@@ -23,6 +23,20 @@ import { queryClient } from "../mystic_auth/core/queryClient.ts";
 // chose dark mode.
 import '../mystic_auth/store/themeStore.ts';
 
+// Same reasoning as themeStore.ts above, for the persisted/browser language
+// preference: languageStore.ts itself eagerly imports and initializes
+// translations/translations.ts, so this one import both configures translations and applies the
+// chosen language before the first paint.
+import '../mystic_auth/store/languageStore.ts';
+
+// This app's own translation resources (companies/balance_sheets/llm
+// namespaces, plus this app's own error codes). Imported after
+// languageStore.ts above so mystic_auth's i18next instance is already
+// initialized by the time this registers into it - see
+// translations/translations.ts's own comment for why this is a registration
+// into the shared instance, not a second one.
+import './translations/translations.ts';
+
 // Must be called once, before the app renders, so every API call made
 // during the initial session check is already covered.
 import { setupAuthInterceptor } from "../mystic_auth/auth/session_lifecycle/setupAuthInterceptor.ts";

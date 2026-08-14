@@ -117,7 +117,7 @@ async def list_audit_log_for_user(
 ):
     """Same as list_audit_log, scoped to a single user's decisions."""
 
-    await get_or_404(user_crud.get_by_email(user_email, db), "User not found")
+    await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
 
     response.headers["X-Total-Count"] = str(
         await audit_log_repository.count_for_user(

@@ -179,7 +179,7 @@ async def get_company(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(database.get_session),
 ):
-    company = await get_or_404(get_company_by_id(company_id, db), "Company not found")
+    company = await get_or_404(get_company_by_id(company_id, db), "Company not found", code="COMPANY_NOT_FOUND")
 
     # Fetch first, then authorize against the actual row so an out-of-scope
     # existing company returns 403 instead of a leaked 200.
@@ -200,7 +200,7 @@ async def edit_company(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(database.get_session),
 ):
-    company = await get_or_404(get_company_by_id(company_id, db), "Company not found")
+    company = await get_or_404(get_company_by_id(company_id, db), "Company not found", code="COMPANY_NOT_FOUND")
     await authorization_service.require(
         current_user["email"],
         COMPANY_UPDATE,
@@ -220,7 +220,7 @@ async def remove_company(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(database.get_session),
 ):
-    company = await get_or_404(get_company_by_id(company_id, db), "Company not found")
+    company = await get_or_404(get_company_by_id(company_id, db), "Company not found", code="COMPANY_NOT_FOUND")
     await authorization_service.require(
         current_user["email"],
         COMPANY_DELETE,

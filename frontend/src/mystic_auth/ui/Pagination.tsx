@@ -1,8 +1,11 @@
 import React from "react";
 import { Button, HStack, Text } from "@chakra-ui/react";
 import type { StackProps } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
-import { BRAND_SOLID_HOVER_PROPS } from "./styles/buttonStyles";
+import { BRAND_SOLID_HOVER_PROPS, FAST_HOVER_TRANSITION } from "./styles/buttonStyles";
+import { useLanguageStore } from "../store/languageStore";
+import { formatNumber } from "../translations/numerals";
 
 interface PaginationProps extends Omit<StackProps, "children" | "page" | "onChange"> {
     page: number;
@@ -33,6 +36,7 @@ const INACTIVE_PAGE_PROPS = {
         borderColor: "gray.500",
         _hover: { bg: "gray.300", borderColor: "gray.300", color: "gray.900" },
     },
+    transition: FAST_HOVER_TRANSITION,
 };
 
 // Active page: brand.solid already has plenty of contrast on its own; this
@@ -80,6 +84,8 @@ function buildPageList(page: number, totalPages: number, siblingCount = 1): (num
  * can't drift at all.
  */
 const Pagination: React.FC<PaginationProps> = ({ page, totalPages, onPageChange, ...rest }) => {
+    const { t } = useTranslation("ui_text");
+    const language = useLanguageStore((s) => s.pageLanguage);
     const pages = buildPageList(page, Math.max(1, totalPages));
 
     return (
@@ -88,10 +94,10 @@ const Pagination: React.FC<PaginationProps> = ({ page, totalPages, onPageChange,
                 size="sm"
                 onClick={() => onPageChange(page - 1)}
                 disabled={page <= 1}
-                aria-label="Previous page"
+                aria-label={t("pagination.previousPage")}
                 {...INACTIVE_PAGE_PROPS}
             >
-                Prev
+                {t("pagination.prev")}
             </Button>
 
             {pages.map((p, i) =>
@@ -105,11 +111,11 @@ const Pagination: React.FC<PaginationProps> = ({ page, totalPages, onPageChange,
                         size="sm"
                         minW="9"
                         onClick={() => onPageChange(p)}
-                        aria-label={`Page ${p}`}
+                        aria-label={t("pagination.page", { page: formatNumber(p, language) })}
                         aria-current={p === page ? "page" : undefined}
                         {...(p === page ? ACTIVE_PAGE_PROPS : INACTIVE_PAGE_PROPS)}
                     >
-                        {p}
+                        {formatNumber(p, language)}
                     </Button>
                 )
             )}
@@ -118,10 +124,10 @@ const Pagination: React.FC<PaginationProps> = ({ page, totalPages, onPageChange,
                 size="sm"
                 onClick={() => onPageChange(page + 1)}
                 disabled={page >= totalPages}
-                aria-label="Next page"
+                aria-label={t("pagination.nextPage")}
                 {...INACTIVE_PAGE_PROPS}
             >
-                Next
+                {t("pagination.next")}
             </Button>
         </HStack>
     );

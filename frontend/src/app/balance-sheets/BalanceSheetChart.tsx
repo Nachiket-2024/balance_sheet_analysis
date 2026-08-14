@@ -1,6 +1,7 @@
 import React from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Box, HStack, Text } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import { Card } from "../sdk";
 import type { BalanceSheet } from "../api/balance_sheet_api";
@@ -9,10 +10,13 @@ interface BalanceSheetChartProps {
     balanceSheets: BalanceSheet[];
 }
 
-const SERIES: { key: string; label: string; color: string }[] = [
-    { key: "total_assets", label: "Total assets", color: "#2563eb" },
-    { key: "total_liabilities_net_minority_interest", label: "Total liabilities", color: "#dc2626" },
-    { key: "stockholders_equity", label: "Stockholders' equity", color: "#16a34a" },
+// Keyed by translation key (not literal text, unlike upstream's own static
+// label constants elsewhere) since the series' display name has to follow
+// the caller's current language via useTranslation below.
+const SERIES: { key: string; labelKey: string; color: string }[] = [
+    { key: "total_assets", labelKey: "seriesTotalAssets", color: "#2563eb" },
+    { key: "total_liabilities_net_minority_interest", labelKey: "seriesTotalLiabilities", color: "#dc2626" },
+    { key: "stockholders_equity", labelKey: "seriesStockholdersEquity", color: "#16a34a" },
 ];
 
 /** Compact USD ticks avoid clipped y-axis labels for large figures. */
@@ -32,6 +36,8 @@ function formatCompactUsd(value: number): string {
  * covers what the balance sheet itself actually reports.
  */
 const BalanceSheetChart: React.FC<BalanceSheetChartProps> = ({ balanceSheets }) => {
+    const { t } = useTranslation("balance_sheets");
+
     if (balanceSheets.length === 0) {
         return null;
     }
@@ -48,7 +54,7 @@ const BalanceSheetChart: React.FC<BalanceSheetChartProps> = ({ balanceSheets }) 
     return (
         <Card p={5} mb={6}>
             <Text fontWeight="semibold" mb={4} fontSize="lg">
-                Assets, liabilities & equity over time
+                {t("chartTitle")}
             </Text>
 
             {/* Axis titles are plain Chakra text outside the chart's own SVG,
@@ -66,7 +72,7 @@ const BalanceSheetChart: React.FC<BalanceSheetChartProps> = ({ balanceSheets }) 
                         whiteSpace="nowrap"
                         style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
                     >
-                        Amount (USD)
+                        {t("amountAxisLabel")}
                     </Text>
                 </Box>
 
@@ -96,7 +102,7 @@ const BalanceSheetChart: React.FC<BalanceSheetChartProps> = ({ balanceSheets }) 
                             {/* Recharts v3 infers a wider Tooltip formatter type than v2. */}
                             <Tooltip
                                 formatter={(value) => (typeof value === "number" ? value.toLocaleString() : value)}
-                                labelFormatter={(label) => `Fiscal year ${label}`}
+                                labelFormatter={(label) => t("tooltipFiscalYear", { year: label })}
                                 contentStyle={{
                                     background: "var(--chakra-colors-bg-surface)",
                                     border: "1px solid var(--chakra-colors-border-default)",
@@ -111,7 +117,7 @@ const BalanceSheetChart: React.FC<BalanceSheetChartProps> = ({ balanceSheets }) 
                                     key={series.key}
                                     type="monotone"
                                     dataKey={series.key}
-                                    name={series.label}
+                                    name={t(series.labelKey)}
                                     stroke={series.color}
                                     strokeWidth={2}
                                     dot={{ r: 3 }}
@@ -123,7 +129,7 @@ const BalanceSheetChart: React.FC<BalanceSheetChartProps> = ({ balanceSheets }) 
                     </ResponsiveContainer>
 
                     <Text fontSize="md" fontWeight="semibold" color="fg.muted" textAlign="center" mt={1}>
-                        Fiscal year
+                        {t("fiscalYearAxisLabel")}
                     </Text>
                 </Box>
             </HStack>

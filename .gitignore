@@ -89,6 +89,11 @@ logs/
 # ---------------------------- Database backups ----------------------------
 backups/
 
+# ---------------------------- Local scripts (system user bootstrap) ----------------------------
+# Real credentials for local-scripts/{dev,local-prod,prod}/create-system-user.*;
+# the .example templates alongside them stay tracked.
+local-scripts/**/system-user.env
+
 # ---------------------------- Local Development Tools ----------------------------
 .claude/
 # Git matching is case-sensitive on Linux CI, unlike Windows and macOS.

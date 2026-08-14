@@ -32,7 +32,7 @@ What started as a shortcut for future projects became a project of its own.
 
 ## How it evolved
 
-The commit history shows the real evolution, not a fully planned architecture from day one. The first on 18 August, 2025 to the most recent on 7 August, 2026. There's a 4-month gap between October 2025 and February 2026. Below, days committed back-to-back are grouped into one range while an isolated day stands on its own.
+The commit history shows the real evolution, not a fully planned architecture from day one. The first on 18 August, 2025 to the most recent on 10 August, 2026. There's a 4-month gap between October 2025 and February 2026. Below, days committed back-to-back are grouped into one range while an isolated day stands on its own.
 
 ```mermaid
 timeline
@@ -59,6 +59,8 @@ timeline
     August 2026: UI, backend changes, session/logout-all fixes
             : Sync-script safety nets, scripts/ reorganized
             : Codebase restructure, PBAC/reset-token security fixes
+            : Navbar and DEFAULT_APP_POLICIES extension point
+            : Language toggle and i18n scaffolding
 ```
 
 ### 18 August, 2025 - 23 August, 2025
@@ -241,9 +243,19 @@ The template changed across UI, backend behavior, Docker, CI, tests, and documen
 
 Running a real upstream sync with Claude Code against another one of my projects surfaced four real gaps in `sync-upstream.sh`: a binary file mid-patch could make `git apply --3way` silently drop the rest of the diff while still looking like a normal result, nothing caught two migrations landing on the same alembic head, comment-only rewording upstream kept forcing the same conflict every sync, and Windows/Git Bash friction was still a manual workaround instead of just working. All four got fixed, `scripts/` was reorganized into `upstream-sync/`, `docker/`, and `db/` subfolders, and docs across the repo were updated to match.
 
-### 7 August, 2026
+### 7 August, 2026 - 10 August, 2026
 
-A 202-file restructure renamed and relocated files across frontend and backend to match the feature-based layout, tests included, and split `user_management_routes.py` into lifecycle, query, and update route files. Assigning the system role now requires an explicit `users:assign_system_role` check instead of the broader `users:assign_role` permission alone, and password reset confirmation now uses a reset-scoped token check instead of the generic JWT verifier, which had accepted any validly-signed token for the target account.
+A 202-file restructure matched frontend and backend to the feature-based layout, splitting `user_management_routes.py` into lifecycle, query, and update route files, alongside a tighter `users:assign_system_role` check, a reset-scoped password-reset token check, a `nanoid` advisory fix, a toast/navbar overlap fix, and real exponential backoff for Taskiq retries via `SmartRetryMiddleware` plus a new `taskiq_scheduler` container.
+
+Downstream use kept surfacing real extension gaps: an `extraNavbarContent` prop let a project add its own navbar links without touching the shared sidebar, and a `DEFAULT_APP_POLICIES` setting let another grant a second default policy to every user without hand-editing upstream's signup/OAuth2 code. Row-action buttons across the tables got distinct, dark-mode-aware colors. A downstream bug report then caught that the oauth2 unit tests, and three auth/authorization integration tests asserting exact policy sets, only passed because `DEFAULT_APP_POLICIES` happened to be empty in this repo's own CI, so the unit tests were fixed to mock the extension point directly and the integration suite got a conftest that forces it empty, instead of either depending on that env var.
+
+### 12 August, 2026
+
+Sidebar links got a hover state, and the same fast, snappy hover transition (`FAST_HOVER_TRANSITION`) was extracted and applied consistently across buttons, pagination, and table action buttons.
+
+### 15 August, 2026
+
+A language toggle and translations store were added on the frontend, backed by a new `AppError` exception type that carries an error code/params through the API so the frontend can look up a translated message instead of showing the raw English `detail` string.
 
 ---
 

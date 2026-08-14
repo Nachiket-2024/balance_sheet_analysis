@@ -1,8 +1,10 @@
 import React from "react";
-import { Box, Flex, Heading, Text } from "@chakra-ui/react";
+import { Box, Flex, HStack, Heading, Text } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import { APP_NAME } from "../core/settings";
 import ThemeToggle from "./ThemeToggle";
+import LanguageToggle from "./LanguageToggle";
 
 interface AuthLayoutProps {
     children: React.ReactNode;
@@ -20,6 +22,8 @@ interface AuthLayoutProps {
  * toggle, centered (or top-aligned, for the "status" variant) content area, and a shared footer.
  */
 const AuthLayout: React.FC<AuthLayoutProps> = ({ children, variant = "form" }) => {
+    const { t } = useTranslation("layout");
+
     return (
         <Flex
             direction="column"
@@ -54,12 +58,15 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, variant = "form" }) =
                         fontSize="sm"
                         color="fg.muted"
                     >
-                        Secure access, centrally managed
+                        {t("tagline")}
                     </Text>
                 </Flex>
 
                 <Box position="absolute" right={6}>
-                    <ThemeToggle />
+                    <HStack gap={3}>
+                        <LanguageToggle />
+                        <ThemeToggle />
+                    </HStack>
                 </Box>
             </Flex>
 
@@ -96,7 +103,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, variant = "form" }) =
                     <Text as="span" color="brand.fg" fontWeight="medium">
                         {APP_NAME}
                     </Text>
-                    . All rights reserved.
+                    {" "}{t("allRightsReserved")}
                 </Text>
             </Box>
         </Flex>

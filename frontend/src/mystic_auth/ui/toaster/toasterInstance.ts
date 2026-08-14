@@ -11,4 +11,8 @@ import { createToaster } from "@chakra-ui/react";
 export const toaster = createToaster({
     placement: "top-end",
     pauseOnPageIdle: true,
+    // Top offset clears the sticky Navbar (h="16" = 4rem, plus a little
+    // breathing room) so toasts render below it instead of over the
+    // logout button. The other sides keep the library's 1rem default.
+    offsets: { top: "5rem", right: "1rem", bottom: "1rem", left: "1rem" },
 });

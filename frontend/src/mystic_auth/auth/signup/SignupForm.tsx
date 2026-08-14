@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Stack, Input, Button, Text } from "@chakra-ui/react";
 import { Field as ChakraField } from "@chakra-ui/react";
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import { useSignupMutation } from "./useSignupMutation";
 import FormAlert from "../../ui/FormAlert";
@@ -13,6 +14,7 @@ import { checkPasswordRules, evaluatePasswordStrength, validatePassword } from "
 import PasswordRulesChecklist from "../password_rules/PasswordRulesChecklist";
 
 const SignupForm: React.FC = () => {
+    const { t } = useTranslation("auth");
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -31,14 +33,14 @@ const SignupForm: React.FC = () => {
     const handleSubmit = (e: React.SubmitEvent<HTMLDivElement>) => {
         e.preventDefault();
 
-        const passwordError = validatePassword(password);
+        const passwordError = validatePassword(password, t);
         if (passwordError) {
             setLocalError(passwordError);
             return;
         }
 
         if (password !== confirmPassword) {
-            setLocalError("Passwords do not match");
+            setLocalError(t("signup.passwordsDoNotMatch"));
             return;
         }
 
@@ -67,33 +69,33 @@ const SignupForm: React.FC = () => {
         <Stack as="form" onSubmit={handleSubmit} w="full">
             <Stack direction="row">
                 <ChakraField.Root required flex={1}>
-                    <ChakraField.Label>Name</ChakraField.Label>
+                    <ChakraField.Label>{t("signup.nameLabel")}</ChakraField.Label>
                     <Input
                         type="text"
                         value={name}
                         onChange={e => setName(e.target.value)}
-                        placeholder="Enter your name"
+                        placeholder={t("signup.namePlaceholder")}
                     />
                 </ChakraField.Root>
 
                 <ChakraField.Root required flex={1}>
-                    <ChakraField.Label>Email</ChakraField.Label>
+                    <ChakraField.Label>{t("signup.emailLabel")}</ChakraField.Label>
                     <Input
                         type="email"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
-                        placeholder="Enter your email"
+                        placeholder={t("signup.emailPlaceholder")}
                     />
                 </ChakraField.Root>
             </Stack>
 
             <ChakraField.Root required>
-                <ChakraField.Label>Password</ChakraField.Label>
+                <ChakraField.Label>{t("signup.passwordLabel")}</ChakraField.Label>
                 <Input
                     type="password"
                     value={password}
                     onChange={e => handlePasswordChange(e.target.value)}
-                    placeholder="Enter password"
+                    placeholder={t("signup.passwordPlaceholder")}
                     aria-invalid={!!localError || signupMutation.isError}
                     aria-describedby={passwordErrorId}
                 />
@@ -113,19 +115,19 @@ const SignupForm: React.FC = () => {
                         passwordStrength === "Strong" ? "green.500" : "fg.muted"
                     }
                 >
-                    Strength: {passwordStrength || "-"}
+                    {t("signup.strengthLabel", { strength: passwordStrength || "-" })}
                 </Text>
             </ChakraField.Root>
 
             <PasswordRulesChecklist rules={rules} fontSize="15px" />
 
             <ChakraField.Root required>
-                <ChakraField.Label>Confirm Password</ChakraField.Label>
+                <ChakraField.Label>{t("signup.confirmPasswordLabel")}</ChakraField.Label>
                 <Input
                     type="password"
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm password"
+                    placeholder={t("signup.confirmPasswordPlaceholder")}
                     aria-invalid={!!localError}
                     aria-describedby={localError ? "signup-password-error" : undefined}
                 />
@@ -145,12 +147,13 @@ const SignupForm: React.FC = () => {
                 type="submit"
                 colorPalette="brand"
                 w="full"
+                fontSize="md"
                 loading={signupMutation.isPending}
-                loadingText="Signing up..."
+                loadingText={t("signup.signingUp")}
                 disabled={signupMutation.isSuccess}
                 {...BRAND_SOLID_HOVER_PROPS}
             >
-                Signup
+                {t("signup.submitButton")}
             </Button>
 
             {/* Matches LoginPage's reciprocal "Don't have an account? Sign
@@ -159,9 +162,9 @@ const SignupForm: React.FC = () => {
                 pattern instead of two different conventions for the same
                 "wrong page? go to the other one" action. */}
             <Text fontSize="16px" color="fg.muted" textAlign="center">
-                Already have an account?{" "}
+                {t("signup.alreadyHaveAccount")}{" "}
                 <Link to="/login" style={{ color: "var(--chakra-colors-brand-fg)", fontWeight: 600 }}>
-                    Login
+                    {t("signup.login")}
                 </Link>
             </Text>
         </Stack>

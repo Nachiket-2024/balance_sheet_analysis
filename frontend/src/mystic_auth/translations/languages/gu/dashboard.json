@@ -1,0 +1,44 @@
+{
+    "loadingDetails": "તમારી વિગતો લોડ થઈ રહી છે...",
+    "unableToFetch": "વપરાશકર્તાની વિગતો મેળવવામાં અસમર્થ",
+    "noRole": "કોઈ ભૂમિકા સોંપેલ નથી",
+    "memberSince": "સભ્ય બન્યાની તારીખ",
+    "lastLogin": "છેલ્લું લોગિન",
+    "activeSession": "સક્રિય સેશન",
+    "activeSessions": "સક્રિય સેશન્સ",
+    "accountSettingsButton": "ખાતાની સેટિંગ્સ",
+    "logoutAllButton": "બધેથી લોગઆઉટ",
+    "noUserData": "કોઈ વપરાશકર્તા ડેટા ઉપલબ્ધ નથી",
+    "logoutAllDialog": {
+        "title": "બધા ડિવાઇસમાંથી લોગઆઉટ",
+        "description": "આ તમારા ખાતાના દરેક ડિવાઇસ પરના દરેક સક્રિય સેશનને, આ સહિત, સમાપ્ત કરશે. ચાલુ રાખવું છે?",
+        "confirmLabel": "બધેથી લોગઆઉટ"
+    },
+    "manageSessions": {
+        "heading": "સેશન્સ સંચાલિત કરો",
+        "deviceColumn": "ડિવાઇસ",
+        "thisDeviceBadge": "આ ડિવાઇસ",
+        "ipColumn": "IP",
+        "ipUnknown": "અજ્ઞાત",
+        "signedInColumn": "સાઇન ઇન થયું",
+        "lastSeenColumn": "છેલ્લે જોયું",
+        "logOut": "લોગ આઉટ",
+        "sessionEndedToast": "સેશન સમાપ્ત થયું",
+        "errorLoadSessions": "તમારા સેશન્સ લોડ કરવામાં નિષ્ફળ",
+        "noActiveSessions": "કોઈ સક્રિય સેશન નથી.",
+        "failedEndSession": "સેશન સમાપ્ત કરવામાં નિષ્ફળ",
+        "endDialog": {
+            "logoutThisDeviceTitle": "આ ડિવાઇસમાંથી લોગઆઉટ",
+            "endSessionTitle": "સેશન સમાપ્ત કરો",
+            "logoutThisDeviceDescription": "આ તમને હમણાં આ ડિવાઇસમાંથી લોગઆઉટ કરશે. ચાલુ રાખવું છે?",
+            "endSessionDescription": "\"{{device}}\"{{ipSuffix}} પરનું સેશન સમાપ્ત કરવું છે? તે ડિવાઇસ તરત જ સાઇન આઉટ થઈ જશે.",
+            "confirmLabel": "લોગઆઉટ"
+        }
+    },
+    "parseUserAgent": {
+        "unknownDevice": "અજ્ઞાત ડિવાઇસ",
+        "unknownBrowser": "અજ્ઞાત બ્રાઉઝર",
+        "unknownOS": "અજ્ઞાત OS",
+        "deviceLabel": "{{os}} પર {{browser}}"
+    }
+}

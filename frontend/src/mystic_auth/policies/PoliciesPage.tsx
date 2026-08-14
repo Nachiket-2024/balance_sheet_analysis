@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Badge, Button, HStack, Input, Text, Wrap } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 import PageContainer from "../ui/PageContainer";
 import DataTable, { type DataTableColumn } from "../ui/DataTable";
@@ -26,6 +27,7 @@ import type { PolicyRead } from "../api/policies_api";
  * delete.
  */
 const PoliciesPage: React.FC = () => {
+    const { t } = useTranslation(["policies", "ui_text"]);
     const { data: policies, isLoading, isError } = usePoliciesQuery();
 
     // Client-side, same reasoning as UsersPage's search: GET /policies
@@ -72,7 +74,7 @@ const PoliciesPage: React.FC = () => {
                 { policyName: editingPolicy.name, payload: values },
                 {
                     onSuccess: () => {
-                        toaster.create({ title: "Policy updated", type: "success" });
+                        toaster.create({ title: t("policies:page.policyUpdatedToast"), type: "success" });
                         closeForm();
                     },
                 }
@@ -80,7 +82,7 @@ const PoliciesPage: React.FC = () => {
         } else {
             createMutation.mutate(values, {
                 onSuccess: () => {
-                    toaster.create({ title: "Policy created", type: "success" });
+                    toaster.create({ title: t("policies:page.policyCreatedToast"), type: "success" });
                     closeForm();
                 },
             });
@@ -93,7 +95,7 @@ const PoliciesPage: React.FC = () => {
             { policyName: deletingPolicy.name },
             {
                 onSuccess: () => {
-                    toaster.create({ title: "Policy deleted", type: "success" });
+                    toaster.create({ title: t("policies:page.policyDeletedToast"), type: "success" });
                     setDeletingPolicy(null);
                 },
                 onError: (error) => {
@@ -106,7 +108,7 @@ const PoliciesPage: React.FC = () => {
     const columns: DataTableColumn<PolicyRead>[] = [
         {
             key: "name",
-            header: "Name",
+            header: t("policies:columns.name"),
             width: "220px",
             truncate: true,
             render: (p) => (
@@ -114,20 +116,20 @@ const PoliciesPage: React.FC = () => {
                     {p.name}
                     {!p.is_active && (
                         <Badge ml={2} colorPalette="gray" size="md">
-                            Inactive
+                            {t("ui_text:inactive")}
                         </Badge>
                     )}
                 </Text>
             ),
         },
-        { key: "resource_type", header: "Resource type", width: "150px", truncate: true, render: (p) => p.resource_type },
+        { key: "resource_type", header: t("policies:columns.resourceType"), width: "150px", truncate: true, render: (p) => p.resource_type },
         {
             key: "actions_list",
-            header: "Actions",
+            header: t("policies:columns.actions"),
             render: (p) => (
                 <Wrap gap={1}>
                     {p.actions.map((a) => (
-                        <Badge key={a} colorPalette="brand" variant="subtle" fontSize="14px" px={2} py={0.5}>
+                        <Badge key={a} colorPalette="brand" variant="subtle" fontSize="15px" px={2} py={0.5}>
                             {a}
                         </Badge>
                     ))}
@@ -138,17 +140,22 @@ const PoliciesPage: React.FC = () => {
             key: "row_actions",
             header: "",
             align: "end",
-            width: "150px",
+            // 150px only fit the English "Edit"/"Delete" labels; Hindi/Marathi
+            // translations (e.g. "संपादित करें"/"काढून टाका") are noticeably
+            // longer and got clipped by the table's fixed-width, overflow-hidden
+            // cell. Widened and wrapped the same way usersColumns.tsx's own
+            // row-actions column already handles multiple/longer buttons.
+            width: "260px",
             render: (p) => (
-                <HStack justify="flex-end" gap={2}>
+                <HStack justify="flex-end" gap={2} wrap="wrap">
                     <IfCan action={PERMISSIONS.POLICIES_UPDATE}>
-                        <TableActionButton onClick={() => openEditForm(p)}>
-                            Edit
+                        <TableActionButton colorPalette="orange" onClick={() => openEditForm(p)}>
+                            {t("policies:columns.edit")}
                         </TableActionButton>
                     </IfCan>
                     <IfCan action={PERMISSIONS.POLICIES_DELETE}>
                         <TableActionButton colorPalette="red" onClick={() => setDeletingPolicy(p)}>
-                            Delete
+                            {t("ui_text:delete")}
                         </TableActionButton>
                     </IfCan>
                 </HStack>
@@ -158,13 +165,13 @@ const PoliciesPage: React.FC = () => {
 
     return (
         <PageContainer
-            title="Policies"
-            description="Define and manage the access-control policies that grant permissions to users."
+            title={t("policies:page.title")}
+            description={t("policies:page.description")}
             actions={<PolicyStatsCard policies={policies} isLoading={isLoading} />}
             headerExtra={
                 <HStack gap={3} wrap="wrap">
                     <Input
-                        placeholder="Search by name or resource type..."
+                        placeholder={t("policies:page.searchPlaceholder")}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         maxW="sm"
@@ -173,7 +180,7 @@ const PoliciesPage: React.FC = () => {
 
                     <IfCan action={PERMISSIONS.POLICIES_CREATE}>
                         <Button colorPalette="brand" onClick={openCreateForm} {...BRAND_SOLID_HOVER_PROPS}>
-                            Create Policy
+                            {t("policies:page.createPolicy")}
                         </Button>
                     </IfCan>
                 </HStack>
@@ -185,8 +192,8 @@ const PoliciesPage: React.FC = () => {
                 rowKey={(p) => p.id}
                 isLoading={isLoading}
                 isError={isError}
-                errorMessage="Failed to load policies"
-                emptyMessage={search ? "No policies match your search" : "No policies yet : create one to start granting permissions."}
+                errorMessage={t("policies:page.failedToLoadPolicies")}
+                emptyMessage={search ? t("policies:page.noPoliciesMatchSearch") : t("policies:page.noPoliciesYet")}
                 startIndex={0}
             />
 
@@ -201,9 +208,9 @@ const PoliciesPage: React.FC = () => {
 
             <ConfirmDialog
                 isOpen={!!deletingPolicy}
-                title="Delete policy"
-                description={`Delete "${deletingPolicy?.name}"? Any user assigned this policy will immediately lose the permissions it grants.`}
-                confirmLabel="Delete"
+                title={t("policies:page.deleteDialogTitle")}
+                description={t("policies:page.deleteDialogDescription", { policyName: deletingPolicy?.name })}
+                confirmLabel={t("ui_text:delete")}
                 isLoading={deleteMutation.isPending}
                 onConfirm={handleDeleteConfirm}
                 onCancel={() => setDeletingPolicy(null)}

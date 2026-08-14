@@ -1,0 +1,36 @@
+{
+    "pageTitle": "Account Settings",
+    "pageDescription": "Update your name and password.",
+    "profileName": {
+        "nameLabel": "Name",
+        "noChanges": "No changes to save",
+        "updatedToast": "Profile updated",
+        "saveChanges": "Save changes"
+    },
+    "changePassword": {
+        "changeTitle": "Change password",
+        "setTitle": "Set a password",
+        "newPasswordLabel": "New password",
+        "setPasswordFieldLabel": "Set a password",
+        "placeholderKeepCurrent": "Leave blank to keep your current password",
+        "placeholderAddPassword": "Add a password so you can also sign in without Google",
+        "strengthLabel": "Strength: {{strength}}",
+        "currentPasswordLabel": "Current password",
+        "currentPasswordPlaceholder": "Required to confirm this change",
+        "confirmCurrentRequired": "Enter your current password to set a new one",
+        "updatedToast": "Password updated",
+        "updateButton": "Update password",
+        "setButton": "Set password"
+    },
+    "accountStatus": {
+        "passwordLabel": "Password",
+        "set": "Set",
+        "notSet": "Not set",
+        "hasPasswordDescription": "You can sign in with your email and password. If this email is also linked to a Google account, Google sign-in works too.",
+        "noPasswordDescription": "This account currently signs in with Google only. Use the Change Password card to also enable email/password sign-in.",
+        "myPermissions": "My permissions",
+        "loadingPolicies": "Loading your policies...",
+        "failedLoadPolicies": "Failed to load your policies",
+        "noPolicies": "No policies assigned."
+    }
+}

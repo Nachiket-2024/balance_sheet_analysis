@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Badge, Heading, HStack, Text } from "@chakra-ui/react";
 import type { CardRootProps } from "@chakra-ui/react";
 import { useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import Card from "../../ui/Card";
 import DataTable, { type DataTableColumn } from "../../ui/DataTable";
@@ -10,6 +11,7 @@ import ConfirmDialog from "../../ui/ConfirmDialog";
 import { toaster } from "../../ui/toaster/toasterInstance";
 import { useLogoutMutation } from "../../auth/logout/useLogoutMutation";
 import { formatDateTime } from "../../ui/dateFormat";
+import { useLanguageStore } from "../../store/languageStore";
 import { parseUserAgent } from "./parseUserAgent";
 import { useSessionsQuery } from "./useSessionsQuery";
 import { useRevokeSessionMutation } from "./useRevokeSessionMutation";
@@ -36,6 +38,10 @@ import type { SessionRead } from "../../api/auth_api";
  * feature itself.
  */
 const ManageSessionsCard: React.FC<CardRootProps> = ({ ...cardProps }) => {
+    const { t } = useTranslation("dashboard");
+    // See AllAuthorizationLogSection.tsx's matching comment: dates use
+    // chromeLanguage, not pageLanguage.
+    const language = useLanguageStore((s) => s.chromeLanguage);
     const { data: sessions, isLoading, isError } = useSessionsQuery();
     const [endingSession, setEndingSession] = useState<SessionRead | null>(null);
     const revokeMutation = useRevokeSessionMutation();
@@ -57,7 +63,7 @@ const ManageSessionsCard: React.FC<CardRootProps> = ({ ...cardProps }) => {
 
         revokeMutation.mutate(endingSession.id, {
             onSuccess: () => {
-                toaster.create({ title: "Session ended", type: "success" });
+                toaster.create({ title: t("manageSessions.sessionEndedToast"), type: "success" });
                 setEndingSession(null);
             },
             onError: (error) => {
@@ -70,7 +76,7 @@ const ManageSessionsCard: React.FC<CardRootProps> = ({ ...cardProps }) => {
     const columns: DataTableColumn<SessionRead>[] = [
         {
             key: "device",
-            header: "Device",
+            header: t("manageSessions.deviceColumn"),
             width: "220px",
             render: (s) => {
                 const label = parseUserAgent(s.user_agent);
@@ -81,30 +87,30 @@ const ManageSessionsCard: React.FC<CardRootProps> = ({ ...cardProps }) => {
                         </Text>
                         {s.is_current && (
                             <Badge colorPalette="brand" variant="subtle" flexShrink={0} size="md">
-                                This device
+                                {t("manageSessions.thisDeviceBadge")}
                             </Badge>
                         )}
                     </HStack>
                 );
             },
         },
-        { key: "ip_address", header: "IP", width: "140px", truncate: true, render: (s) => s.ip_address ?? "Unknown" },
+        { key: "ip_address", header: t("manageSessions.ipColumn"), width: "140px", truncate: true, render: (s) => s.ip_address ?? t("manageSessions.ipUnknown") },
         {
             key: "created_at",
-            header: "Signed in",
+            header: t("manageSessions.signedInColumn"),
             width: "190px",
             truncate: true,
-            // Matches the 14px used for the date stats in the Welcome card
-            // right above this table - the table's own default cell text
+            // Matches the enlarged date stats in the Welcome card right
+            // above this table - the table's own default cell text
             // read noticeably smaller sitting directly under those.
-            render: (s) => <Text fontSize="14px">{formatDateTime(s.created_at)}</Text>,
+            render: (s) => <Text fontSize="15px">{formatDateTime(s.created_at, language)}</Text>,
         },
         {
             key: "last_used_at",
-            header: "Last seen",
+            header: t("manageSessions.lastSeenColumn"),
             width: "190px",
             truncate: true,
-            render: (s) => <Text fontSize="14px">{formatDateTime(s.last_used_at)}</Text>,
+            render: (s) => <Text fontSize="15px">{formatDateTime(s.last_used_at, language)}</Text>,
         },
         {
             key: "row_actions",
@@ -120,7 +126,7 @@ const ManageSessionsCard: React.FC<CardRootProps> = ({ ...cardProps }) => {
                         (!s.is_current && revokeMutation.isPending && revokeMutation.variables === s.id)
                     }
                 >
-                    Log out
+                    {t("manageSessions.logOut")}
                 </TableActionButton>
             ),
         },
@@ -129,7 +135,7 @@ const ManageSessionsCard: React.FC<CardRootProps> = ({ ...cardProps }) => {
     return (
         <Card p={6} {...cardProps}>
             <Heading as="h2" size="md" mb={4}>
-                Manage Sessions
+                {t("manageSessions.heading")}
             </Heading>
 
             <DataTable
@@ -138,22 +144,23 @@ const ManageSessionsCard: React.FC<CardRootProps> = ({ ...cardProps }) => {
                 rowKey={(s) => s.id}
                 isLoading={isLoading}
                 isError={isError}
-                errorMessage="Failed to load your sessions"
-                emptyMessage="No active sessions."
+                errorMessage={t("manageSessions.errorLoadSessions")}
+                emptyMessage={t("manageSessions.noActiveSessions")}
                 startIndex={0}
             />
 
             <ConfirmDialog
                 isOpen={!!endingSession}
-                title={endingSession?.is_current ? "Log out this device" : "End session"}
+                title={endingSession?.is_current ? t("manageSessions.endDialog.logoutThisDeviceTitle") : t("manageSessions.endDialog.endSessionTitle")}
                 description={
                     endingSession?.is_current
-                        ? "This will log you out of this device now. Continue?"
-                        : `End the session on "${parseUserAgent(endingSession?.user_agent ?? null)}"${
-                              endingSession?.ip_address ? ` (${endingSession.ip_address})` : ""
-                          }? That device will be signed out immediately.`
+                        ? t("manageSessions.endDialog.logoutThisDeviceDescription")
+                        : t("manageSessions.endDialog.endSessionDescription", {
+                              device: parseUserAgent(endingSession?.user_agent ?? null),
+                              ipSuffix: endingSession?.ip_address ? ` (${endingSession.ip_address})` : "",
+                          })
                 }
-                confirmLabel="Log out"
+                confirmLabel={t("manageSessions.endDialog.confirmLabel")}
                 isLoading={endingSession?.is_current ? logoutMutation.isPending : revokeMutation.isPending}
                 onConfirm={handleConfirm}
                 onCancel={() => setEndingSession(null)}

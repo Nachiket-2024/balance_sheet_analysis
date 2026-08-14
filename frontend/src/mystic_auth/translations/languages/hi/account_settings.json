@@ -1,0 +1,36 @@
+{
+    "pageTitle": "खाता सेटिंग्स",
+    "pageDescription": "अपना नाम और पासवर्ड अपडेट करें।",
+    "profileName": {
+        "nameLabel": "नाम",
+        "noChanges": "सेव करने के लिए कोई बदलाव नहीं",
+        "updatedToast": "प्रोफ़ाइल अपडेट हुई",
+        "saveChanges": "बदलाव सेव करें"
+    },
+    "changePassword": {
+        "changeTitle": "पासवर्ड बदलें",
+        "setTitle": "पासवर्ड सेट करें",
+        "newPasswordLabel": "नया पासवर्ड",
+        "setPasswordFieldLabel": "पासवर्ड सेट करें",
+        "placeholderKeepCurrent": "अपना मौजूदा पासवर्ड रखने के लिए खाली छोड़ें",
+        "placeholderAddPassword": "Google के बिना भी साइन इन करने के लिए पासवर्ड जोड़ें",
+        "strengthLabel": "मजबूती: {{strength}}",
+        "currentPasswordLabel": "मौजूदा पासवर्ड",
+        "currentPasswordPlaceholder": "इस बदलाव की पुष्टि के लिए आवश्यक",
+        "confirmCurrentRequired": "नया पासवर्ड सेट करने के लिए अपना मौजूदा पासवर्ड दर्ज करें",
+        "updatedToast": "पासवर्ड अपडेट हुआ",
+        "updateButton": "पासवर्ड अपडेट करें",
+        "setButton": "पासवर्ड सेट करें"
+    },
+    "accountStatus": {
+        "passwordLabel": "पासवर्ड",
+        "set": "सेट है",
+        "notSet": "सेट नहीं है",
+        "hasPasswordDescription": "आप अपने ईमेल और पासवर्ड से साइन इन कर सकते हैं। अगर यह ईमेल किसी Google खाते से भी जुड़ा है, तो Google साइन-इन भी काम करेगा।",
+        "noPasswordDescription": "यह खाता फ़िलहाल केवल Google से साइन इन करता है। ईमेल/पासवर्ड से साइन इन भी सक्षम करने के लिए पासवर्ड बदलें कार्ड का उपयोग करें।",
+        "myPermissions": "मेरी अनुमतियां",
+        "loadingPolicies": "आपकी नीतियां लोड हो रही हैं...",
+        "failedLoadPolicies": "आपकी नीतियां लोड करने में विफल",
+        "noPolicies": "कोई नीति निर्धारित नहीं है।"
+    }
+}

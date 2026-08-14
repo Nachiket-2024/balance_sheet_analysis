@@ -1,0 +1,49 @@
+{
+    "page": {
+        "title": "નીતિઓ",
+        "description": "વપરાશકર્તાઓને પરવાનગીઓ આપતી ઍક્સેસ-કંટ્રોલ નીતિઓ વ્યાખ્યાયિત કરો અને સંચાલિત કરો.",
+        "searchPlaceholder": "નામ અથવા સંસાધન પ્રકાર દ્વારા શોધો...",
+        "createPolicy": "નીતિ બનાવો",
+        "failedToLoadPolicies": "નીતિઓ લોડ કરવામાં નિષ્ફળ",
+        "noPoliciesMatchSearch": "તમારી શોધ સાથે કોઈ નીતિ મેળ ખાતી નથી",
+        "noPoliciesYet": "હજુ સુધી કોઈ નીતિ નથી : પરવાનગીઓ આપવાનું શરૂ કરવા માટે એક બનાવો.",
+        "policyUpdatedToast": "નીતિ અપડેટ થઈ",
+        "policyCreatedToast": "નીતિ બનાવાઈ",
+        "policyDeletedToast": "નીતિ કાઢી નાખવામાં આવી",
+        "deleteDialogTitle": "નીતિ કાઢી નાખો",
+        "deleteDialogDescription": "\"{{policyName}}\" ને કાઢી નાખવી છે? આ નીતિ સોંપાયેલ કોઈપણ વપરાશકર્તા તરત જ તેના દ્વારા મળતી પરવાનગીઓ ગુમાવશે."
+    },
+    "columns": {
+        "name": "નામ",
+        "resourceType": "સંસાધન પ્રકાર",
+        "actions": "ક્રિયાઓ",
+        "edit": "સંપાદિત કરો"
+    },
+    "formDialog": {
+        "editTitle": "નીતિ સંપાદિત કરો",
+        "createTitle": "નીતિ બનાવો",
+        "name": "નામ",
+        "namePlaceholder": "દા.ત. document_reviewer",
+        "description": "વર્ણન",
+        "descriptionPlaceholder": "આ નીતિ શું આપે છે અને શા માટે",
+        "actions": "ક્રિયાઓ",
+        "actionsPlaceholder": "દા.ત. documents:view, documents:edit",
+        "actionsHelperText": "કોમા-વિભાજિત ક્રિયા ઓળખકર્તાઓ",
+        "resourceType": "સંસાધન પ્રકાર",
+        "resourceTypePlaceholder": "દા.ત. \"documents\" અથવા કોઈપણ માટે \"*\"",
+        "conditions": "શરતો (JSON, વૈકલ્પિક)",
+        "conditionsPlaceholder": "દા.ત. { \"self_only\": true }",
+        "conditionsInvalidJson": "શરતો માન્ય JSON હોવી જોઈએ",
+        "saveChanges": "ફેરફારો સાચવો",
+        "createPolicy": "નીતિ બનાવો",
+        "discardTitle": "ન સાચવેલા ફેરફારો કાઢી નાખવા છે?",
+        "discardDescription": "આ નીતિમાં તમારા ફેરફારો સાચવાયા નથી. હમણાં બંધ કરવાથી તે કાઢી નાખવામાં આવશે.",
+        "discard": "કાઢી નાખો"
+    },
+    "statsCard": {
+        "totalPolicies": "કુલ નીતિઓ",
+        "active": "સક્રિય",
+        "distinctActions": "અલગ ક્રિયાઓ",
+        "resourceTypes": "સંસાધન પ્રકારો"
+    }
+}

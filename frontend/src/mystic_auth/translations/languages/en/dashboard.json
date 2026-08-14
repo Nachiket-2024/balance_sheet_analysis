@@ -1,0 +1,44 @@
+{
+    "loadingDetails": "Loading your details...",
+    "unableToFetch": "Unable to fetch user details",
+    "noRole": "No role assigned",
+    "memberSince": "Member since",
+    "lastLogin": "Last login",
+    "activeSession": "Active session",
+    "activeSessions": "Active sessions",
+    "accountSettingsButton": "Account Settings",
+    "logoutAllButton": "Logout All",
+    "noUserData": "No user data available",
+    "logoutAllDialog": {
+        "title": "Logout all devices",
+        "description": "This will end every active session for your account on every device, including this one. Continue?",
+        "confirmLabel": "Logout all"
+    },
+    "manageSessions": {
+        "heading": "Manage Sessions",
+        "deviceColumn": "Device",
+        "thisDeviceBadge": "This device",
+        "ipColumn": "IP",
+        "ipUnknown": "Unknown",
+        "signedInColumn": "Signed in",
+        "lastSeenColumn": "Last seen",
+        "logOut": "Log out",
+        "sessionEndedToast": "Session ended",
+        "errorLoadSessions": "Failed to load your sessions",
+        "noActiveSessions": "No active sessions.",
+        "failedEndSession": "Failed to end session",
+        "endDialog": {
+            "logoutThisDeviceTitle": "Log out this device",
+            "endSessionTitle": "End session",
+            "logoutThisDeviceDescription": "This will log you out of this device now. Continue?",
+            "endSessionDescription": "End the session on \"{{device}}\"{{ipSuffix}}? That device will be signed out immediately.",
+            "confirmLabel": "Log out"
+        }
+    },
+    "parseUserAgent": {
+        "unknownDevice": "Unknown device",
+        "unknownBrowser": "Unknown browser",
+        "unknownOS": "Unknown OS",
+        "deviceLabel": "{{browser}} on {{os}}"
+    }
+}
