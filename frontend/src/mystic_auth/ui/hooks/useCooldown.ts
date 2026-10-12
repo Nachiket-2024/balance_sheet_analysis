@@ -3,11 +3,8 @@ import { useEffect, useRef, useState } from "react";
 /**
  * Countdown-in-seconds used by every "resend" form (password reset request,
  * verification email request) to rate-limit repeat submissions. The interval
- * is tracked in a ref and cleared on unmount: previously each form created
- * its own setInterval as a local variable inside start(), with nothing
- * clearing it if the component unmounted before the countdown finished
- * naturally (e.g. the user navigates away mid-cooldown) - a leaked interval
- * that kept calling setState on an unmounted component every second.
+ * is tracked in a ref and cleared on unmount, so navigating away mid-cooldown
+ * can't leak an interval calling setState on an unmounted component.
  */
 export function useCooldown() {
     const [cooldown, setCooldown] = useState(0);

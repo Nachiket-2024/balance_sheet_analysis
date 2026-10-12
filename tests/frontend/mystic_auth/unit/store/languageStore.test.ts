@@ -71,8 +71,7 @@ describe('languageStore', () => {
       expect(useLanguageStore.getState().chromeLanguage).toBe(chromeLanguage);
       expect(useLanguageStore.getState().pageLanguage).toBe(pageLanguage);
       expect(window.localStorage.getItem('language')).toBe(mode);
-      // The DOM lang attribute follows the page (majority-content)
-      // language, not chrome - see languageStore.ts's applyMode().
+      // DOM lang follows the page (content) language, not chrome.
       expect(document.documentElement.lang).toBe(pageLanguage);
     }
   );

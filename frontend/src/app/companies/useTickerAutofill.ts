@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 
 import { toaster } from "../sdk";
-import { useDebouncedValue } from "../app_sdk";
+import { useDebouncedValue } from "../sdk";
 import { useTickerSearchQuery } from "./companyQueries";
 import { lookupCompanyTickerApi, listCompaniesApi, type CompanyListItem } from "../api/company_api";
 

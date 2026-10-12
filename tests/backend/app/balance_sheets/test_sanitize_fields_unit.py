@@ -1,6 +1,7 @@
 import math
 
 import pytest
+
 from backend.app.balance_sheets.sanitize_fields import sanitize_dict
 
 

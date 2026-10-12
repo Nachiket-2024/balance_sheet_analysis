@@ -5,6 +5,7 @@
 # rather than hit the network, no HTTP client needed since there's no DB
 # interaction on this path.
 import pytest
+
 from backend.app.companies.company_crud import (
     TickerLookupError,
     _lookup_company_name_by_ticker_sync,

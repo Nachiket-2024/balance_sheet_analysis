@@ -2,7 +2,7 @@ import traceback
 
 from ...authorization.policies.default_policies import assign_app_default_policies
 from ...logging.logging_config import get_logger
-from ...user_crud.user_crud_collector import user_crud
+from ...user.user_crud_collector import user_crud
 
 logger = get_logger(__name__)
 

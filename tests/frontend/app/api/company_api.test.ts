@@ -28,7 +28,7 @@ describe('listCompaniesApi', () => {
 
 describe('getCompanyApi', () => {
   it('sends a GET request to /companies/{id}', async () => {
-    mock.onGet('/companies/42').reply(200, { id: 42, name: 'Jio Platforms' });
+    mock.onGet('/companies/42').reply(200, { id: 42, name: 'GitHub, Inc.' });
 
     const response = await getCompanyApi(42);
 
@@ -44,7 +44,7 @@ describe('getCompanyApi', () => {
 
 describe('createCompanyApi', () => {
   it('sends a POST request with the new company payload', async () => {
-    const payload = { name: 'Jio Platforms', ticker: 'JIO.NS', parent_company_id: 1 };
+    const payload = { name: 'GitHub, Inc.', ticker: 'GITHUB.DEMO', parent_company_id: 1 };
     mock.onPost('/companies/', payload).reply(201, { id: 2, ...payload });
 
     const response = await createCompanyApi(payload);

@@ -1,29 +1,33 @@
 /**
  * App-specific extension surface (see docs/mystic_auth/template-usage/overview.md).
  *
- * This is the counterpart to sdk.ts: sdk.ts re-exports the template's own
- * building blocks, this file is where a project built on this template adds
- * its own re-exports for its own domain code, kept separate so template
- * updates never conflict with app-specific additions here.
+ * sdk.ts is the public surface for MysticAuth capabilities. This file only
+ * bridges MysticAuth exports that sdk.ts does not currently expose, keeping
+ * app pages off MysticAuth internal paths without forwarding items already
+ * available from sdk.ts.
  *
- * DashboardPage is not covered by sdk.ts, which only exports app shell, PBAC,
- * and UI primitives. App.tsx renders it directly at "/dashboard".
+ * Ships empty on purpose in every template release, so it never conflicts
+ * on a `scripts/mystic_auth/upstream-sync/sync-upstream.sh` sync. If a sync ever shows an upstream
+ * change here, keep YOUR version: upstream's is only ever the empty
+ * starting point.
+ *
+ * Recheck each bridge against sdk.ts after upstream syncs. Remove a bridge
+ * once MysticAuth adds that capability to the public sdk.ts surface.
  */
 
 export { default as DashboardPage } from "../mystic_auth/dashboard/DashboardPage";
 
-// App buttons reuse mystic_auth hover fixes without each page importing
-// internal UI paths directly.
-export { default as TableActionButton } from "../mystic_auth/ui/TableActionButton";
-export { BRAND_SOLID_HOVER_PROPS, BRAND_OUTLINE_HOVER_PROPS } from "../mystic_auth/ui/styles/buttonStyles";
-
-// Table controls reused by CompaniesPage to match mystic_auth list pages.
-export { default as StatTile } from "../mystic_auth/ui/StatTile";
-export { default as StyledSelect } from "../mystic_auth/ui/StyledSelect";
-export type { StyledSelectOption } from "../mystic_auth/ui/StyledSelect";
-export { SEARCH_INPUT_PROPS } from "../mystic_auth/ui/styles/inputStyles";
-export { useSortState } from "../mystic_auth/ui/hooks/useSortState";
+// Only bridge MysticAuth capabilities that sdk.ts does not export. Anything
+// already on sdk.ts must be imported from there by app pages.
+// DashboardPage is a template route component omitted from sdk.ts.
+//
+// These list components and types are also absent from sdk.ts; keep their
+// internal MysticAuth paths centralized here until the public SDK exposes
+// them. The similarly named StatTile in sdk.ts is a different component.
+export { default as StatTile } from "../mystic_auth/ui/cards/StatTile";
+export { default as FilterPanel } from "../mystic_auth/ui/cards/FilterPanel";
+export { default as SearchInput } from "../mystic_auth/ui/filters/SearchInput";
+export { default as FilterChips } from "../mystic_auth/ui/filters/FilterChips";
+export type { FilterChip } from "../mystic_auth/ui/filters/FilterChips";
+export type { StyledSelectOption } from "../mystic_auth/ui/filters/StyledSelect";
 export type { SortState, SortDirection } from "../mystic_auth/ui/hooks/useSortState";
-export { useDebouncedValue } from "../mystic_auth/ui/hooks/useDebouncedValue";
-export { default as Pagination } from "../mystic_auth/ui/Pagination";
-export { usePageResetOn } from "../mystic_auth/ui/hooks/usePageResetOn";

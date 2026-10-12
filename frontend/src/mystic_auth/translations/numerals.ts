@@ -1,15 +1,13 @@
 import type { SupportedLanguage } from "./translations";
 
 /**
- * ASCII-digit -> native-numeral lookup per supported language, keyed the
+ * ASCII-digit to native-numeral lookup per supported language, keyed the
  * same way translations/languages/*\/*.json are: one entry per
- * SupportedLanguage, so adding a language here and a language folder are the
- * same-shaped change. `null` means "render digits as-is" (English).
+ * SupportedLanguage. `null` means "render digits as-is" (English).
  *
- * Hindi and Marathi both use the Devanagari script's digits (same glyphs,
- * ०-९), but are kept as two separate entries rather than one shared
- * constant so a future language that diverges doesn't require restructuring
- * this map. Gujarati has its own distinct glyph set (૦-૯).
+ * Hindi and Marathi both use Devanagari digits (same glyphs, ०-९), but are
+ * kept as separate entries so a future language that diverges doesn't
+ * require restructuring this map. Gujarati has its own glyph set (૦-૯).
  */
 const DEVANAGARI_DIGITS: Record<string, string> = {
     "0": "०", "1": "१", "2": "२", "3": "३", "4": "४",
@@ -30,10 +28,9 @@ const DIGIT_MAPS: Record<SupportedLanguage, Record<string, string> | null> = {
 
 /**
  * Renders a number using the given language's native numerals (e.g. 128 ->
- * "१२८" for hi/mr), falling back to plain ASCII digits for English or any
- * value that isn't a finite number. Used anywhere a raw count/index is
- * displayed (stat tiles, pagination, table row numbers) so those stay in
- * step with the language toggle the same way translated text does.
+ * "१२८" for hi/mr), falling back to plain ASCII digits for English. Used
+ * anywhere a raw count/index is displayed (stat tiles, pagination, table row
+ * numbers) so those follow the language toggle too.
  */
 export function formatNumber(value: number | string | undefined, language: SupportedLanguage): string {
     if (value === undefined) return "-";

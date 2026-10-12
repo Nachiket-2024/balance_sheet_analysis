@@ -1,18 +1,20 @@
-# tests/backend/mystic_auth/unit/authorization/repositories/test_policy_repository_caching_unit.py
-#
 # Coverage for PolicyRepository's cache-aside wiring around
 # get_active_policies_for_user, and the invalidation hooks in
-# update/delete/assign/remove : the authorization performance
-# Layer: "invalidation triggers: policy updates, deletion, assignment,
-# revocation", "no stale data served".
+# update/delete/assign/remove: no stale policy data should ever be served.
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from backend.mystic_auth.authorization.repositories.policy_repository import (
     PolicyRepository,
 )
 
 REPO_MODULE = "backend.mystic_auth.authorization.repositories.policy_repository"
+# get_active_policies_for_user/assign_policy_to_user/remove_policy_from_user
+# are re-exported bound methods from PolicyAssignmentRepository (see
+# policy_repository.py's own comment) - the actual authorization_cache_service
+# calls they make live in that module, not policy_repository.py.
+ASSIGNMENT_REPO_MODULE = "backend.mystic_auth.authorization.repositories.policy_assignment_repository"
 
 
 def _make_policy(**overrides):
@@ -29,14 +31,14 @@ def _make_policy(**overrides):
     return policy
 
 
-def _mock_cache(mocker, get_return=None):
+def _mock_cache(mocker, get_return=None, module=REPO_MODULE):
     cache = MagicMock(
         get_user_policies=AsyncMock(return_value=get_return),
         set_user_policies=AsyncMock(),
         invalidate_user_policies=AsyncMock(),
         invalidate_all_user_policies=AsyncMock(),
     )
-    mocker.patch(f"{REPO_MODULE}.authorization_cache_service", new=cache)
+    mocker.patch(f"{module}.authorization_cache_service", new=cache)
     return cache
 
 
@@ -45,7 +47,7 @@ def _mock_cache(mocker, get_return=None):
 @pytest.mark.asyncio
 async def test_get_active_policies_for_user_returns_cached_result_without_querying_db(mocker):
     cached_policies = [_make_policy()]
-    cache = _mock_cache(mocker, get_return=cached_policies)
+    cache = _mock_cache(mocker, get_return=cached_policies, module=ASSIGNMENT_REPO_MODULE)
     db = MagicMock()
     db.execute = AsyncMock()
 
@@ -60,7 +62,7 @@ async def test_get_active_policies_for_user_returns_cached_result_without_queryi
 
 @pytest.mark.asyncio
 async def test_get_active_policies_for_user_queries_db_and_populates_cache_on_miss(mocker):
-    cache = _mock_cache(mocker, get_return=None)
+    cache = _mock_cache(mocker, get_return=None, module=ASSIGNMENT_REPO_MODULE)
     fetched_policies = [_make_policy()]
     db = MagicMock()
     scalars_result = MagicMock()
@@ -80,14 +82,16 @@ async def test_get_active_policies_for_user_queries_db_and_populates_cache_on_mi
 
 @pytest.mark.asyncio
 async def test_update_policy_invalidates_all_user_policy_caches(mocker):
+    policy = _make_policy()
     db = MagicMock()
+    db.get = AsyncMock(return_value=policy)
     db.flush = AsyncMock()
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
     mocker.patch(f"{REPO_MODULE}.policy_history_repository")
     cache = _mock_cache(mocker)
 
-    await PolicyRepository.update(_make_policy(), {"description": "new"}, db)
+    await PolicyRepository.update(policy, {"description": "new"}, db)
 
     cache.invalidate_all_user_policies.assert_awaited_once()
 
@@ -109,7 +113,7 @@ async def test_delete_policy_invalidates_all_user_policy_caches(mocker):
 
 @pytest.mark.asyncio
 async def test_assign_policy_to_user_invalidates_only_that_users_cache_when_email_given(mocker):
-    cache = _mock_cache(mocker)
+    cache = _mock_cache(mocker, module=ASSIGNMENT_REPO_MODULE)
     db = MagicMock()
     db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
     db.commit = AsyncMock()
@@ -129,7 +133,7 @@ async def test_assign_policy_to_user_skips_invalidation_when_email_not_given(moc
     create_system_user.py) doesn't pass user_email : a brand-new user has
     nothing cached to invalidate, so this must not error or invalidate
     anything global."""
-    cache = _mock_cache(mocker)
+    cache = _mock_cache(mocker, module=ASSIGNMENT_REPO_MODULE)
     db = MagicMock()
     db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
     db.commit = AsyncMock()
@@ -142,7 +146,7 @@ async def test_assign_policy_to_user_skips_invalidation_when_email_not_given(moc
 
 @pytest.mark.asyncio
 async def test_remove_policy_from_user_invalidates_only_that_users_cache_when_email_given(mocker):
-    cache = _mock_cache(mocker)
+    cache = _mock_cache(mocker, module=ASSIGNMENT_REPO_MODULE)
     db = MagicMock()
     existing_assignment = MagicMock()
     db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=existing_assignment)))

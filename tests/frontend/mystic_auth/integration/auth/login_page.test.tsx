@@ -1,14 +1,12 @@
-// Regression: LoginPage used to gate its entire render (including LoginForm)
-// behind a shared OAuth2 loading flag that also toggled during the internal
-// post-login profile fetch, causing the form to unmount for a full-page
-// spinner and remount empty. These tests pin that the form stays mounted
-// and interactive throughout a login attempt.
+// Regression: LoginPage used to gate its whole render behind a shared OAuth2
+// loading flag that also toggled during the post-login profile fetch, so the
+// form unmounted for a full-page spinner and remounted empty. These tests
+// check the form stays mounted and interactive through a login attempt.
 import type { ReactElement } from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ChakraProvider, defaultSystem } from '@chakra-ui/react';
 import { MemoryRouter } from 'react-router';
 import MockAdapter from 'axios-mock-adapter';
 
@@ -23,9 +21,7 @@ function renderWithProviders(ui: ReactElement) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ChakraProvider value={defaultSystem}>
         <MemoryRouter>{ui}</MemoryRouter>
-      </ChakraProvider>
     </QueryClientProvider>
   );
 }
@@ -49,14 +45,13 @@ describe('LoginPage stays on the login form throughout a login attempt', () => {
 
     renderWithProviders(<LoginPage />);
 
-    await userEvent.type(screen.getByPlaceholderText('Email'), 'user@example.com');
-    await userEvent.type(screen.getByPlaceholderText('Password'), 'StrongPass123!');
-    await userEvent.click(screen.getByRole('button', { name: 'Login' }));
+    await userEvent.type(screen.getByLabelText('Email'), 'user@example.com');
+    await userEvent.type(screen.getByLabelText('Password'), 'StrongPass123!');
+    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
 
-    // Mid-flight: inputs must still be in the DOM (the bug replaced them
-    // with a full-page spinner here).
-    expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
+    // Mid-flight: inputs must still be in the DOM, not replaced by a spinner.
+    expect(screen.getByLabelText('Email')).toBeInTheDocument();
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.queryByText('Signing you in...')).toBeNull();
 
     await waitFor(() => {
@@ -66,24 +61,22 @@ describe('LoginPage stays on the login form throughout a login attempt', () => {
 
   it('keeps whatever the user typed on screen if login ultimately fails', async () => {
     mock.onPost('/auth/login').reply(200, { message: 'Login successful' });
-    // useLoginMutation treats a non-200 /auth/me after login as a failure
-    // of the whole mutation (see useLoginMutation.ts).
+    // A non-200 /auth/me after login fails the whole mutation (see useLoginMutation.ts).
     mock.onGet('/auth/me').reply(delayed([401, { detail: 'Not authenticated' }], 50));
 
     renderWithProviders(<LoginPage />);
 
-    const emailInput = screen.getByPlaceholderText('Email') as HTMLInputElement;
+    const emailInput = screen.getByLabelText('Email') as HTMLInputElement;
     await userEvent.type(emailInput, 'user@example.com');
-    await userEvent.type(screen.getByPlaceholderText('Password'), 'StrongPass123!');
-    await userEvent.click(screen.getByRole('button', { name: 'Login' }));
+    await userEvent.type(screen.getByLabelText('Password'), 'StrongPass123!');
+    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
 
     await waitFor(() => {
       expect(screen.queryByText(/not authenticated|failed|invalid|error/i)).toBeInTheDocument();
     });
 
-    // Bug guarded against: unmounting LoginForm would reset its local
-    // email/password state even though the user never cleared the form.
-    expect((screen.getByPlaceholderText('Email') as HTMLInputElement).value).toBe(
+    // Unmounting LoginForm would reset its typed-in state; it shouldn't unmount here.
+    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe(
       'user@example.com'
     );
   });

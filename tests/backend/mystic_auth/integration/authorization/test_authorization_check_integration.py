@@ -1,13 +1,10 @@
-# tests/backend/mystic_auth/integration/test_authorization_check_integration.py
-#
-# End-to-end coverage for authorization_check_routes.py (backend/
-# mystic_auth/api/pbac_routes/) against the real ASGI app, real PostgreSQL,
-# and real Redis. Split out of what used to be one 568-line
-# test_authorization_routes_integration.py.
+# End-to-end coverage for authorization_check_routes.py against the real
+# ASGI app, PostgreSQL, and Valkey.
 import pytest
+
 from backend.mystic_auth.authorization.policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
-    USER_ADMINISTRATION_POLICY_NAME,
+    USER_MANAGEMENT_POLICY_NAME,
 )
 
 from .authorization_test_accounts import (
@@ -26,7 +23,7 @@ async def test_authorization_check_reports_allowed_and_granting_policy(client, c
     system_email = unique_email("system")
     target_email = unique_email("target")
     await create_verified_user(
-        client, created_emails, target_email, [SELF_SERVICE_POLICY_NAME, USER_ADMINISTRATION_POLICY_NAME]
+        client, created_emails, target_email, [SELF_SERVICE_POLICY_NAME, USER_MANAGEMENT_POLICY_NAME]
     )
     await create_system_user(client, created_emails, system_email)
 
@@ -37,8 +34,8 @@ async def test_authorization_check_reports_allowed_and_granting_policy(client, c
     assert resp.status_code == 200
     body = resp.json()
     assert body["authorized"] is True
-    assert USER_ADMINISTRATION_POLICY_NAME in body["granting_policies"]
-    assert USER_ADMINISTRATION_POLICY_NAME in body["candidate_policies"]
+    assert USER_MANAGEMENT_POLICY_NAME in body["granting_policies"]
+    assert USER_MANAGEMENT_POLICY_NAME in body["candidate_policies"]
 
 
 @pytest.mark.asyncio

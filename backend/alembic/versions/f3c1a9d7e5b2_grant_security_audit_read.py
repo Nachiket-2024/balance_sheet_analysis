@@ -8,7 +8,7 @@ Data-only migration (per docs/mystic_auth/authorization/adding-permissions.md's 
 process): grants the new security_audit:read permission (see
 authorization/permissions.py) to the seeded system_superuser policy only.
 This is a security log covering all users' auth events, not scoped to
-user_administration's day-to-day account management.
+user_management's day-to-day account management.
 """
 from collections.abc import Sequence
 

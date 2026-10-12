@@ -57,7 +57,7 @@ def _search_company_tickers_sync(query: str) -> list[dict[str, str]]:
     """Blocking network call, same asyncio.to_thread rule as the lookup
     above. Uses yfinance's Search (Yahoo's autocomplete endpoint) rather
     than the single-ticker Ticker().info call: it's built for prefix/fuzzy
-    matching against name or ticker, e.g. "REL" -> RELIANCE.NS, RS, etc."""
+    matching against name or ticker, e.g. "MICRO" -> MSFT, etc."""
     try:
         session: curl_requests.Session = curl_requests.Session(
             impersonate="chrome", timeout=_YFINANCE_TIMEOUT_SECONDS

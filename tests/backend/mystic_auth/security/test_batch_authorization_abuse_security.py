@@ -1,10 +1,7 @@
-# tests/backend/mystic_auth/security/test_batch_authorization_abuse_security.py
-#
-# Real-DB proof of the Batch Authorization API's abuse resistance
-# (batch authorization abuse): oversized/empty/malformed
-# batches rejected before evaluation, and a denied result never leaks
-# which policy was involved.
+# Checks the Batch Authorization API rejects oversized, empty, and
+# malformed batches, and never leaks which policy was involved in a denial.
 import pytest
+
 from backend.mystic_auth.authorization.policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
 )
@@ -63,9 +60,8 @@ async def test_unauthenticated_batch_check_is_rejected(client):
 
 @pytest.mark.asyncio
 async def test_denied_batch_result_never_leaks_policy_names(client, created_emails):
-    """A caller probing many actions at once must never learn which
-    (if any) policy was a candidate/rejected, or which condition key
-    failed : only allowed + a coarse denial_reason."""
+    """A denied result should only expose allowed + a coarse denial_reason,
+    never which policy or condition caused the denial."""
     email = unique_email("batch-leak")
     secret_policy_name = unique_policy_name()
     async with database.async_session() as session:

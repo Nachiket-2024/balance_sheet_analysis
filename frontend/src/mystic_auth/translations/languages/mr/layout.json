@@ -4,14 +4,37 @@
     "switchToLightMode": "लाइट मोडवर स्विच करा",
     "switchToDarkMode": "डार्क मोडवर स्विच करा",
     "language": "भाषा",
-    "tagline": "सुरक्षित प्रवेश, केंद्रीयरित्या व्यवस्थापित",
-    "allRightsReserved": "सर्व हक्क राखीव.",
+    "fontSize": {
+        "label": "फॉन्ट आकार",
+        "trigger": "आकार",
+        "small": "लहान",
+        "medium": "मध्यम",
+        "large": "मोठा"
+    },
     "mainNavigation": "मुख्य नेव्हिगेशन",
+    "commandPalette": {
+        "placeholder": "पृष्ठे, धोरणे आणि वापरकर्ते शोधा...",
+        "noResults": "जुळणारा निकाल आढळला नाही",
+        "pagesGroup": "पृष्ठे",
+        "featuresGroup": "वैशिष्ट्ये",
+        "matchesGroup": "जुळणारा मजकूर",
+        "policiesGroup": "धोरणे",
+        "usersGroup": "वापरकर्ते",
+        "trigger": "शोधा...",
+        "triggerLabel": "शोध उघडा (Ctrl+K)"
+    },
     "nav": {
         "dashboard": "डॅशबोर्ड",
         "users": "वापरकर्ते",
         "policies": "धोरणे",
+        "permissions": "परवानग्या",
+        "rateLimits": "दर मर्यादा",
         "auditLog": "ऑडिट लॉग",
         "accountSettings": "खाते सेटिंग्ज"
+    },
+    "footer": {
+        "privacyPolicy": "गोपनीयता धोरण",
+        "termsOfService": "सेवा अटी",
+        "help": "मदत आणि समर्थन"
     }
 }

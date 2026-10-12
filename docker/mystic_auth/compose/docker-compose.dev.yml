@@ -1,0 +1,417 @@
+# Explicit project name: without it, every compose file in this directory
+# defaults to the same name (the directory name) and shares
+# containers/network/volumes with the others, so a command meant for one
+# stack could wipe another's data. Set in env/mystic_auth/.env.dev - see
+# docs/mystic_auth/docker/compose-modes.md.
+name: ${COMPOSE_PROJECT_NAME}
+
+# Bounds each service's own json-file log driver so a noisy container can't
+# fill the host disk - confirmed live via `docker inspect .HostConfig.LogConfig`
+# returning no limit before this was added.
+# The local-prod-*/prod compose files keep the equivalent inside their own
+# x-container-hardening anchor; dev has no such shared anchor today, so this
+# gets its own and is merged into every service below.
+x-logging: &logging_defaults
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+
+  postgres:
+    <<: *logging_defaults
+    image: postgres:15.19-trixie@sha256:c961aa287d8698297cb26cdfadfbe9fd2cbaf77e53cfffe9636e8d8a1e4d842c
+    restart: always
+    env_file:
+      - ../../../env/mystic_auth/.env.dev
+      - ../../../env/app/.env.dev
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Runs once on a fresh volume. Creates the separate "bugsink" DB on
+      # this same server. See docker/mystic_auth/postgres-init/init-bugsink-db.sh for
+      # the already-initialized-volume fallback.
+      - ../postgres-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Non-default port to avoid colliding with other local Postgres.
+      # Set POSTGRES_HOST_PORT in env/mystic_auth/.env.dev; change it if another mystic-auth
+      # fork on this machine uses the same value.
+      - "127.0.0.1:${POSTGRES_HOST_PORT}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  valkey:
+    <<: *logging_defaults
+    image: valkey/valkey:9.1.2-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+    restart: always
+    # Empty VALKEY_PASSWORD (local-dev default) makes --requirepass a no-op.
+    # Set it in .env to require auth. VALKEY_URL must include it too.
+    command: ["valkey-server", "--requirepass", "${VALKEY_PASSWORD:-}"]
+    ports:
+      - "127.0.0.1:${VALKEY_HOST_PORT}:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"${VALKEY_PASSWORD:-}\" --no-auth-warning ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    <<: *logging_defaults
+    build:
+      context: ../../..
+      dockerfile: docker/mystic_auth/dockerfiles/backend.Dockerfile
+      # CI overrides this to `test` to run pytest inside the pinned image;
+      # everyone else gets the default runtime image.
+      target: ${BACKEND_BUILD_TARGET:-runtime}
+    working_dir: /app
+    user: root
+    env_file:
+      - ../../../env/mystic_auth/.env.dev
+      - ../../../env/app/.env.dev
+    # Wait up to ~10s for bugsink-seed to write the SENTRY_DSN, only when
+    # Bugsink is configured.
+    command: |
+      sh -c "if [ -n \"$$BUGSINK_SUPERUSER_EMAIL\" ]; then
+        for i in $$(seq 1 20); do
+          [ -f /shared/bugsink-dsn/backend.env ] && . /shared/bugsink-dsn/backend.env && break
+          sleep 0.5
+        done
+      fi
+      exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app --reload-dir mystic_auth --no-access-log"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:-http://localhost:8000}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+      FRONTEND_ADDITIONAL_BASE_URLS: ${FRONTEND_ADDITIONAL_BASE_URLS:-}
+      ENVIRONMENT: development
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      # Needed so scripts/mystic_auth/docker/dev/backend-exec.sh, which runs with -w /repo
+      # instead of /app, can still resolve the bare `mystic_auth`/`app`
+      # imports the app code uses.
+      PYTHONPATH: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully   # don't serve traffic on an unmigrated schema
+    volumes:
+      - ../../../backend:/app
+      # Docker-managed so /app/logs gets image-owned permissions, not the
+      # host checkout's.
+      - backend_logs:/app/logs
+      # Whole repo root, for tests that import `backend.app...` directly.
+      - ../../..:/repo
+      # Same log volume at the /repo path, since LOG_DIR is relative to
+      # __file__ and both import paths need it.
+      - backend_logs:/repo/backend/logs
+      # Read-only: only bugsink-seed writes here.
+      - bugsink_dsn:/shared/bugsink-dsn:ro
+      # Read-only: geoipupdate writes the database when the geoip profile is enabled.
+      - geoip_data:/usr/share/GeoIP:ro
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT}:8000"
+    healthcheck:
+      # Hits /health/ready (checks DB + Valkey), not just the static "/" route.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      # Generous budget for cold builds and the optional Bugsink DSN wait.
+      retries: 10
+      start_period: 30s
+
+  frontend:
+    <<: *logging_defaults
+    # Distinct image name (derived from COMPOSE_PROJECT_NAME) so building
+    # this doesn't overwrite the other compose files' frontend images, or
+    # another mystic-auth fork's.
+    image: ${COMPOSE_PROJECT_NAME}-frontend
+    # This tag is never published, so without this Compose would try (and
+    # fail) to pull it before building, on every run.
+    pull_policy: build
+    build:
+      context: ../../..
+      dockerfile: docker/mystic_auth/dockerfiles/frontend.Dockerfile
+      target: dev
+    working_dir: /app
+    env_file:
+      - ../../../env/mystic_auth/.env.dev
+      - ../../../env/app/.env.dev
+    # Same DSN wait as backend, gated on BUGSINK_SUPERUSER_EMAIL.
+    command: |
+      sh -c "if [ -n \"$$BUGSINK_SUPERUSER_EMAIL\" ]; then
+        for i in $$(seq 1 20); do
+          [ -f /shared/bugsink-dsn/frontend.env ] && . /shared/bugsink-dsn/frontend.env && break
+          sleep 0.5
+        done
+      fi
+      exec npm run dev -- --host"
+    environment:
+      # Only needed on a Windows-mounted checkout path, where native file
+      # change events don't reach Vite's watcher. See
+      # docs/mystic_auth/deployment/dev.md. Not needed inside WSL2's own
+      # filesystem.
+      # CHOKIDAR_USEPOLLING: "true"
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:-http://localhost:8000}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      # Reuses the backend vars instead of requiring VITE_-prefixed
+      # duplicates in ./.env.
+      VITE_APP_NAME: ${APP_NAME}
+      VITE_SUPPORT_EMAIL: ${SUPPORT_EMAIL}
+      VITE_BRAND_COLOR: ${BRAND_COLOR}
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT}:5173"
+    volumes:
+      - ../../../frontend:/app
+      - /app/node_modules
+      - bugsink_dsn:/shared/bugsink-dsn:ro
+      # Vitest resolves ../../tests/frontend relative to /app.
+      - ../../../tests/frontend:/tests/frontend
+      # Repo-root view for lint, which expects frontend/ and tests/frontend/
+      # as siblings.
+      - ../../..:/repo
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Runs both background jobs (send_email_task, the daily account-purge
+  # cron). Procrastinate's worker runs its own periodic-task scheduler
+  # internally, so no separate scheduler container is needed.
+  procrastinate_worker:
+    <<: *logging_defaults
+    build:
+      context: ../../..
+      dockerfile: docker/mystic_auth/dockerfiles/backend.Dockerfile
+      target: runtime
+    working_dir: /app
+    user: root
+    env_file:
+      - ../../../env/mystic_auth/.env.dev
+      - ../../../env/app/.env.dev
+    command: sh -c "procrastinate --app=mystic_auth.procrastinate_tasks.procrastinate_app.app worker"
+    environment:
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      PYTHONPATH: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully   # don't process jobs against an unmigrated schema
+    volumes:
+      - ../../../backend:/app
+      - backend_logs:/app/logs
+    # This container serves no HTTP, so `procrastinate healthchecks` checks
+    # the DB connection and that the procrastinate_jobs table exists instead.
+    healthcheck:
+      test: ["CMD", "procrastinate", "--app=mystic_auth.procrastinate_tasks.procrastinate_app.app", "healthchecks"]
+      interval: 10s
+      # The command itself (new Python process start + a DB round trip)
+      # measured 3.5-4.2s in practice, consistently over the previous 3s
+      # timeout: Docker was killing it as a timeout failure on every single
+      # run despite the check always actually succeeding, so this container
+      # could never report healthy at all (confirmed via `docker inspect`:
+      # FailingStreak climbing indefinitely, output showing "OK" on every
+      # line). 8s leaves real margin instead of sitting right at the
+      # observed worst case.
+      timeout: 8s
+      retries: 5
+      start_period: 10s
+
+  alembic:
+    <<: *logging_defaults
+    build:
+      context: ../../..
+      dockerfile: docker/mystic_auth/dockerfiles/backend.Dockerfile
+      target: runtime
+    working_dir: /app
+    user: root
+    env_file:
+      - ../../../env/mystic_auth/.env.dev
+      - ../../../env/app/.env.dev
+    command: alembic upgrade head
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PYTHONPATH=/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../../../backend:/app
+
+  # Optional: provision the GeoLite2-City database for dev session-location
+  # testing. dev-up enables this profile automatically when GEOIP_DB_PATH is
+  # non-empty; raw Compose users should pass --profile geoip themselves.
+  geoipupdate:
+    <<: *logging_defaults
+    image: ghcr.io/maxmind/geoipupdate@sha256:51e70dd6f16cd3e4d845ac02d09940b10772a75b9d741427d235a78570923c1d
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    profiles: ["geoip"]
+    environment:
+      GEOIPUPDATE_ACCOUNT_ID: ${GEOIPUPDATE_ACCOUNT_ID:-}
+      GEOIPUPDATE_LICENSE_KEY: ${GEOIPUPDATE_LICENSE_KEY:-}
+      GEOIPUPDATE_EDITION_IDS: GeoLite2-City
+      GEOIPUPDATE_DATABASE_DIRECTORY: /usr/share/GeoIP
+      GEOIPUPDATE_FREQUENCY: "72"
+    volumes:
+      - geoip_data:/usr/share/GeoIP
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /usr/share/GeoIP/GeoLite2-City.mmdb"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Self-hosted error monitoring (Sentry SDK compatible), on by default. See
+  # docs/mystic_auth/error-monitoring/overview.md. SENTRY_DSN is what
+  # actually turns error reporting on, independent of this container running.
+  bugsink:
+    <<: *logging_defaults
+    image: bugsink/bugsink:2@sha256:c5e3657451f4ba1ddb145a5118a4347314206cc5ba98f40e5f268c6c0975963e
+    restart: always
+    env_file:
+      - ../../../env/mystic_auth/.env.dev
+      - ../../../env/app/.env.dev
+    environment:
+      SECRET_KEY: ${BUGSINK_SECRET_KEY}
+      CREATE_SUPERUSER: ${BUGSINK_SUPERUSER_EMAIL}:${BUGSINK_SUPERUSER_PASSWORD}
+      PORT: "8000"
+      # Same Postgres server, separate database: avoids a second container
+      # just for Bugsink.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/bugsink
+      BEHIND_HTTPS_PROXY: "false"
+      BASE_URL: ${BUGSINK_BASE_URL:-http://localhost:8010}
+      # Bugsink (Django) reads its own EMAIL_* names, so this reuses
+      # SMTP_HOST/FROM_EMAIL/GMAIL_APP_PASSWORD rather than a second mail
+      # account. See docs/mystic_auth/error-monitoring/overview.md.
+      EMAIL_HOST: ${SMTP_HOST}
+      EMAIL_PORT: ${SMTP_PORT}
+      EMAIL_HOST_USER: ${FROM_EMAIL}
+      EMAIL_HOST_PASSWORD: ${GMAIL_APP_PASSWORD}
+      EMAIL_USE_TLS: "true"
+      DEFAULT_FROM_EMAIL: ${FROM_EMAIL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${BUGSINK_HOST_PORT}:8000"
+    # The image's default CMD plus `--timeout 60` on gunicorn (the image
+    # ships no request timeout, so a worker can hit Gunicorn's 30s default
+    # under ordinary CPU contention). Must stay a YAML list: `monofy`, not a
+    # shell, interprets && and |||. `$$PORT` escapes Compose's own
+    # interpolation so the literal reaches monofy/gunicorn.
+    command:
+      - monofy
+      - bugsink-show-version
+      - "&&"
+      - bugsink-manage
+      - check
+      - --deploy
+      - --fail-level
+      - WARNING
+      - "&&"
+      - bugsink-manage
+      - migrate
+      - snappea
+      - --database=snappea
+      - "&&"
+      - bugsink-manage
+      - migrate
+      - "&&"
+      - bugsink-manage
+      - prestart
+      - "&&"
+      - gunicorn
+      - --config
+      - gunicorn.docker.conf.py
+      - --timeout
+      - "60"
+      - --bind=0.0.0.0:$$PORT
+      - --access-logfile
+      - "-"
+      - bugsink.wsgi
+      - "|||"
+      - bugsink-runsnappea
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import requests; requests.get('http://localhost:8000/health/ready').raise_for_status()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # Runs once against a healthy bugsink, then exits. Creates Bugsink's
+  # team/project (idempotent, get_or_create) and writes the resulting DSNs
+  # into bugsink_dsn for backend/frontend to read at startup, avoiding a
+  # manual "create a project, copy the DSN" step.
+  bugsink-seed:
+    <<: *logging_defaults
+    image: bugsink/bugsink:2@sha256:c5e3657451f4ba1ddb145a5118a4347314206cc5ba98f40e5f268c6c0975963e
+    # Root, since Docker creates a fresh named volume root-owned and the
+    # non-root "bugsink" user can't write the DSN file into it otherwise.
+    user: root
+    env_file:
+      - ../../../env/mystic_auth/.env.dev
+      - ../../../env/app/.env.dev
+    environment:
+      SECRET_KEY: ${BUGSINK_SECRET_KEY}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/bugsink
+      BASE_URL: ${BUGSINK_BASE_URL:-http://localhost:8010}
+    depends_on:
+      bugsink:
+        condition: service_healthy
+    volumes:
+      - bugsink_dsn:/shared/bugsink-dsn
+    command: |
+      sh -c "bugsink-manage shell -c \"
+      import os
+      from django.contrib.auth import get_user_model
+      from teams.models import Team, TeamMembership, TeamRole
+      from projects.models import Project, ProjectMembership, ProjectRole
+
+      User = get_user_model()
+      user = User.objects.get(username=os.environ['BUGSINK_SUPERUSER_EMAIL'])
+
+      team, _ = Team.objects.get_or_create(name=os.environ['APP_NAME'])
+      TeamMembership.objects.get_or_create(team=team, user=user, defaults={'role': TeamRole.ADMIN, 'accepted': True})
+      project, _ = Project.objects.get_or_create(team=team, name=os.environ['APP_NAME'])
+      ProjectMembership.objects.get_or_create(project=project, user=user, defaults={'role': ProjectRole.ADMIN, 'accepted': True})
+
+      key = project.sentry_key.hex
+      os.makedirs('/shared/bugsink-dsn', exist_ok=True)
+      with open('/shared/bugsink-dsn/backend.env', 'w') as f:
+          f.write('export SENTRY_DSN=http://' + key + '@bugsink:8000/' + str(project.id) + chr(10))
+      with open('/shared/bugsink-dsn/frontend.env', 'w') as f:
+          f.write('export VITE_SENTRY_DSN=http://' + key + '@localhost:8010/' + str(project.id) + chr(10))
+      print('Seeded Bugsink project ' + str(project.id) + ', key ' + key)
+      \""
+
+volumes:
+  postgres_data:
+  # Shared between bugsink-seed (writer) and backend/frontend (readers).
+  bugsink_dsn:
+  # Docker-managed, not a host bind mount, so /app/logs gets image-owned
+  # permissions instead of the host checkout's.
+  backend_logs:
+  # Shared between geoipupdate (writer) and backend (reader).
+  geoip_data:
+
+networks:
+  # Pinned subnet so this can run alongside the prod/local-prod-* stacks
+  # without an auto-assigned pool collision. Set in env/mystic_auth/.env.dev - change it if
+  # another mystic-auth fork's stack on this machine uses the same subnet.
+  # See docs/mystic_auth/docker/compose-modes.md.
+  default:
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET}

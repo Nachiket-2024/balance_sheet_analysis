@@ -1,0 +1,136 @@
+{
+  "back": "Back",
+  "lastUpdatedLabel": "Last updated",
+  "lastUpdatedDate": "August 20, 2026",
+  "operatorContactPlaceholder": "[operator: replace with your support contact email]",
+  "operatorEntityPlaceholder": "[operator: replace with your legal entity name and jurisdiction]",
+  "operatorReviewNote": "Template notice: this document describes the authentication foundation's built-in behavior. Before publishing it as a live policy, replace the marked operator details and confirm your legal entity, contact details, jurisdiction, age threshold, retention periods, legal bases, data-subject rights, enabled providers, and any application-specific data collection.",
+  "privacy": {
+    "title": "Privacy Policy",
+    "intro": [
+      "This policy explains what personal data {{appName}} collects, why, and what your rights are over it."
+    ],
+    "sections": [
+      {
+        "heading": "1. Account data we collect",
+        "paragraphs": [
+          "When you create an account, we store your name, email address, and an Argon2 password hash (never the password itself). If you sign in with Google instead, we store the email address, name, and verified-email result returned by Google's OAuth2 sign-in. We never see or store your Google password.",
+          "We also store account status flags (whether your email is verified, whether the account is active, and whether it has been deleted), policy and permission assignments needed for PBAC, and timestamps such as account creation, update, and last successful sign-in."
+        ]
+      },
+      {
+        "heading": "2. Session and device data",
+        "paragraphs": [
+          "Each time you sign in, we record the session's IP address and user agent (browser/device string). If the operator configures a local MaxMind GeoLite2-City database, the service also stores an approximate city and country; with no database configured, that location remains unavailable. This lookup does not send your IP address to MaxMind or another geolocation service. Session data is shown on Manage Sessions so you can recognize and revoke sessions you don't trust.",
+          "The authentication flow uses an access_token cookie scoped to the site and a refresh_token cookie scoped to /auth; both are httpOnly, Secure, and SameSite=Strict. During Google OAuth, a short-lived oauth_state cookie uses SameSite=Lax so the provider can redirect back safely. These cookies support authentication and CSRF/replay protection; the template does not set analytics, advertising, or tracking cookies."
+        ]
+      },
+      {
+        "heading": "3. Security and authorization logs",
+        "paragraphs": [
+          "We keep an append-only security log for events such as sign-ins, sign-outs, sign-ups, OAuth sign-ins, password resets, verification, lockouts, session revocation, and account lifecycle changes. Security entries may include your email, IP address, user agent, request identifier, success result, and limited event metadata. Separately, the PBAC authorization log records the caller email, action, resource, candidate and granting policies, failed conditions, authorization context, and allow/deny result.",
+          "These logs are kept independently of your account record for integrity reasons: deleting or purging your account does not delete prior audit entries. When an account is purged, identifying details are anonymized in its existing log entries. A daily retention job also anonymizes identifying details in older entries; the template default is 400 days, and the operator can configure that period. The operator must confirm the applicable legal basis and retention setting."
+        ]
+      },
+      {
+        "heading": "4. Who we share data with",
+        "paragraphs": [
+          "Google: If you choose to sign in with Google, Google processes your authentication on their end per their own privacy policy. We only receive your email, name, and confirmation that Google verified your email.",
+          "Our email provider: Account verification, password-reset, and account-deletion-confirmation emails are queued and sent through the SMTP provider configured by the operator. Your email address and the transactional message content are shared for delivery. The operator must identify the provider and its applicable terms here if required.",
+          "Our error-monitoring service: If the operator configures SENTRY_DSN, unexpected unhandled errors may be reported to Sentry or a compatible self-hosted service such as Bugsink. The template explicitly attaches a caller email when available and request method/path context; operators must verify the deployed monitoring configuration and retention terms.",
+          "We do not sell your data, and we do not share it with advertisers or data brokers."
+        ]
+      },
+      {
+        "heading": "5. How long we keep your data",
+        "paragraphs": [
+          "Deleting your account marks it for deletion immediately (you are signed out everywhere and it stops being usable) but keeps it recoverable for the configured grace period before it is permanently removed. An authorized operator can also purge an account immediately. The operator must replace this template wording with the actual configured retention period.",
+          "As noted above, purging your account does not delete prior security and authorization log entries. It anonymizes identifying details in existing entries, and a daily retention job anonymizes identifying details in entries older than the configured period (400 days by default). The event records remain; the operator should review this setting and wording for the deployment."
+        ]
+      },
+      {
+        "heading": "6. Your rights",
+        "paragraphs": [
+          "You can review and update your account details, view your active sessions and revoke any of them, and self-service delete your account at any time from Account Settings.",
+          "For anything else, such as requesting a copy of your data or asking what log entries reference your account, contact us at {{contactPlaceholder}}."
+        ]
+      },
+      {
+        "heading": "7. Children's privacy",
+        "paragraphs": [
+          "{{appName}} is not directed at children. The operator must replace this sentence with the age threshold and child-privacy rules required in the jurisdictions where the service is offered."
+        ]
+      },
+      {
+        "heading": "8. Changes to this policy",
+        "paragraphs": [
+          "If this policy changes in a way that materially affects how your data is handled, we'll update the \"Last updated\" date above and, where required by law, notify you directly."
+        ]
+      }
+    ]
+  },
+  "terms": {
+    "title": "Terms of Service",
+    "intro": [
+      "These terms govern your use of {{appName}}. This template supplies a starting point only; the operator must replace the marked legal-entity, jurisdiction, contact, consumer-rights, and service-specific terms before publication."
+    ],
+    "sections": [
+      {
+        "heading": "1. Accepting these terms",
+        "paragraphs": [
+          "By creating an account or otherwise using {{appName}}, you agree to these terms and to our Privacy Policy. If you don't agree, don't use the service."
+        ]
+      },
+      {
+        "heading": "2. Your account",
+        "paragraphs": [
+          "You're responsible for keeping your password confidential and for all activity under your account. Tell us immediately if you suspect unauthorized access.",
+          "You must provide accurate information when signing up, and you must be legally able to enter into these terms in your jurisdiction."
+        ]
+      },
+      {
+        "heading": "3. Acceptable use",
+        "paragraphs": [
+          "Don't use the service to violate the law, attempt to gain unauthorized access to accounts or systems, interfere with the service's normal operation, or abuse rate limits/automation to overload it.",
+          "We may suspend or terminate accounts that violate this section."
+        ]
+      },
+      {
+        "heading": "4. Account suspension and termination",
+        "paragraphs": [
+          "You can delete your own account at any time from Account Settings. We may suspend or delete an account that violates these terms or poses a security risk to the service or other users."
+        ]
+      },
+      {
+        "heading": "5. Service availability",
+        "paragraphs": [
+          "We aim to keep the service available and reliable but don't guarantee uninterrupted access. The service is provided \"as is,\" without warranties of any kind, to the fullest extent permitted by law."
+        ]
+      },
+      {
+        "heading": "6. Limitation of liability",
+        "paragraphs": [
+          "To the fullest extent permitted by law, {{appName}} and its operator are not liable for indirect, incidental, or consequential damages arising from your use of the service."
+        ]
+      },
+      {
+        "heading": "7. Changes to these terms",
+        "paragraphs": [
+          "If we make a material change to these terms, we'll update the \"Last updated\" date above and, where required by law, notify you directly. Continuing to use the service after a change means you accept the updated terms."
+        ]
+      },
+      {
+        "heading": "8. Governing law",
+        "paragraphs": [
+          "These terms are governed by the laws of [operator: replace with the governing jurisdiction and legal entity]. Nothing in this template selects a jurisdiction for the operator."
+        ]
+      },
+      {
+        "heading": "9. Contact",
+        "paragraphs": [
+          "Questions about these terms? Contact us at {{contactPlaceholder}}."
+        ]
+      }
+    ]
+  }
+}

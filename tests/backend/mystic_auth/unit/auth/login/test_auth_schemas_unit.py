@@ -1,13 +1,13 @@
-# tests/backend/mystic_auth/unit/test_auth_schemas_unit.py
-#
 # Regression guard: name/password/token fields across the auth request
 # schemas previously accepted unbounded-length strings, which then get fed
-# straight into Argon2 hashing (password/name) or Redis/JWT operations
-# (tokens). These are pure schema-level unit tests since handlers take
-# plain str arguments and bypass FastAPI's request-parsing/validation layer
-# entirely : only a Pydantic model instantiation (or a real HTTP request,
-# covered separately in integration tests) actually exercises these limits.
+# straight into Argon2 hashing (password/name) or Valkey/JWT operations
+# (tokens). These are pure schema-level tests since handlers take plain
+# str arguments and bypass FastAPI's request-parsing layer entirely: only
+# a Pydantic model instantiation (or a real HTTP request, covered in
+# integration tests) exercises these limits.
 import pytest
+from pydantic import ValidationError
+
 from backend.mystic_auth.auth.login.login_schema import LoginSchema
 from backend.mystic_auth.auth.password_reset_confirm.password_reset_confirm_schema import (
     PasswordResetConfirmSchema,
@@ -19,8 +19,7 @@ from backend.mystic_auth.auth.signup.signup_schema import SignupSchema
 from backend.mystic_auth.auth.verify_account.verify_account_schema import (
     VerifyAccountSchema,
 )
-from backend.mystic_auth.user_table.user_schema import UserCreate, UserUpdate
-from pydantic import ValidationError
+from backend.mystic_auth.user.user_schema import UserCreate, UserUpdate
 
 
 def test_signup_rejects_name_over_max_length():
@@ -81,11 +80,11 @@ def test_verify_account_schema_accepts_token_at_max_length():
 
 # ---------------------------- Email casing normalization ----------------------------
 #
-# Regression guard: `User@Example.com` and `user@example.com` must be treated
-# as the same account. These schemas are the input boundary for signup,
-# login, and password-reset-request : normalizing here (in addition to the
-# CRUD-layer normalization in UserEmailCRUD) means the canonical lowercase
-# form flows through logs/tokens/audit from the earliest point.
+# Regression guard: `User@Example.com` and `user@example.com` must be
+# treated as the same account. These schemas are the input boundary for
+# signup, login, and password-reset-request: normalizing here (in
+# addition to the CRUD-layer normalization in UserEmailCRUD) means the
+# canonical lowercase form flows through logs/tokens/audit from the start.
 
 def test_signup_schema_lowercases_mixed_case_email():
     schema = SignupSchema(name="Test User", email="User@Example.COM", password="ValidPass123!")
@@ -106,9 +105,9 @@ def test_password_reset_request_schema_lowercases_mixed_case_email():
 #
 # Regression guard: these schemas back PUT /users/me and PUT /users/{email}
 # (self and admin password/profile changes) and previously had no
-# max_length at all on name/password, unlike signup_schema.SignupSchema :
-# an unbounded password fed straight into Argon2 hashing is exactly the DoS
-# vector the signup cap exists to prevent.
+# max_length at all on name/password, unlike SignupSchema: an unbounded
+# password fed straight into Argon2 hashing is exactly the DoS vector the
+# signup cap exists to prevent.
 
 def test_user_update_rejects_password_over_max_length():
     with pytest.raises(ValidationError):

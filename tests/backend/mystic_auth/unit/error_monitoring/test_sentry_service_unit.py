@@ -2,6 +2,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from backend.mystic_auth.error_monitoring import sentry_service
 
 MODULE = "backend.mystic_auth.error_monitoring.sentry_service"
@@ -16,9 +17,9 @@ def _fake_request(cookies: dict | None = None, method: str = "GET", path: str = 
 
 
 def test_init_sentry_is_a_no_op_when_dsn_is_unset(mocker):
-    # This is the default state for every clone of this template : error
-    # monitoring must never crash startup, or make any SDK call, just
-    # because SENTRY_DSN was never configured.
+    # Default state for every clone of this template: error monitoring must
+    # never crash startup, or make any SDK call, just because SENTRY_DSN
+    # was never configured.
     mocker.patch(f"{MODULE}.settings.SENTRY_DSN", "")
     init_mock = mocker.patch(f"{MODULE}.sentry_sdk.init")
 
@@ -54,11 +55,10 @@ def test_init_sentry_falls_back_to_environment_when_sentry_environment_unset(moc
 
 def test_init_sentry_does_not_raise_when_the_dsn_is_malformed(mocker):
     # Regression guard: sentry_sdk.init() raises (sentry_sdk.utils.BadDsn)
-    # on a malformed DSN, and this function runs unguarded at import time
-    # in main.py : before the app's own global_exception_handler exists to
-    # catch anything. A typo in what's meant to be an optional, best-effort
-    # setting must never crash the whole app's startup. Uses the real
-    # sentry_sdk.init (not mocked) specifically so this test would fail
+    # on a malformed DSN, and this function runs unguarded at import time in
+    # main.py, before global_exception_handler exists to catch anything. A
+    # typo in this optional, best-effort setting must never crash startup.
+    # Uses the real sentry_sdk.init (not mocked) so this test would fail
     # again if the try/except around it were ever removed.
     mocker.patch(f"{MODULE}.settings.SENTRY_DSN", "not-a-valid-dsn-at-all")
 
@@ -72,6 +72,47 @@ def test_init_sentry_logs_a_warning_when_the_dsn_is_malformed(mocker):
     sentry_service.init_sentry()
 
     warning_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_capture_security_alert_emits_tagged_error_event(mocker):
+    scope = MagicMock()
+    scope_context = MagicMock()
+    scope_context.__enter__.return_value = scope
+    scope_context.__exit__.return_value = False
+    mocker.patch(f"{MODULE}.sentry_sdk.new_scope", return_value=scope_context)
+    capture_mock = mocker.patch(f"{MODULE}.sentry_sdk.capture_message")
+
+    await sentry_service.capture_security_alert(
+        "refresh_token_reuse_detected", {"scope": "account", "revocation_confirmed": False}
+    )
+
+    scope.set_level.assert_called_once_with("error")
+    scope.set_tag.assert_called_once_with("security_event", "refresh_token_reuse_detected")
+    scope.set_extra.assert_called_once()
+    capture_mock.assert_called_once_with("Security alert: refresh_token_reuse_detected", level="error")
+
+
+@pytest.mark.asyncio
+async def test_capture_security_alert_posts_metadata_only_to_configured_webhook(mocker):
+    mocker.patch(f"{MODULE}.settings.SECURITY_ALERT_WEBHOOK_URL", "https://alerts.example.test/security")
+    mocker.patch(f"{MODULE}.settings.SECURITY_ALERT_WEBHOOK_TOKEN", "webhook-secret")
+    client = mocker.AsyncMock()
+    response = mocker.Mock()
+    response.raise_for_status.return_value = None
+    client.post.return_value = response
+    async_client = mocker.patch(f"{MODULE}.httpx.AsyncClient")
+    async_client.return_value.__aenter__.return_value = client
+    mocker.patch(f"{MODULE}.sentry_sdk.new_scope")
+    mocker.patch(f"{MODULE}.sentry_sdk.capture_message")
+
+    await sentry_service.capture_security_alert("session_event_connection_limit_exceeded", {"ip_limit": 20})
+
+    client.post.assert_awaited_once()
+    _, kwargs = client.post.call_args
+    assert kwargs["headers"]["authorization"] == "Bearer webhook-secret"
+    assert kwargs["json"]["event_type"] == "session_event_connection_limit_exceeded"
+    assert kwargs["json"]["metadata"] == {"ip_limit": 20}
 
 
 @pytest.mark.asyncio
@@ -122,7 +163,7 @@ async def test_capture_exception_omits_user_context_when_no_access_token_cookie(
 
 @pytest.mark.asyncio
 async def test_capture_exception_omits_user_context_when_access_token_fails_to_verify(mocker):
-    # Expired/tampered/wrong-type access_token cookie : same "no user
+    # Expired/tampered/wrong-type access_token cookie: same "no user
     # context, but still capture the exception" outcome as no cookie at all.
     request = _fake_request(cookies={"access_token": "expired-or-invalid"})
     mocker.patch(f"{MODULE}.jwt_service.verify_token", new_callable=AsyncMock, return_value=None)

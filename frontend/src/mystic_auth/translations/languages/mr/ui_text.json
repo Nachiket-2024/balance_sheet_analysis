@@ -5,17 +5,25 @@
     "edit": "संपादन",
     "create": "तयार करा",
     "close": "बंद करा",
+    "closeDialog": "संवाद बंद करा",
     "confirm": "पुष्टी करा",
     "back": "मागे",
+    "previous": "मागील",
+    "next": "पुढील",
+    "noMatches": "जुळणारे काहीही नाही",
     "loading": "लोड होत आहे...",
+    "retry": "पुन्हा प्रयत्न करा",
     "saving": "जतन होत आहे...",
     "yes": "होय",
     "no": "नाही",
+    "showPassword": "पासवर्ड दाखवा",
+    "hidePassword": "पासवर्ड लपवा",
     "active": "सक्रिय",
     "inactive": "निष्क्रिय",
     "enabled": "सक्षम",
     "disabled": "अक्षम",
     "failedToLoadData": "डेटा लोड करण्यात अयशस्वी",
+    "notAuthorizedToView": "हे पाहण्याची परवानगी तुमच्याकडे नाही.",
     "noDataAvailable": "कोणताही डेटा उपलब्ध नाही",
     "errorBoundary": {
         "title": "काहीतरी चूक झाली",
@@ -23,11 +31,25 @@
         "reload": "पुन्हा लोड करा"
     },
     "filterLabel": "फिल्टर: {{label}}",
+    "selectedCount": "{{count}} निवडले",
+    "bulkUsersSelected": "{{count}} वापरकर्ते निवडले",
+    "bulkOperation": "सामूहिक कृती",
+    "clearSelection": "निवड साफ करा",
+    "selectAllRows": "सर्व पंक्ती निवडा",
+    "selectRow": "पंक्ती निवडा",
     "pagination": {
         "previousPage": "मागील पृष्ठ",
         "prev": "मागे",
         "nextPage": "पुढील पृष्ठ",
         "next": "पुढे",
         "page": "पृष्ठ {{page}}"
+    },
+    "offlineBanner": {
+        "offline": "तुम्ही ऑफलाइन आहात. कनेक्शन पूर्ववत होईपर्यंत काही वैशिष्ट्ये कार्य करणार नाहीत.",
+        "backOnline": "तुम्ही पुन्हा ऑनलाइन आहात."
+    },
+    "expandCollapseAll": {
+        "expandAll": "सर्व विस्तृत करा",
+        "collapseAll": "सर्व संक्षिप्त करा"
     }
 }

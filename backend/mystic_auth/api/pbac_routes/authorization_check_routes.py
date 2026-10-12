@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# The one place ip_address/current_time/security_context are derived from
-# the real request : batch-check builds this once, shared by every check
-# in the batch (they're all the same incoming request)
+# ip_address/current_time/security_context are derived from the real
+# request here once, then shared by every check in the batch below.
 from ...authorization.context.request_context_builder import build_authorization_context
 from ...authorization.dependencies.authorization_dependency import require_authorization
 from ...authorization.dependencies.policy_route_dependencies import READ_DEPENDENCY
@@ -16,7 +15,7 @@ from ...authorization.schemas.batch_authorization_schema import (
 from ...authorization.schemas.policy_schema import AuthorizationCheckRequest, AuthorizationCheckResponse
 from ...authorization.services.authorization_service import authorization_service
 from ...database.connection import database
-from ...user_crud.user_crud_collector import user_crud
+from ...user.user_crud_collector import user_crud
 from ..get_or_404.get_or_404 import get_or_404
 
 router = APIRouter(prefix="/authorization", tags=["Authorization"])
@@ -30,23 +29,21 @@ async def check_user_authorization(
     db: AsyncSession = Depends(database.get_session),
 ):
     """
-    Calculates a user's effective authorization for an action, using POST
+    Calculates a user's effective authorization for an action. Uses POST
     (not GET+query params) because check.resource/context are arbitrary
     nested JSON, needed to evaluate ownership/resource-attribute/context
     conditions (e.g. "would this user be allowed to publish *this specific*
     draft document?"), not just a resource-type-level check.
 
-    Runs the exact same decision logic the app itself would use for this
-    user/action/resource/context (via AuthorizationService.authorize_detailed
-    : no separate/duplicated evaluation logic), returning both the outcome
-    and which policies were candidates vs. which actually granted it.
+    Runs the exact same decision logic the app itself would use, via
+    AuthorizationService.authorize_detailed, returning both the outcome and
+    which policies were candidates vs. which actually granted it.
 
-    This endpoint deliberately accepts check.context as caller-supplied :
-    unlike every real protected route (which builds context itself via
-    context/request_context_builder.py and never trusts a client-supplied
-    value), this is a hypothetical "what would happen if" simulation tool
-    for operators, not a real access decision, so there is nothing
-    to forge: no actual authorization outcome depends on it.
+    Unlike every real protected route (which builds context itself and
+    never trusts a client-supplied value), this endpoint accepts
+    check.context from the caller: it's a hypothetical "what would happen
+    if" simulation tool for operators, not a real access decision, so
+    there's nothing to forge here.
     """
     await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
 
@@ -79,29 +76,24 @@ async def batch_check_authorization(
 ):
     """
     Runs 1-50 authorization checks for the caller's own effective
-    authorization in one request (see schemas/batch_authorization_schema.py
-    for the exact bounds and per-field validation : malformed/oversized/
-    empty batches are rejected by the schema itself, before this function
-    runs). Requires only users:read_own, the baseline every real account
-    holds via self_service: unlike the /users/{email}/authorization-check
-    operator inspection tool (which checks *someone else's* access and needs
-    policies:read), this endpoint always checks the caller's *own*
-    effective authorization, so the bar is simply "you're a legitimate,
-    onboarded account" rather than an elevated permission.
+    authorization in one request (bounds and per-field validation live in
+    schemas/batch_authorization_schema.py). Requires only users:read_own,
+    the baseline every real account holds: unlike the
+    /users/{email}/authorization-check operator tool (which checks
+    *someone else's* access and needs policies:read), this always checks
+    the caller's *own* access, so the bar is just "you're a legitimate
+    account".
 
-    Builds the real request context once and delegates the whole batch to
+    Builds the request context once and delegates the batch to
     AuthorizationService.authorize_batch, which fetches the caller's
-    policies exactly once and reuses them for every check : avoiding
-    repeated policy database queries within the batch : while calling the
-    exact same PolicyEvaluationEngine used by every single authorize()
-    call, so a batch-of-one check always agrees with calling authorize()
-    directly for that same input. Each check is logged individually,
-    exactly like a real authorize() call : this is a real decision, not a
-    hypothetical "what if" simulation.
+    policies once and reuses them for every check, while still calling the
+    same PolicyEvaluationEngine used by a single authorize() call, so
+    results always agree. Each check is logged individually: this is a real
+    decision, not a hypothetical simulation.
 
     The response exposes only `allowed` and a coarse `denial_reason` per
-    check, deliberately never policy names or failed condition keys : those
-    stay reserved for the operator inspection endpoint above.
+    check: policy names and failed condition keys stay reserved for the
+    operator inspection endpoint above.
     """
     context = build_authorization_context(request)
 

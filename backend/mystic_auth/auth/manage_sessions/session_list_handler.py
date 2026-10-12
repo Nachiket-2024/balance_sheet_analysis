@@ -23,14 +23,10 @@ class SessionListHandler:
             current_user = await current_user_handler.get_current_user(access_token, db)
             email = current_user["email"]
 
-            # Best-effort: if the caller's own refresh_token cookie is
-            # missing/expired/unparseable, every row just shows as not the
-            # current session rather than failing the whole list - the
-            # cookie isn't required to know WHICH sessions exist, only to
-            # flag one of them as "this device". Compared by chain_id, not
-            # jti: jti rotates on every refresh, so a row's current_jti can
-            # be momentarily stale mid-rotation, while chain_id stays
-            # stable for the session's whole lifetime.
+            # Best-effort: a missing/expired refresh_token cookie just means
+            # no row is flagged as "this device," not a failed list.
+            # Compared by chain_id, not jti, since jti rotates on every
+            # refresh while chain_id stays stable for the session's life.
             current_chain_id = None
             if refresh_token:
                 payload = await jwt_service.decode_payload(refresh_token)
@@ -43,6 +39,8 @@ class SessionListHandler:
                 SessionRead(
                     id=s.id,
                     ip_address=s.ip_address,
+                    city=s.city,
+                    country=s.country,
                     user_agent=s.user_agent,
                     created_at=s.created_at,
                     last_used_at=s.last_used_at,

@@ -16,7 +16,7 @@ function seed(options?: { isAuthenticated?: boolean | null; permissions?: string
       useAuthStore.getState().setProfile({
         name: 'Test User', email: 'test@example.com', role: 'user',
         permissions: options.permissions ?? [], has_password: true,
-        created_at: '2026-01-15T00:00:00Z', active_sessions: 1,
+        created_at: '2026-01-15T00:00:00Z', active_sessions: 1, brand_color: null,
       });
     }
   }
@@ -79,6 +79,29 @@ describe('Authorized', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('renders children when given an array permission and the user holds only one of the listed actions', () => {
+    seed({ isAuthenticated: true, permissions: ['policies:create'] });
+    renderWithAuth(
+      <Authorized permission={['policies:read', 'policies:create']}>
+        <div>Secret Content</div>
+      </Authorized>
+    );
+
+    expect(screen.getByText('Secret Content')).toBeInTheDocument();
+  });
+
+  it('renders the fallback when given an array permission and the user holds none of the listed actions', () => {
+    seed({ isAuthenticated: true, permissions: ['users:read_own'] });
+    renderWithAuth(
+      <Authorized permission={['policies:read', 'policies:create']} fallback={<div>Access Denied</div>}>
+        <div>Secret Content</div>
+      </Authorized>
+    );
+
+    expect(screen.getByText('Access Denied')).toBeInTheDocument();
+    expect(screen.queryByText('Secret Content')).toBeNull();
+  });
+
   it('respects the resourceType prop being passed through without changing the result', () => {
     seed({ isAuthenticated: true, permissions: ['documents:view'] });
     renderWithAuth(
@@ -134,6 +157,17 @@ describe('IfCan', () => {
     seed({ isAuthenticated: true, permissions: ['documents:view'] });
     renderWithAuth(
       <IfCan action="documents:view" resourceType="documents">
+        <div>Document Viewer</div>
+      </IfCan>
+    );
+
+    expect(screen.getByText('Document Viewer')).toBeInTheDocument();
+  });
+
+  it('accepts an array action meaning "any of"', () => {
+    seed({ isAuthenticated: true, permissions: ['documents:edit'] });
+    renderWithAuth(
+      <IfCan action={['documents:view', 'documents:edit']}>
         <div>Document Viewer</div>
       </IfCan>
     );

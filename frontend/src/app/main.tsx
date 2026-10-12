@@ -1,35 +1,59 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ChakraProvider } from '@chakra-ui/react';
 
 import App from './App.tsx';
-import ErrorBoundary from '../mystic_auth/ui/ErrorBoundary.tsx';
+import ErrorBoundary from '../mystic_auth/ui/routing/ErrorBoundary.tsx';
 
-// The app's custom Chakra system (theme tokens/semantic tokens), built on
-// top of Chakra's defaultConfig rather than replacing it.
-import { system } from '../mystic_auth/theme/system.ts';
+// Self-hosted, not a Google Fonts CDN request (consistent with this
+// template's other self-hosted defaults). Registers "InterVariable" before
+// first paint, which tailwind.css's font-sans stack references.
+// CSS-only import, no JS export: kept only for that load side effect.
+import '@fontsource-variable/inter';
 
-// Auth/permissions state itself lives in Zustand (store/authStore.ts),
-// which needs no Provider since it's a module-level singleton reachable
-// from any component directly.
+// The production build marks the stylesheet as media="print" so it can be
+// fetched without blocking the first HTML paint. Looked up once here and
+// reused below (querying by [media="print"] again after removeAttribute
+// would never match, since the attribute is already gone by then).
+const stylesheet = document.querySelector<HTMLLinkElement>('link[rel="stylesheet"][media="print"]');
+stylesheet?.removeAttribute("media");
+
+// Tailwind v4 entry point + design tokens (see theme/tailwind.css).
+// applyBrandCssVars.ts applies the signed-in user's brand-color pick as
+// CSS variables: eager, side-effect-only import, same "before first
+// paint" pattern as themeStore.ts below.
+import '../mystic_auth/theme/tailwind.css';
+import '../mystic_auth/theme/applyBrandCssVars.ts';
+
+// Auth/permissions state lives in Zustand (store/authStore.ts), which needs
+// no Provider since it's a module-level singleton reachable directly.
 import { queryClient } from "../mystic_auth/core/queryClient.ts";
 
-// Imported here, eagerly, purely for its module-load side effect of
-// applying the persisted/OS color mode class to <html> BEFORE the first
-// paint. Importing it later (e.g. only from Navbar, where the toggle
-// button lives) would apply that class after React's first render,
-// causing a visible flash of the wrong theme for a user who previously
-// chose dark mode.
+// Eager, side-effect-only import: applies the persisted/OS color mode class
+// to <html> before first paint. Importing it later (e.g. only from Navbar)
+// would flash the wrong theme for a user who previously chose dark mode.
 import '../mystic_auth/store/themeStore.ts';
 
-// Same reasoning as themeStore.ts above, for the persisted/browser language
-// preference: languageStore.ts itself eagerly imports and initializes
-// translations/translations.ts, so this one import both configures translations and applies the
-// chosen language before the first paint.
-import '../mystic_auth/store/languageStore.ts';
+// Same reasoning as themeStore.ts, for the persisted custom brand/background
+// colors: applies the favicon/meta tag before first paint (the --brand-*
+// CSS vars themselves come from applyBrandCssVars.ts above, reading this
+// module's cached state). This is just the locally cached guess;
+// useAuthSession reconciles it against the server value once GET /auth/me
+// resolves.
+import '../mystic_auth/store/appearanceStore.ts';
 
-// This app's own translation resources (companies/balance_sheets/llm
+// Same reasoning as themeStore.ts, for the persisted font-size preference:
+// applies before first paint, avoiding a flash of the wrong size.
+import '../mystic_auth/store/fontSizeStore.ts';
+
+// Same reasoning as themeStore.ts, for the persisted/browser language
+// preference: also eagerly initializes translations/translations.ts, so
+// this import both configures translations and applies the chosen
+// language before first paint.
+import '../mystic_auth/store/languageStore.ts';
+import { prefetchRoute } from '../mystic_auth/layout/app_layout/routePrefetch';
+
+// This app's own translation resources (companies/balance_sheets/analysis/llm
 // namespaces, plus this app's own error codes). Imported after
 // languageStore.ts above so mystic_auth's i18next instance is already
 // initialized by the time this registers into it - see
@@ -48,17 +72,36 @@ import { initErrorMonitoring } from "../mystic_auth/core/errorMonitoring.ts";
 
 const rootElement = document.getElementById('root') as HTMLElement;
 
-setupAuthInterceptor();
-initErrorMonitoring();
+// Start the protected route chunk while the app shell and session request are
+// starting. The same dynamic import is reused by React.lazy, so this removes
+// the route fetch from the critical render sequence without making every route
+// part of the initial bundle.
+prefetchRoute(window.location.pathname);
 
-ReactDOM.createRoot(rootElement).render(
-    <React.StrictMode>
-        <ErrorBoundary>
-            <QueryClientProvider client={queryClient}>
-                <ChakraProvider value={system}>
-                    <App />
-                </ChakraProvider>
-            </QueryClientProvider>
-        </ErrorBoundary>
-    </React.StrictMode>
-);
+function mountApp(): void {
+    setupAuthInterceptor();
+    initErrorMonitoring();
+
+    ReactDOM.createRoot(rootElement).render(
+                <React.StrictMode>
+                    <ErrorBoundary>
+                        <QueryClientProvider client={queryClient}>
+                            <App />
+                        </QueryClientProvider>
+                    </ErrorBoundary>
+                </React.StrictMode>
+    );
+}
+
+const stylesheetIsReady = stylesheet?.sheet && (() => {
+    try {
+        return stylesheet.sheet.cssRules.length > 0;
+    } catch {
+        return false;
+    }
+})();
+if (stylesheet && !stylesheetIsReady) {
+    stylesheet.addEventListener("load", mountApp, { once: true });
+} else {
+    mountApp();
+}

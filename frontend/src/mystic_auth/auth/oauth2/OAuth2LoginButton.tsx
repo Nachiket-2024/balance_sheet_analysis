@@ -1,23 +1,49 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 
 import { useAuthStore } from "../../store/authStore";
 import settings from "../../core/settings";
+import { translateErrorCode } from "../../api/apiError";
 import OAuth2LoginButtonComponent from "./OAuth2LoginButtonComponent";
 
 interface OAuth2ButtonProps {
     onSuccess?: () => void;
     onAttempt?: () => void;
+    label?: string;
 }
 
-// This button never makes an API call of its own, it's a full-page
-// redirect to the backend's OAuth2 endpoint, which handles the Google
-// callback server-side and redirects back with the session cookie already
-// set. `error`/`isAuthenticated`/`user` below are static empty values
-// because nothing in the frontend populates them (there is no frontend
-// OAuth2 callback route); only `globalAuth`, the real shared session
-// status, carries live data.
-const OAuth2LoginButton: React.FC<OAuth2ButtonProps> = ({ onAttempt }) => {
+// A full-page redirect to the backend's OAuth2 endpoint, not an API call. It handles
+// the Google callback server-side and redirects back to /login with `?error=<code>`
+// on failure. `error` is read from that param once on mount, translated like API
+// errors, then stripped from the URL so a refresh doesn't re-show it. There is no
+// frontend OAuth2 callback route.
+const OAuth2LoginButton: React.FC<OAuth2ButtonProps> = ({ onAttempt, label }) => {
     const globalAuth = useAuthStore((s) => !!s.isAuthenticated);
+    const [searchParams, setSearchParams] = useSearchParams();
+    // Lazy initializer reads `error` once during the first render, avoiding an
+    // extra render via setState in an effect.
+    const [error] = useState<string | null>(() => {
+        const errorCode = searchParams.get("error");
+        return errorCode ? translateErrorCode(errorCode) : null;
+    });
+
+    useEffect(() => {
+        if (!searchParams.get("error")) {
+            return;
+        }
+
+        setSearchParams(
+            (prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete("error");
+                return next;
+            },
+            { replace: true }
+        );
+        // Only the error param from the initial redirect back from Google matters;
+        // deliberately not re-running on every searchParams change.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleLogin = () => {
         onAttempt?.();
@@ -26,11 +52,12 @@ const OAuth2LoginButton: React.FC<OAuth2ButtonProps> = ({ onAttempt }) => {
 
     return (
         <OAuth2LoginButtonComponent
-            error={null}
+            error={error}
             isAuthenticated={false}
             user={null}
             globalAuth={globalAuth}
             onLogin={handleLogin}
+            label={label}
         />
     );
 };

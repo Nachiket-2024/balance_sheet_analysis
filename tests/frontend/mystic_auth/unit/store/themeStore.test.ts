@@ -6,7 +6,7 @@ describe('themeStore', () => {
     window.localStorage.clear();
     document.documentElement.classList.remove('dark');
     document.documentElement.style.colorScheme = '';
-    // jsdom doesn't implement matchMedia by default; restore that baseline.
+    // jsdom has no matchMedia by default; restore that baseline.
     // @ts-expect-error - deleting to restore the jsdom default
     delete window.matchMedia;
   });

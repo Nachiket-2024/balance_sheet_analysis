@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ChakraProvider, defaultSystem } from '@chakra-ui/react';
 import { MemoryRouter } from 'react-router';
 import MockAdapter from 'axios-mock-adapter';
 
@@ -24,6 +23,7 @@ function seedProfile(overrides?: { hasPassword?: boolean }) {
     has_password: overrides?.hasPassword ?? true,
     created_at: '2026-01-15T00:00:00Z',
     active_sessions: 1,
+    brand_color: null,
   });
 }
 
@@ -31,11 +31,9 @@ function renderAccountSettings() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ChakraProvider value={defaultSystem}>
         <MemoryRouter>
           <AccountSettingsPage />
         </MemoryRouter>
-      </ChakraProvider>
     </QueryClientProvider>
   );
 }
@@ -45,28 +43,133 @@ describe('AccountSettingsPage', () => {
     mock.reset();
     seedProfile();
     mock.onGet('/authorization/users/me/policies').reply(200, {
-      policies: [{ name: 'self_service' }],
+      policies: [{ name: 'self_service', actions: ['users:read_own'], resource_type: 'users' }],
     });
+    mock.onGet('/authorization/users/me/permissions').reply(200, { permissions: [] });
   });
 
-  it("renders the caller's own editable name and effective policies from the auth store", async () => {
+  it("renders the caller's own editable name on the Profile tab", async () => {
     renderAccountSettings();
 
-    // Email/role are deliberately not repeated here: DashboardPage already
-    // shows them as read-only context, so this page only holds the name
-    // field (actually editable here) plus policies.
+    // Email/role aren't shown here; DashboardPage already covers them read-only.
     expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
-    await screen.findByText('self_service');
   });
 
-  it('shows "Set" for an account with a password and "Not set" for an OAuth2-only account', async () => {
+  it('matches the User Access selected-state outline without the shared tab shadow', () => {
+    renderAccountSettings();
+
+    const profileTab = screen.getByRole('tab', { name: 'Profile' });
+    expect(profileTab).toHaveClass('focus-visible:!border-transparent');
+    expect(profileTab).toHaveClass('data-[state=active]:before:hidden');
+    expect(profileTab).toHaveClass('dark:data-[state=active]:!border-transparent');
+    expect(profileTab).toHaveClass('data-[state=active]:!shadow-[inset_0_0_0_2px_var(--brand-solid)]');
+  });
+
+  it('renders effective policies on the Permissions tab', async () => {
+    renderAccountSettings();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('tab', { name: 'Permissions' }));
+    // self_service now appears twice once its group is expanded by default:
+    // the Policies badge, and again as the source tag on the effective-
+    // permissions chip it granted.
+    await screen.findAllByText('self_service');
+  });
+
+  it('renders the effective permissions (fanned-out policy actions and direct grants) and the raw direct grants, via the self-service /me endpoints', async () => {
+    // Adds a direct grant on top of the shared mocks to prove both the
+    // union (effective) and the raw-direct-only section reflect it.
+    mock.onGet('/authorization/users/me/permissions').reply(200, {
+      permissions: [{ action: 'policies:create', resource_type: 'policies' }],
+    });
+
+    renderAccountSettings();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('tab', { name: 'Permissions' }));
+
+    // self_service now appears twice once its group is expanded by default:
+    // the Policies badge, and again as the source tag on the effective-
+    // permissions chip it granted.
+    await screen.findAllByText('self_service');
+    // Effective permissions include both the policy action and the direct grant.
+    expect(screen.getByText('Read own users')).toBeInTheDocument();
+    expect(screen.getAllByText('Create policies').length).toBeGreaterThanOrEqual(1);
+
+    // Direct permissions show only the raw grant, not the policy-derived one.
+    const directHeading = screen.getByText('Direct permissions');
+    const directSection = directHeading.parentElement;
+    expect(directSection).toBeTruthy();
+    if (directSection) {
+      expect(within(directSection).getByText('Create policies')).toBeInTheDocument();
+      expect(within(directSection).queryByText('Read own users')).toBeNull();
+    }
+  });
+
+  it('shows "Set" for an account with a password and "Not set" for an OAuth2-only account, on the Password tab', async () => {
     seedProfile({ hasPassword: false });
     renderAccountSettings();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('tab', { name: 'Password' }));
 
     expect(await screen.findByText('Not set')).toBeInTheDocument();
     expect(
       screen.getByText(/This account currently signs in with Google only/)
     ).toBeInTheDocument();
+  });
+
+  it('collapses a specific permission into its wildcard counterpart on the Permissions tab', async () => {
+    // A direct grant on a specific resource_type is redundant once the same
+    // action is already granted on "*"; only the wildcard badge should render.
+    mock.onGet('/authorization/users/me/permissions').reply(200, {
+      permissions: [
+        { action: 'policies:read', resource_type: '*' },
+        { action: 'policies:read', resource_type: 'policies' },
+      ],
+    });
+
+    renderAccountSettings();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('tab', { name: 'Permissions' }));
+    // self_service now appears twice once its group is expanded by default:
+    // the Policies badge, and again as the source tag on the effective-
+    // permissions chip it granted.
+    await screen.findAllByText('self_service');
+
+    expect(screen.getAllByText('All resource types').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('Policies')).toBeNull();
+  });
+
+  it('collapses a direct grant into a POLICY-sourced wildcard, not just another direct wildcard grant', async () => {
+    // The covering wildcard here comes from an assigned policy, not another
+    // direct grant; Direct permissions still has to drop the redundant grant.
+    mock.onGet('/authorization/users/me/policies').reply(200, {
+      policies: [
+        { name: 'system_superuser', actions: ['permissions:grant'], resource_type: '*' },
+      ],
+    });
+    mock.onGet('/authorization/users/me/permissions').reply(200, {
+      permissions: [{ action: 'permissions:grant', resource_type: 'permissions' }],
+    });
+
+    renderAccountSettings();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('tab', { name: 'Permissions' }));
+    // system_superuser appears twice once its group is expanded by default:
+    // the Policies badge, and again as the source tag on the effective-
+    // permissions chip it granted.
+    await screen.findAllByText('system_superuser');
+
+    const directHeading = screen.getByText('Direct permissions');
+    const directSection = directHeading.parentElement;
+    expect(directSection).toBeTruthy();
+    if (directSection) {
+      expect(within(directSection).queryByText('(permissions)')).toBeNull();
+      expect(within(directSection).getByText(/no direct permissions/i)).toBeInTheDocument();
+    }
   });
 
   it('submits a name change via PUT /users/me and reflects the update', async () => {
@@ -108,6 +211,7 @@ describe('AccountSettingsPage', () => {
     renderAccountSettings();
     const user = userEvent.setup();
 
+    await user.click(screen.getByRole('tab', { name: 'Password' }));
     const passwordInput = screen.getByPlaceholderText(/leave blank to keep your current password/i);
     await user.type(passwordInput, 'weak');
     await user.click(screen.getByRole('button', { name: /update password/i }));
@@ -119,6 +223,7 @@ describe('AccountSettingsPage', () => {
     renderAccountSettings();
     const user = userEvent.setup();
 
+    await user.click(screen.getByRole('tab', { name: 'Password' }));
     const passwordInput = screen.getByPlaceholderText(/leave blank to keep your current password/i);
     await user.type(passwordInput, 'NewPassword1');
     await user.click(screen.getByRole('button', { name: /update password/i }));
@@ -144,6 +249,7 @@ describe('AccountSettingsPage', () => {
     renderAccountSettings();
     const user = userEvent.setup();
 
+    await user.click(screen.getByRole('tab', { name: 'Password' }));
     const passwordInput = screen.getByPlaceholderText(/leave blank to keep your current password/i);
     await user.type(passwordInput, 'NewPassword1');
     const currentPasswordInput = await screen.findByPlaceholderText(/required to confirm this change/i);
@@ -174,8 +280,8 @@ describe('AccountSettingsPage', () => {
 
     renderAccountSettings();
     const user = userEvent.setup();
-    await screen.findByText('Not set');
 
+    await user.click(screen.getByRole('tab', { name: 'Password' }));
     const passwordInput = screen.getByPlaceholderText(/add a password so you can also sign in without google/i);
     await user.type(passwordInput, 'NewPassword1');
     await user.click(screen.getByRole('button', { name: /set password/i }));

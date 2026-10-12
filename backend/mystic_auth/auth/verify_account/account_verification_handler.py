@@ -25,7 +25,10 @@ class AccountVerificationHandler:
         self, token: str, db: AsyncSession, request: Request | None = None
     ) -> JSONResponse:
         try:
-            payload = await self.account_verification_service.verify_token(token)
+            # Inspect the signed token first; redemption happens only after
+            # the atomic action reservation succeeds, so a locked caller
+            # cannot burn a valid one-time verification link.
+            payload = await self.account_verification_service.verify_token(token, consume=False)
 
             if not payload or "email" not in payload:
                 return JSONResponse(
@@ -45,31 +48,53 @@ class AccountVerificationHandler:
             # reasoning as refresh_token_handler's separate "refresh:lockout:ip:" key.
             email_lock_key = f"verify_account_lock:email:{email}"
 
-            updated = await self.user_verification_service.mark_user_verified(email, db)
-
-            await log_security_event(
-                ACCOUNT_VERIFIED, db, user_email=email, success=updated, request=request
-            )
-
-            status = 200 if updated else 400
-            content = (
-                {"message": f"Account verified successfully for {email}."}
-                if updated
-                else {"error": "User not found or already verified", "code": "USER_NOT_FOUND_OR_ALREADY_VERIFIED"}
-            )
-
-            allowed = await self.login_protection_service.check_and_record_action(email_lock_key, success=(status == 200))
-
-            if not allowed:
+            # Enforce the lock before changing account state. A successful
+            # verification must not be reported as 429 after the account has
+            # already been marked verified.
+            if not await self.login_protection_service.begin_protected_action(email_lock_key):
                 return JSONResponse(
                     content={
                         "error": "Too many failed attempts, account temporarily locked",
                         "code": "ACCOUNT_LOCKED",
                     },
-                    status_code=429
+                    status_code=429,
                 )
 
-            return JSONResponse(content, status_code=status)
+            if not await self.account_verification_service.consume_token(token):
+                await self.login_protection_service.release_protected_action(email_lock_key)
+                return JSONResponse(
+                    content={
+                        "error": "Invalid, expired, or already used verification token",
+                        "code": "INVALID_VERIFICATION_TOKEN",
+                    },
+                    status_code=400,
+                )
+
+            try:
+                updated = await self.user_verification_service.mark_user_verified(email, db)
+
+                await log_security_event(
+                    ACCOUNT_VERIFIED, db, user_email=email, success=updated, request=request
+                )
+
+                if updated:
+                    content = {"message": f"Account verified successfully for {email}."}
+                    await self.login_protection_service.finish_protected_action(email_lock_key, success=True)
+                    return JSONResponse(content, status_code=200)
+
+                content = {"error": "User not found or already verified", "code": "USER_NOT_FOUND_OR_ALREADY_VERIFIED"}
+                await self.login_protection_service.finish_protected_action(email_lock_key, success=False)
+                if await self.login_protection_service.is_locked(email_lock_key):
+                    return JSONResponse(
+                        content={
+                            "error": "Too many failed attempts, account temporarily locked",
+                            "code": "ACCOUNT_LOCKED",
+                        },
+                        status_code=429,
+                    )
+                return JSONResponse(content, status_code=400)
+            finally:
+                await self.login_protection_service.release_protected_action(email_lock_key)
 
         except Exception:
             logger.error("Error during account verification:\n%s", traceback.format_exc())
@@ -83,14 +108,17 @@ class AccountVerificationHandler:
         try:
             email_sent = await self.account_verification_service.send_verification_email_if_needed(email, db)
 
-            if email_sent:
-                await log_security_event(
-                    ACCOUNT_VERIFICATION_REQUESTED,
-                    db,
-                    user_email=email,
-                    success=True,
-                    request=request,
-                )
+            await log_security_event(
+                ACCOUNT_VERIFICATION_REQUESTED,
+                db,
+                # Do not retain an arbitrary unknown email from an
+                # enumeration-resistant request. Known successful delivery
+                # requests retain the account identity for investigation.
+                user_email=email if email_sent else None,
+                success=email_sent,
+                request=request,
+                metadata={"delivery_queued": email_sent},
+            )
 
             return JSONResponse(
                 content={

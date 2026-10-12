@@ -4,14 +4,37 @@
     "switchToLightMode": "Switch to light mode",
     "switchToDarkMode": "Switch to dark mode",
     "language": "Language",
-    "tagline": "Secure access, centrally managed",
-    "allRightsReserved": "All rights reserved.",
+    "fontSize": {
+        "label": "Font size",
+        "trigger": "Size",
+        "small": "Small",
+        "medium": "Medium",
+        "large": "Large"
+    },
     "mainNavigation": "Main navigation",
+    "commandPalette": {
+        "placeholder": "Search pages, policies, and users...",
+        "noResults": "No matching results",
+        "pagesGroup": "Pages",
+        "featuresGroup": "Features",
+        "matchesGroup": "Matching text",
+        "policiesGroup": "Policies",
+        "usersGroup": "Users",
+        "trigger": "Search...",
+        "triggerLabel": "Open search (Ctrl+K)"
+    },
     "nav": {
         "dashboard": "Dashboard",
         "users": "Users",
         "policies": "Policies",
+        "permissions": "Permissions",
+        "rateLimits": "Rate Limits",
         "auditLog": "Audit Log",
         "accountSettings": "Account Settings"
+    },
+    "footer": {
+        "privacyPolicy": "Privacy Policy",
+        "termsOfService": "Terms of Service",
+        "help": "Help & Support"
     }
 }

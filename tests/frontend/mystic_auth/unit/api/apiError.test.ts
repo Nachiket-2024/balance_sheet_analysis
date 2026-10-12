@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
-import { extractApiErrorMessage } from '@/api/apiError';
+import { extractApiErrorMessage, translateErrorCode } from '@/api/apiError';
 
 function makeAxiosError(data: unknown): AxiosError {
   return new AxiosError('Request failed', undefined, undefined, undefined, {
@@ -63,5 +63,34 @@ describe('extractApiErrorMessage', () => {
 
       expect(spy).toHaveBeenCalledWith(expect.stringContaining('SOME_UNMAPPED_CODE'));
     });
+  });
+});
+
+describe('translateErrorCode', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('translates a known code', () => {
+    expect(translateErrorCode('ACCOUNT_DEACTIVATED')).toBe('This account has been deactivated');
+  });
+
+  it('interpolates params into the translated message', () => {
+    expect(translateErrorCode('POLICY_NAME_EXISTS', { policyName: 'admin-policy' })).toBe(
+      "A policy named 'admin-policy' already exists"
+    );
+  });
+
+  it('returns null (not a fallback string) for a non-string code', () => {
+    expect(translateErrorCode(undefined)).toBeNull();
+    expect(translateErrorCode(null)).toBeNull();
+  });
+
+  it('returns null and warns for a code with no matching translation entry', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(translateErrorCode('SOME_UNMAPPED_CODE')).toBeNull();
+
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('SOME_UNMAPPED_CODE'));
   });
 });

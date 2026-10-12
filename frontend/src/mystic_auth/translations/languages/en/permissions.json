@@ -1,0 +1,104 @@
+{
+    "page": {
+        "title": "Permissions",
+        "description": "Every action this app knows about, read-only.",
+        "glossaryAriaLabel": "What do Action, Resource type, Destructive and Held by mean?",
+        "glossary": {
+            "action": {
+                "term": "Action",
+                "definition": "One specific allowed operation, like \"delete a user\", the thing that actually decides access whether it comes from a policy or is granted directly."
+            },
+            "resourceType": {
+                "term": "Resource type",
+                "definition": "What kind of thing an action acts on, like \"users\" or \"invoices\", used to group and filter this catalog."
+            },
+            "destructive": {
+                "term": "Destructive",
+                "definition": "An action that deletes, deactivates, or otherwise changes something in a way that's hard to undo."
+            },
+            "heldBy": {
+                "term": "Held by",
+                "definition": "Who currently has this action, either through a policy they hold or granted straight to their account."
+            }
+        },
+        "searchPlaceholder": "Search by action or description...",
+        "filterChipSearch": "Search: {{value}}",
+        "filterChipResourceType": "Resource type: {{value}}",
+        "resultsCount_one": "{{count}} result",
+        "resultsCount_other": "{{count}} results",
+        "filterByResourceType": "Filter by resource type",
+        "allResourceTypes": "All resource types",
+        "failedToLoadPermissions": "Failed to load the permission catalog",
+        "catalogForbidden": "This permission catalog is no longer available because your permission changed. Refresh the page or return to the dashboard.",
+        "holderInfoErrorTitle": "Could not load holder information",
+        "holderInfoErrorDescription": "Policy and direct-grant counts are temporarily unavailable.",
+        "holderInfoForbiddenTitle": "Holder information is no longer available",
+        "holderInfoForbiddenDescription": "Your permission to view holder information changed. Refresh the page or close this dialog.",
+        "retryHolderInfo": "Retry holder information",
+        "noPermissionsMatchFilters": "No permissions match these filters",
+        "noPermissionsYet": "No permissions in the catalog",
+        "actionCount": "{{count}} actions",
+        "clearFilters": "Clear filters",
+        "quickFilterLabel": "Quick filter",
+        "quickFilters": {
+            "all": "All",
+            "destructive": "Destructive",
+            "policy": "In a policy",
+            "direct": "Direct grants",
+            "unused": "Unused"
+        },
+        "heldByNone": "Nobody",
+        "heldByCount_one": "{{count}} user",
+        "heldByCount_other": "{{count}} users",
+        "heldBySources": "{{direct}} direct · {{policies}} via policy",
+        "groupDestructiveCount_one": "{{count}} destructive",
+        "groupDestructiveCount_other": "{{count}} destructive",
+        "groupInPolicyCount_one": "{{count}} in a policy",
+        "groupInPolicyCount_other": "{{count}} in policies"
+    },
+    "howItWorks": {
+        "actionsTitle": "Actions",
+        "actionsDescription": "Things people can be allowed to do, like “view users”.",
+        "policiesTitle": "Policies",
+        "policiesDescription": "Named bundles of actions.",
+        "peopleTitle": "People",
+        "peopleDescription": "Who actually gets access."
+    },
+    "columns": {
+        "action": "Action",
+        "resourceType": "Resource type",
+        "description": "Description",
+        "view": "View details",
+        "source": "Source",
+        "heldBy": "Held by"
+    },
+    "statsCard": {
+        "resourceTypes": "Resource types",
+        "totalActions": "Actions",
+        "destructive": "Destructive",
+        "unused": "Unused"
+    },
+    "detailsDialog": {
+        "title": "Permission details",
+        "action": "Action",
+        "resourceType": "Resource type",
+        "description": "Description",
+        "heldBy": "Held by",
+        "loadingHolderInfo": "Loading holder information...",
+        "holderInfoUnavailable": "Holder information could not be loaded.",
+        "holderInfoErrorTitle": "We couldn't load who currently holds this action",
+        "holderInfoErrorDescription": "Policy and direct-grant details are temporarily unavailable.",
+        "openPolicy": "Open policy details for {{name}}",
+        "heldByNobody": "Nobody currently holds this action.",
+        "viaPolicy": "Via policy",
+        "directGrants": "Direct grants",
+        "openUsers": "View users with {{label}} access",
+        "heldBySummary_one": "{{count}} user ({{direct}} direct)",
+        "heldBySummary_other": "{{count}} users ({{direct}} direct)",
+        "policies": "Policies that include it",
+        "noPolicies": "No active policy grants this action.",
+        "policyUserCount_one": "{{count}} user",
+        "policyUserCount_other": "{{count}} users",
+        "destructiveWarning": "This action changes or removes something and can't be undone easily. Grant it sparingly."
+    }
+}

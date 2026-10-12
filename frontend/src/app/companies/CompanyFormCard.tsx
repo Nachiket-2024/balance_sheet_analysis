@@ -1,8 +1,6 @@
 import React from "react";
-import { Box, Button, Input, Stack, Text } from "@chakra-ui/react";
 import type { TFunction } from "i18next";
-import { Card, FormAlert } from "../sdk";
-import { BRAND_SOLID_HOVER_PROPS } from "../app_sdk";
+import { Button, Card, FormAlert, Input } from "../sdk";
 import type { CompanyListItem } from "../api/company_api";
 import type { useTickerAutofill } from "./useTickerAutofill";
 
@@ -53,13 +51,13 @@ const CompanyFormCard: React.FC<CompanyFormCardProps> = ({
     } = tickerAutofill;
 
     return (
-        <Card p={5} mb={6}>
+        <Card className="mb-6 p-5">
             <form onSubmit={onSubmit}>
-                <Stack gap={3}>
-                    <Text color="fg.muted" fontSize="sm">
+                <div className="flex flex-col gap-3">
+                    <p className="text-sm text-fg-muted">
                         {isLookingUpTicker ? t("tickerLookupInProgress") : t("tickerLookupHint")}
-                    </Text>
-                    <Box position="relative">
+                    </p>
+                    <div className="relative">
                         <Input
                             placeholder={t("tickerPlaceholder")}
                             value={ticker}
@@ -72,36 +70,33 @@ const CompanyFormCard: React.FC<CompanyFormCardProps> = ({
                             required
                         />
                         {showTickerSuggestions && tickerSuggestions.length > 0 && (
-                            <Card position="absolute" top="100%" left={0} right={0} mt={1} p={1} zIndex={10} maxH="240px" overflowY="auto">
+                            <Card className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto p-1">
                                 {tickerSuggestions.map((result) => (
-                                    <Box
+                                    <button
+                                        type="button"
                                         key={result.ticker}
-                                        px={3}
-                                        py={2}
-                                        borderRadius="md"
-                                        cursor="pointer"
-                                        _hover={{ bg: "bg.muted" }}
+                                        className="w-full rounded-md px-3 py-2 text-left hover:bg-bg-muted"
                                         onClick={() => selectTickerSuggestion(result)}
                                     >
-                                        <Text fontSize="sm" fontWeight="medium">
+                                        <span className="block text-sm font-medium">
                                             {result.ticker}
                                             {result.exchange ? ` · ${result.exchange}` : ""}
-                                        </Text>
-                                        <Text fontSize="xs" color="fg.muted">
+                                        </span>
+                                        <span className="block text-xs text-fg-muted">
                                             {result.name}
-                                        </Text>
-                                    </Box>
+                                        </span>
+                                    </button>
                                 ))}
                             </Card>
                         )}
-                    </Box>
+                    </div>
                     {duplicateTickerCompany && (
-                        <Text color="red.500" fontSize="sm">
+                        <p className="text-sm text-red-400">
                             {t("duplicateTickerWarning", {
                                 ticker: duplicateTickerCompany.ticker,
                                 name: duplicateTickerCompany.name,
                             })}
-                        </Text>
+                        </p>
                     )}
                     <Input placeholder={t("namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} required />
                     <Input
@@ -111,24 +106,22 @@ const CompanyFormCard: React.FC<CompanyFormCardProps> = ({
                         type="number"
                     />
                     {formMutation.isError && <FormAlert status="error">{formErrorMessage}</FormAlert>}
-                    <Stack direction="row" gap={2}>
+                    <div className="flex flex-wrap gap-2">
                         <Button
                             type="submit"
-                            colorPalette="brand"
-                            alignSelf="flex-start"
+                            variant="brand"
                             loading={formMutation.isPending}
                             disabled={Boolean(duplicateTickerCompany)}
-                            {...BRAND_SOLID_HOVER_PROPS}
                         >
                             {editingCompany ? t("saveChanges") : t("create")}
                         </Button>
                         {editingCompany && (
-                            <Button type="button" variant="outline" alignSelf="flex-start" onClick={onCancel}>
+                            <Button type="button" variant="outline" onClick={onCancel}>
                                 {t("cancel")}
                             </Button>
                         )}
-                    </Stack>
-                </Stack>
+                    </div>
+                </div>
             </form>
         </Card>
     );

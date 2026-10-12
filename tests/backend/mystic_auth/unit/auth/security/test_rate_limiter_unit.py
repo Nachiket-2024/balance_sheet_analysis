@@ -1,10 +1,12 @@
-# tests/backend/mystic_auth/unit/test_rate_limiter_unit.py
 from unittest.mock import AsyncMock
 
 import pytest
-from backend.mystic_auth.auth.security.rate_limiter_service import rate_limiter_service
 
-MODULE = "backend.mystic_auth.auth.security.rate_limiter_service"
+from backend.mystic_auth.auth.security.rate_limiting.rate_limiter_service import (
+    rate_limiter_service,
+)
+
+MODULE = "backend.mystic_auth.auth.security.rate_limiting.rate_limiter_service"
 
 
 class _FakeClient:
@@ -27,13 +29,13 @@ def _make_request(ip="1.2.3.4"):
 
 
 def _patch_incr(mocker, return_value=1):
-    return mocker.patch(f"{MODULE}.redis_client.incr", new_callable=AsyncMock, return_value=return_value)
+    return mocker.patch(f"{MODULE}.valkey_client.incr", new_callable=AsyncMock, return_value=return_value)
 
 
 @pytest.mark.asyncio
 async def test_rate_limited_allows_request_within_ip_limit(mocker):
     _patch_incr(mocker, return_value=1)
-    mocker.patch(f"{MODULE}.redis_client.expire", new_callable=AsyncMock)
+    mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
 
     @rate_limiter_service.rate_limited("test_endpoint")
     async def handler(request):
@@ -47,7 +49,7 @@ async def test_rate_limited_allows_request_within_ip_limit(mocker):
 @pytest.mark.asyncio
 async def test_rate_limited_blocks_when_ip_limit_exceeded(mocker):
     _patch_incr(mocker, return_value=rate_limiter_service.MAX_REQUESTS_PER_WINDOW + 1)
-    mocker.patch(f"{MODULE}.redis_client.expire", new_callable=AsyncMock)
+    mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
 
     @rate_limiter_service.rate_limited("test_endpoint")
     async def handler(request):
@@ -68,8 +70,8 @@ async def test_rate_limited_blocks_when_account_limit_exceeded_even_under_ip_lim
             return rate_limiter_service.MAX_REQUESTS_PER_WINDOW + 1
         return 1
 
-    mocker.patch(f"{MODULE}.redis_client.incr", side_effect=fake_incr)
-    mocker.patch(f"{MODULE}.redis_client.expire", new_callable=AsyncMock)
+    mocker.patch(f"{MODULE}.valkey_client.incr", side_effect=fake_incr)
+    mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
 
     class _Payload:
         email = "victim@example.com"
@@ -91,8 +93,8 @@ async def test_rate_limited_ip_and_account_keys_are_independent(mocker):
         recorded_keys.append(key)
         return 1
 
-    mocker.patch(f"{MODULE}.redis_client.incr", side_effect=fake_incr)
-    mocker.patch(f"{MODULE}.redis_client.expire", new_callable=AsyncMock)
+    mocker.patch(f"{MODULE}.valkey_client.incr", side_effect=fake_incr)
+    mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
 
     class _Payload:
         email = "user@example.com"
@@ -110,7 +112,7 @@ async def test_rate_limited_ip_and_account_keys_are_independent(mocker):
 @pytest.mark.asyncio
 async def test_rate_limited_account_extractor_failure_does_not_break_request(mocker):
     _patch_incr(mocker, return_value=1)
-    mocker.patch(f"{MODULE}.redis_client.expire", new_callable=AsyncMock)
+    mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
 
     def broken_extractor(kwargs):
         raise KeyError("payload")
@@ -130,7 +132,7 @@ async def test_rate_limited_account_extractor_failure_is_logged(mocker):
     # brute-force protection quietly stops applying with no signal that
     # anything changed, so this must be logged to stay visible.
     _patch_incr(mocker, return_value=1)
-    mocker.patch(f"{MODULE}.redis_client.expire", new_callable=AsyncMock)
+    mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
     warning_mock = mocker.patch(f"{MODULE}.logger.warning")
 
     def broken_extractor(kwargs):
@@ -149,7 +151,7 @@ async def test_rate_limited_account_extractor_failure_is_logged(mocker):
 @pytest.mark.asyncio
 async def test_record_request_only_sets_expiry_on_first_request_in_window(mocker):
     _patch_incr(mocker, return_value=3)
-    expire_mock = mocker.patch(f"{MODULE}.redis_client.expire", new_callable=AsyncMock)
+    expire_mock = mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
 
     allowed = await rate_limiter_service.record_request("some:key")
 
@@ -161,12 +163,12 @@ async def test_record_request_only_sets_expiry_on_first_request_in_window(mocker
 
 
 @pytest.mark.asyncio
-async def test_record_request_fails_closed_on_redis_exception(mocker):
-    # Deliberate, documented tradeoff (see docs/mystic_auth/security/decisions.md): a
-    # Redis outage must deny the request rather than silently allow it: the
-    # safer default for an auth-focused template, even though it means a
-    # Redis outage takes down every rate-limited route, not just caching.
-    mocker.patch(f"{MODULE}.redis_client.incr", side_effect=ConnectionError("redis unreachable"))
+async def test_record_request_fails_closed_on_valkey_exception(mocker):
+    # Deliberate tradeoff: a Valkey outage must deny the request rather
+    # than silently allow it. The safer default for an auth-focused
+    # template, even though it means a Valkey outage takes down every
+    # rate-limited route, not just caching.
+    mocker.patch(f"{MODULE}.valkey_client.incr", side_effect=ConnectionError("valkey unreachable"))
     error_mock = mocker.patch(f"{MODULE}.logger.error")
 
     allowed = await rate_limiter_service.record_request("some:key")
@@ -176,8 +178,8 @@ async def test_record_request_fails_closed_on_redis_exception(mocker):
 
 
 @pytest.mark.asyncio
-async def test_rate_limited_returns_429_on_redis_outage_rather_than_letting_request_through(mocker):
-    mocker.patch(f"{MODULE}.redis_client.incr", side_effect=ConnectionError("redis unreachable"))
+async def test_rate_limited_returns_429_on_valkey_outage_rather_than_letting_request_through(mocker):
+    mocker.patch(f"{MODULE}.valkey_client.incr", side_effect=ConnectionError("valkey unreachable"))
 
     @rate_limiter_service.rate_limited("test_endpoint")
     async def handler(request):
@@ -191,7 +193,7 @@ async def test_rate_limited_returns_429_on_redis_outage_rather_than_letting_requ
 @pytest.mark.asyncio
 async def test_rate_limited_skips_account_check_when_extractor_returns_none(mocker):
     incr_mock = _patch_incr(mocker, return_value=1)
-    mocker.patch(f"{MODULE}.redis_client.expire", new_callable=AsyncMock)
+    mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
 
     @rate_limiter_service.rate_limited("test_endpoint", account_key_func=lambda kwargs: None)
     async def handler(request):
@@ -202,3 +204,43 @@ async def test_rate_limited_skips_account_check_when_extractor_returns_none(mock
     assert result == "ok"
     # Only the IP key should have been checked; no ":account:" lookup at all
     assert all(":account:" not in call.args[0] for call in incr_mock.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_rate_limited_max_requests_override_replaces_the_global_default(mocker):
+    # A count that would pass the (much larger) global MAX_REQUESTS_PER_WINDOW
+    # must still be rejected once this endpoint overrides its own, tighter limit.
+    _patch_incr(mocker, return_value=2)
+    mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
+
+    @rate_limiter_service.rate_limited("test_endpoint_tight_override", max_requests=1, window_seconds=30)
+    async def handler(request):
+        return "ok"
+
+    response = await handler(request=_make_request())
+
+    assert response.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_rate_limited_registers_its_override_for_the_dashboard(mocker):
+    _patch_incr(mocker, return_value=1)
+    mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
+
+    @rate_limiter_service.rate_limited("test_endpoint_registered_override", max_requests=5, window_seconds=900)
+    async def handler(request):
+        return "ok"
+
+    assert rate_limiter_service.ENDPOINT_OVERRIDES["test_endpoint_registered_override"] == (5, 900)
+
+
+@pytest.mark.asyncio
+async def test_rate_limited_without_an_override_is_absent_from_the_dashboard_registry(mocker):
+    _patch_incr(mocker, return_value=1)
+    mocker.patch(f"{MODULE}.valkey_client.expire", new_callable=AsyncMock)
+
+    @rate_limiter_service.rate_limited("test_endpoint_no_override")
+    async def handler(request):
+        return "ok"
+
+    assert "test_endpoint_no_override" not in rate_limiter_service.ENDPOINT_OVERRIDES

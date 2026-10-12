@@ -1,12 +1,14 @@
-# tests/backend/mystic_auth/unit/authorization/conditions/test_condition_schema_consistency_unit.py
-#
-# Cross-checks that condition_validator.py (write-time) and the condition
-# handlers (conditions/*.py, evaluation-time) agree on exactly one JSON
-# shape per condition type : policy condition schema
-# Consistency": one documented shape, one validator representation, one
-# evaluator representation, per condition. Each canonical payload below
-# must both pass validation and be understood (evaluate to the intended
-# outcome, not silently ignored) by its handler.
+# Cross-checks that condition_validator.py (write-time) and the condition handlers
+# (conditions/*.py, evaluation-time) agree on the same JSON shape per condition type.
+# Each canonical payload below must pass validation and be understood correctly by
+# its handler, not silently ignored.
+from backend.mystic_auth.authorization.conditions.condition_handler import (
+    ConditionHandler,
+)
+from backend.mystic_auth.authorization.conditions.condition_registry import (
+    default_condition_registry,
+    register_condition_type,
+)
 from backend.mystic_auth.authorization.conditions.condition_types.context_attributes_condition import (
     ContextAttributesCondition,
 )
@@ -83,3 +85,22 @@ def test_security_context_canonical_shape_is_accepted_by_both_layers():
         payload["security_context"], "u@example.com", None, {"security_context": {"device_trusted": True}}
     )
     assert result is True
+
+
+def test_app_condition_registration_updates_validation_and_evaluation():
+    class ProjectScopeCondition(ConditionHandler):
+        def evaluate(self, condition_value, user_email, resource, context) -> bool:
+            return (context or {}).get("project_id") == condition_value.get("project_id")
+
+    def validate_project_scope(value) -> list[str]:
+        if not isinstance(value, dict) or not isinstance(value.get("project_id"), str):
+            return ["'project_scope_test.project_id' must be a string"]
+        return []
+
+    register_condition_type("project_scope_test", ProjectScopeCondition(), validate_project_scope)
+    validate_conditions({"project_scope_test": {"project_id": "p1"}})
+
+    handler = default_condition_registry.get("project_scope_test")
+    assert handler is not None
+    assert handler.evaluate({"project_id": "p1"}, "u@example.com", None, {"project_id": "p1"}) is True
+    assert handler.evaluate({"project_id": "p1"}, "u@example.com", None, {"project_id": "p2"}) is False

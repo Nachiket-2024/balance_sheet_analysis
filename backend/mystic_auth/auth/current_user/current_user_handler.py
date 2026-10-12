@@ -3,17 +3,20 @@ import traceback
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 
-# PBAC: resolve the caller's actual *assigned policies* into the set of actions they
-# grant, so GET /auth/me exposes real, current permissions, letting clients (the
-# frontend, or any future consumer) make authorization-adjacent UI/behavior
-# decisions without hardcoding role-name comparisons themselves. Deliberately
-# sourced from the user's policies (repository), not their role: two users with
-# the identical role can hold different policies and therefore see different
-# permissions here.
+# PBAC: resolves the caller's assigned policies into the actions they grant,
+# so GET /auth/me exposes real, current permissions for frontend UI/behavior
+# decisions, sourced from policies, not role, since two users with the same
+# role can hold different policies.
 from ...authorization.repositories.policy_repository import policy_repository
+
+# Direct (bypasses-Policy) grants count too: the real enforcement path
+# already merges these with policy-derived actions, so a user granted an
+# action directly would otherwise pass every backend check but see none of
+# the corresponding UI, since the frontend only reads this permissions list.
+from ...authorization.repositories.user_permission_repository import user_permission_repository
 from ...core.errors import AppError
 from ...logging.logging_config import get_logger
-from ...user_crud.user_crud_collector import user_crud
+from ...user.user_crud_collector import user_crud
 from ...user_session.session_service import session_service
 from ..token_logic.jwt_service import jwt_service
 
@@ -66,23 +69,38 @@ class CurrentUserHandler:
                     detail="Account is deactivated"
                 )
 
-            # The real PBAC-derived permission set, not anything computed from role.
+            # An action only counts if it's usable under the policy that
+            # grants it: actions are named "<resource_type>:<verb>", and the
+            # real check requires policy.resource_type in (that
+            # resource_type, "*"). Without this filter, a mis-scoped action
+            # (e.g. "policies:read" on a "users"-scoped policy) would light
+            # up UI the backend then 403s on for real requests.
             policies = await policy_repository.get_active_policies_for_user(user.email, db)
-            permissions = {action for policy in policies for action in (policy.actions or [])}
+            permissions = {
+                action
+                for policy in policies
+                for action in (policy.actions or [])
+                if policy.resource_type in (action.split(":", 1)[0], "*")
+            }
 
-            # From the best-effort Postgres mirror (user_sessions), not
-            # Redis: real token validity is governed by version counters
-            # now (jwt_service.py), which have no "list every live session"
-            # operation of their own - a version number says whether ONE
-            # presented token is still current, not how many exist.
-            #
-            # Only computed for GET /auth/me (include_active_sessions=True),
-            # not for this same method's other caller, the shared
-            # get_current_user dependency behind nearly every protected
-            # route: that field is only ever read from the /auth/me
-            # response, so every other route was paying for a query whose
-            # result it never used. See docs/mystic_auth/authentication/
-            # session-management.md#active-session-count-on-authme.
+            # Same resource_type-scoping filter as above, applied to direct
+            # grants too: a UserPermission's resource_type is independently
+            # editable from its action (see UserPermission's own docstring),
+            # so a mis-scoped direct grant must be excluded here exactly
+            # like a mis-scoped policy action is, for the identical reason.
+            direct_grants = await user_permission_repository.get_active_permissions_for_user(user.email, db)
+            permissions |= {
+                grant.action
+                for grant in direct_grants
+                if grant.resource_type in (grant.action.split(":", 1)[0], "*")
+            }
+
+            # From the best-effort Postgres mirror (user_sessions), not Valkey:
+            # version counters (jwt_service.py) govern real token validity but
+            # can't list live sessions. Only computed when include_active_sessions
+            # is True (i.e. for GET /auth/me), since every other protected route
+            # via get_current_user never reads this field. See
+            # docs/mystic_auth/authentication/session-management/list-and-revoke-sessions.md#active-session-count-on-authme.
             active_sessions = (
                 await session_service.count_active_sessions(db, user.email) if include_active_sessions else 0
             )
@@ -100,6 +118,9 @@ class CurrentUserHandler:
                 "has_password": user.hashed_password is not None,
                 "created_at": user.created_at.isoformat(),
                 "active_sessions": active_sessions,
+                # None = using the app default brand scale (app/theme.ts);
+                # see user_model.py's brand_color column docstring.
+                "brand_color": user.brand_color,
             }
 
         except SQLAlchemyError as exc:

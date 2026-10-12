@@ -2,22 +2,24 @@ import asyncio
 import getpass
 
 from ..auth.password_logic.password_service import password_service
+from ..auth.refresh_token_logic.refresh_token_service import refresh_token_service
+from ..authorization.caching.authorization_cache_service import authorization_cache_service
 from ..authorization.policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
     SYSTEM_SUPERUSER_POLICY_NAME,
-    USER_ADMINISTRATION_POLICY_NAME,
+    USER_MANAGEMENT_POLICY_NAME,
 )
 
 # PBAC: the system superuser's actual access comes from holding every
-# baseline policy, assigned explicitly here : not from role="system".
+# baseline policy, assigned explicitly here, not from role="system".
 from ..authorization.repositories.policy_repository import policy_repository
 from ..database.connection import database
 from ..logging.logging_config import get_logger
-from ..user_crud.user_crud_collector import user_crud
+from ..user.user_crud_collector import user_crud
 
 # UserRole is kept as display/grouping metadata for the system account; it no
 # longer grants any access itself (see PBAC policy assignment below).
-from ..user_table.user_model import UserRole
+from ..user.user_model import UserRole
 
 logger = get_logger(__name__)
 
@@ -28,21 +30,19 @@ SYSTEM_ROLE = UserRole.system
 # the system-only actions).
 SYSTEM_USER_POLICY_NAMES = (
     SELF_SERVICE_POLICY_NAME,
-    USER_ADMINISTRATION_POLICY_NAME,
+    USER_MANAGEMENT_POLICY_NAME,
     SYSTEM_SUPERUSER_POLICY_NAME,
 )
 
 
 async def _assign_system_policies(user_id: int, user_email: str, db, assigned_by: str) -> bool:
-    """
-    Assigns every baseline policy to `user_id` : the actual source of
-    system-superuser access, per PBAC (never `role`). `assign_policy_to_user`
-    is idempotent (see its own docstring), so this is safe to call against a
-    user who already holds some or all of these, whether that's a fresh
-    account or an existing one being promoted.
+    """Assigns every baseline policy to `user_id`, the actual source of
+    system-superuser access under PBAC (never `role`). `assign_policy_to_user`
+    is idempotent, so this is safe to call against a user who already holds
+    some or all of these, whether a fresh account or one being promoted.
 
     Returns False (after printing/logging why) if a baseline policy row is
-    missing entirely : migrations haven't been run : rather than assigning a
+    missing entirely (migrations haven't been run), rather than assigning a
     partial set silently.
     """
     for policy_name in SYSTEM_USER_POLICY_NAMES:
@@ -61,35 +61,29 @@ async def _assign_system_policies(user_id: int, user_email: str, db, assigned_by
 
 
 async def create_system_user():
-    """
-    Interactive CLI script to create the one-time system superuser : or, if
-    the email you give already belongs to an existing account (e.g. someone
-    who forgot to bootstrap this first and just signed up/logged in via
-    Google to test), promote that account instead, after an explicit
-    confirmation. Branches on whether that existing account has a password:
+    """Interactive CLI script to create the one-time system superuser, or,
+    if the given email already belongs to an existing account (e.g. someone
+    who forgot to bootstrap this first and signed up/logged in via Google
+    to test), promote that account instead after explicit confirmation.
+    Branches on whether that existing account has a password:
 
     - **No password at all (a Google-only account)**: can't be promoted in
-      place. A system account can't use Google login (see
-      docs/mystic_auth/authentication/oauth2-pkce.md's "system account is
-      blocked from OAuth2 login entirely"), and this account has no password
-      either : promoting it as-is would leave it with literally no way to
-      log in afterward. Offers to delete that account and immediately fall
-      into the normal creation flow instead (same email, fresh name/password
-      prompts) : a clean account, not a half-broken one.
-    - **Has a password already**: promotes in place : assigns the missing
+      place. A system account can't use Google login, and this account has
+      no password either, so promoting it as-is would leave it with no way
+      to log in. Offers to delete that account and fall into the normal
+      creation flow instead (same email, fresh name/password prompts).
+    - **Has a password already**: promotes in place. Assigns the missing
       baseline policies (see SYSTEM_USER_POLICY_NAMES above, the actual
-      source of PBAC access, never `role`), sets `role` to `system` too (not
-      strictly required for access, but keeps the account's shape consistent
-      with the one this script normally creates, and is what actually
-      disables future Google login for it), and requires setting a new
-      password as part of the promotion : the operator running this script
-      may not be the one who originally set it, and a system-level account
-      shouldn't rely on a password nobody currently running this can verify.
+      source of PBAC access, never `role`), sets `role` to `system` too
+      (keeps the account's shape consistent with one this script normally
+      creates, and disables future Google login for it), and requires
+      setting a new password, since the operator running this script may
+      not be the one who originally set it.
 
-    Either way, this only ever assigns/updates rows this script's own
-    operator explicitly confirmed : never a silent upsert.
+    Either way, this only ever assigns/updates rows the operator explicitly
+    confirmed, never a silent upsert.
 
-    Deliberately CLI-only : there is still no API endpoint that can create or
+    Deliberately CLI-only: there is still no API endpoint that can create or
     promote a user, by design.
 
     Run once manually before first launch, or any time you need to promote
@@ -119,7 +113,13 @@ async def create_system_user():
                     "System superuser promotion declined (Google-only account, no password): %s", email
                 )
                 return
+            # Revoke old tokens and cache before delete so a stale cookie/cache
+            # for this email can't carry over to the new account.
+            await refresh_token_service.revoke_all_tokens_for_user(email, db)
             await user_crud.delete(existing, db)
+            await authorization_cache_service.invalidate_user_policies(email)
+            await authorization_cache_service.invalidate_user_permissions(email)
+
             logger.info("Deleted Google-only account to recreate as system user: %s", email)
             existing = None
 

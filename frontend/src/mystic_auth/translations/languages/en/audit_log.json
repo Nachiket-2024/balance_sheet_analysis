@@ -7,7 +7,29 @@
         "authorizationDecisions": "Authorization decisions",
         "securityEvents": "Security events",
         "myActivity": "My activity",
-        "allUsers": "All users"
+        "allUsers": "All users",
+        "allUsersLocked": "Needs the {{permission}} permission"
+    },
+    "shared": {
+        "timeRange": {
+            "label": "Time range",
+            "ariaLabel": "Time range",
+            "preset_7": "Last 7 days",
+            "preset_14": "Last 14 days",
+            "preset_30": "Last 30 days",
+            "preset_90": "Last 90 days",
+            "from": "From",
+            "to": "To",
+            "applyCustomRange": "Apply custom range",
+            "resetAriaLabel": "Reset time range",
+            "rangeText": "{{from}} to {{to}}"
+        },
+        "clearFilters": "Clear filters",
+        "clearFiltersCount": "Clear filters ({{count}})",
+        "searchDisabledMine": "My activity only shows your own events",
+        "showLast90Days": "Show last 90 days",
+        "copyLinkToView": "Copy link to this view",
+        "copyLinkTooltip": "Copy a link that reopens this view"
     },
     "authorization": {
         "results": {
@@ -17,6 +39,8 @@
         "filterBar": {
             "filterByAction": "Filter by action",
             "allActions": "All actions",
+            "allActionsForResource": "All {{resource}} actions",
+            "searchActions": "Search actions...",
             "filterByResourceType": "Filter by resource type",
             "allResources": "All resources",
             "filterByResult": "Filter by result",
@@ -27,11 +51,35 @@
             "user": "User",
             "action": "Action",
             "resource": "Resource",
-            "result": "Result"
+            "result": "Result",
+            "noResourceIdReason": "Not tied to a single record"
         },
         "searchPlaceholder": "Search by user email...",
+        "resultsCount_one": "{{count}} result",
+        "resultsCount_other": "{{count}} results",
         "emptyFiltered": "No authorization decisions match these filters",
-        "emptySearch": "No authorization decisions match that search"
+        "forbidden": "This audit view is no longer available because your permission changed. Return to My activity or refresh the page.",
+        "emptySearch": "No authorization decisions match that search",
+        "emptyRange": "No authorization decisions in the last {{days}} days",
+        "drawer": {
+            "title": "Authorization decision",
+            "position": "{{index}} of {{total}}",
+            "decision": "Decision",
+            "auditRecord": "Audit record",
+            "eventId": "Event ID",
+            "policies": "Policies",
+            "noPoliciesConsidered": "No policies were considered for this action",
+            "failedConditions": "Failed conditions",
+            "noPolicyCovered": "No policy covered this action",
+            "requestContext": "Request context",
+            "noContext": "No request context recorded",
+            "expandAll": "Expand all",
+            "collapseAll": "Collapse all",
+            "copy": "Copy",
+            "copied": "Copied",
+            "onlyThisUser": "Only this user",
+            "onlyThisAction": "Only this action"
+        }
     },
     "security": {
         "results": {
@@ -41,29 +89,125 @@
         "filterBar": {
             "filterByEvent": "Filter by event",
             "allEvents": "All events",
+            "searchEvents": "Search events...",
+            "eventGroups": {
+                "signIn": "Sign-in",
+                "sessions": "Sessions",
+                "account": "Account",
+                "password": "Password",
+                "accessChanges": "Access changes"
+            },
+            "eventLabels": {
+                "login": "Signed in",
+                "oauth2_login_success": "Signed in (OAuth2)",
+                "refresh_token_reuse_detected": "Refresh token reuse detected",
+                "logout": "Signed out",
+                "logout_all": "Signed out everywhere",
+                "session_revoked": "Session revoked",
+                "signup": "Signed up",
+                "account_verification_requested": "Verification email requested",
+                "account_verified": "Account verified",
+                "account_locked": "Account locked",
+                "account_deleted": "Account deleted",
+                "account_purged": "Account purged",
+                "account_reactivated": "Account reactivated",
+                "password_reset_requested": "Password reset requested",
+                "password_reset_confirmed": "Password reset confirmed",
+                "policy_assigned": "Policy assigned",
+                "policy_revoked": "Policy revoked",
+                "policy_action_revoked": "Policy action revoked",
+                "permission_granted": "Permission granted",
+                "permission_revoked": "Permission revoked",
+                "user_role_changed": "Role changed"
+            },
             "filterByIpPlaceholder": "Filter by IP...",
             "filterByIpAddress": "Filter by IP address",
             "filterByResult": "Filter by result",
-            "allResults": "All results"
+            "allResults": "All results",
+            "resultsCount_one": "{{count}} result",
+            "resultsCount_other": "{{count}} results"
         },
         "columns": {
             "when": "When",
             "user": "User",
             "unknownUser": "Unknown user",
+            "unknownUserReason": "No account linked: the session token had already expired",
             "event": "Event",
             "ip": "IP",
             "unknownIp": "Unknown",
-            "result": "Result"
+            "unknownIpReason": "IP wasn't recorded for this request",
+            "result": "Result",
+            "details": "Details",
+            "noDetails": "-"
+        },
+        "details": {
+            "policyAssigned": "\"{{policyName}}\" assigned by {{actor}}",
+            "policyRevoked": "\"{{policyName}}\" revoked by {{actor}}",
+            "policyActionRevoked": "{{action}} revoked from \"{{policyName}}\" by {{actor}}",
+            "permissionGranted": "{{action}} on {{resourceType}} granted by {{actor}}",
+            "permissionRevoked": "{{action}} on {{resourceType}} revoked by {{actor}}",
+            "roleChanged": "Role changed from {{oldRole}} to {{newRole}} by {{actor}}"
         },
         "searchPlaceholder": "Search by user email...",
+        "resultsCount_one": "{{count}} result",
+        "resultsCount_other": "{{count}} results",
         "emptyFiltered": "No security events match these filters",
         "emptySearch": "No security events match that search",
-        "loginActivity": "Login activity",
+        "emptyRange": "No security events in the last {{days}} days",
+        "signInActivity": "Sign-in activity",
+        "signInActivityDescription": "This chart shows authentication attempts only. Other security events are listed below.",
+        "forbidden": "This security view is no longer available because your permission changed. Return to My activity or refresh the page.",
         "failedToLoadTrend": "Failed to load login trend",
+        "kpi": {
+            "attempts": "Attempts",
+            "failed": "Failed",
+            "failureRate": "Failure rate",
+            "mostFailures": "Most failures ({{count}})"
+        },
+        "chartToggle": {
+            "allAttempts": "All attempts",
+            "failedOnly": "Failed only",
+            "barsShowAriaLabel": "Bars show",
+            "chartView": "Chart",
+            "tableView": "Table",
+            "viewAriaLabel": "View"
+        },
+        "chartTable": {
+            "date": "Date",
+            "success": "Success",
+            "failed": "Failed",
+            "failureRate": "Failure rate"
+        },
         "successCount": "Success ({{count}})",
         "failedCount": "Failed ({{count}})",
-        "chartAriaLabel": "Daily login attempts over the last {{days}} days: {{success}} succeeded, {{failure}} failed",
+        "chartAriaLabel": "Daily sign-in attempts from {{from}} to {{to}}: {{success}} succeeded, {{failure}} failed",
         "successLabel": "Success:",
-        "failedLabel": "Failed:"
+        "failedLabel": "Failed:",
+        "trendRange": "{{from}} to {{to}}",
+        "emptyTrend": "No sign-in attempts in this range",
+        "drawer": {
+            "title": "Security event",
+            "event": "Event",
+            "client": "Client",
+            "userAgent": "User agent",
+            "noUserAgent": "No user agent recorded",
+            "request": "Request",
+            "requestId": "Request ID",
+            "noRequestId": "No request ID recorded",
+            "eventId": "Event ID",
+            "accessChange": "Access change",
+            "targetUser": "Target user",
+            "actor": "Actor",
+            "policy": "Policy",
+            "action": "Action",
+            "resourceType": "Resource type",
+            "oldRole": "Old role",
+            "newRole": "New role",
+            "metadata": "Metadata",
+            "noMetadata": "No metadata recorded for this event",
+            "onlyThisUser": "Only this user",
+            "onlyThisIp": "Only this IP",
+            "onlyThisEvent": "Only this event"
+        }
     }
 }

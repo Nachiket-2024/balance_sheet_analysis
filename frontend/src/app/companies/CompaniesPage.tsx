@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Button, HStack, Input, Text } from "@chakra-ui/react";
+import { Building2 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 
-import { PageContainer, DataTable, ConfirmDialog, toaster, IfCan } from "../sdk";
-import { BRAND_SOLID_HOVER_PROPS, StyledSelect, SEARCH_INPUT_PROPS, useSortState, useDebouncedValue, Pagination, usePageResetOn } from "../app_sdk";
+import { Button, PageContainer, DataTable, ConfirmDialog, toaster, IfCan } from "../sdk";
+import { FilterChips, FilterPanel, SearchInput, type FilterChip } from "../app_sdk";
+import { StyledSelect, useSortState, useDebouncedValue, Pagination, usePageResetOn } from "../sdk";
 import { APP_PERMISSIONS } from "../access/permissions";
 import { useCompaniesQuery, useCreateCompanyMutation, useDeleteCompanyMutation, useUpdateCompanyMutation } from "./companyQueries";
 import CompanyStatsCard from "./CompanyStatsCard";
@@ -54,7 +55,7 @@ const CompaniesPage: React.FC = () => {
     // Search/filter/sort changes can invalidate the current page number.
     const [page, setPage] = usePageResetOn(`${debouncedSearch}|${sort.key}|${sort.direction}|${hierarchy}`);
 
-    const { data, isLoading, isError } = useCompaniesQuery(page, PAGE_SIZE, {
+    const { data, isLoading, isFetching, isError } = useCompaniesQuery(page, PAGE_SIZE, {
         search: debouncedSearch,
         hierarchy: (hierarchy || undefined) as "root" | "subsidiary" | undefined,
         sortBy: sort.key || undefined,
@@ -139,13 +140,21 @@ const CompaniesPage: React.FC = () => {
     };
 
     const columns = buildCompanyColumns({ t, navigate, onEdit: openEditForm, onDelete: setDeletingCompany });
+    const activeTile = search ? null : hierarchy === "root" ? "roots" : hierarchy === "subsidiary" ? "subsidiaries" : "total";
+    const filterChips: FilterChip[] = [
+        ...(search ? [{ key: "search", label: t("searchChip", { value: search }), onClear: () => setSearch("") }] : []),
+        ...(hierarchy ? [{ key: "hierarchy", label: hierarchy === "root" ? t("groupRoots") : t("subsidiaries"), onClear: () => setHierarchy(ALL_VALUE) }] : []),
+    ];
 
     return (
         <PageContainer
             title={t("pageTitle")}
+            icon={Building2}
             description={t("pageDescription")}
-            actions={
+            headerExtra={
+                <div className="flex flex-col gap-4">
                 <CompanyStatsCard
+                    activeTile={activeTile}
                     onFilterTotal={() => {
                         setSearch("");
                         setHierarchy(ALL_VALUE);
@@ -159,40 +168,37 @@ const CompaniesPage: React.FC = () => {
                         setHierarchy("subsidiary");
                     }}
                 />
-            }
-            headerExtra={
-                <HStack gap={3} wrap="wrap">
-                    <Input
-                        placeholder={t("searchPlaceholder")}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        maxW="sm"
-                        {...SEARCH_INPUT_PROPS}
-                    />
-
-                    <StyledSelect
-                        w="160px"
-                        ariaLabel={t("scopeFilterAriaLabel")}
-                        value={hierarchy}
-                        onChange={setHierarchy}
-                        options={[
-                            { value: ALL_VALUE, label: t("allCompanies") },
-                            { value: "root", label: t("groupRoots") },
-                            { value: "subsidiary", label: t("subsidiaries") },
-                        ]}
-                    />
-
-                    <IfCan action={APP_PERMISSIONS.COMPANY_CREATE}>
-                        <Button
-                            size="sm"
-                            colorPalette="brand"
-                            onClick={() => (showForm ? closeForm() : openCreateForm())}
-                            {...BRAND_SOLID_HOVER_PROPS}
-                        >
-                            {showForm ? t("cancel") : t("addCompany")}
-                        </Button>
-                    </IfCan>
-                </HStack>
+                <FilterPanel>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <SearchInput
+                            placeholder={t("searchPlaceholder")}
+                            value={search}
+                            onChange={setSearch}
+                            isFetching={isFetching}
+                            totalResults={data?.total}
+                            resultsLabel={(count) => t("searchResults", { count })}
+                            loadingLabel={t("searchLoading")}
+                        />
+                        <StyledSelect
+                            className="w-44"
+                            ariaLabel={t("scopeFilterAriaLabel")}
+                            value={hierarchy}
+                            onChange={setHierarchy}
+                            options={[
+                                { value: ALL_VALUE, label: t("allCompanies") },
+                                { value: "root", label: t("groupRoots") },
+                                { value: "subsidiary", label: t("subsidiaries") },
+                            ]}
+                        />
+                        <IfCan action={APP_PERMISSIONS.COMPANY_CREATE}>
+                            <Button size="sm" variant="brand" onClick={() => (showForm ? closeForm() : openCreateForm())}>
+                                {showForm ? t("cancel") : t("addCompany")}
+                            </Button>
+                        </IfCan>
+                    </div>
+                    <FilterChips chips={filterChips} onClearAll={() => { setSearch(""); setHierarchy(ALL_VALUE); }} />
+                </FilterPanel>
+                </div>
             }
         >
             {showForm && (
@@ -211,7 +217,7 @@ const CompaniesPage: React.FC = () => {
                 />
             )}
 
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} mb={4} />
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} className="mb-4" />
 
             <DataTable
                 columns={columns}
@@ -226,12 +232,12 @@ const CompaniesPage: React.FC = () => {
                 startIndex={(page - 1) * PAGE_SIZE}
             />
 
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} mt={4} />
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} className="mt-4" />
 
             {!isLoading && !isError && data?.total === 0 && (
-                <Text color="fg.muted" mt={4} fontSize="sm">
+                <p className="mt-4 text-sm text-fg-muted">
                     {t("noAccess")}
-                </Text>
+                </p>
             )}
 
             <ConfirmDialog

@@ -4,7 +4,7 @@ from ..permissions import Permission
 from ..policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
     SYSTEM_SUPERUSER_POLICY_NAME,
-    USER_ADMINISTRATION_POLICY_NAME,
+    USER_MANAGEMENT_POLICY_NAME,
 )
 from .authorization_dependency import require_authorization
 
@@ -25,5 +25,5 @@ REVOKE_DEPENDENCY = Depends(require_authorization(Permission.POLICIES_REVOKE.val
 # (see policy_crud_routes.py), regardless of who holds policies:delete or
 # policies:update.
 PROTECTED_POLICY_NAMES = frozenset(
-    {SELF_SERVICE_POLICY_NAME, USER_ADMINISTRATION_POLICY_NAME, SYSTEM_SUPERUSER_POLICY_NAME}
+    {SELF_SERVICE_POLICY_NAME, USER_MANAGEMENT_POLICY_NAME, SYSTEM_SUPERUSER_POLICY_NAME}
 )

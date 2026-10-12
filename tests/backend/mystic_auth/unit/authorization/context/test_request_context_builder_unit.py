@@ -1,10 +1,7 @@
-# tests/backend/mystic_auth/unit/authorization/context/test_request_context_builder_unit.py
-#
-# Unit coverage for build_authorization_context : the one place every real
-# authorization check derives ip_address/current_time/security_context
-# from (the centralized authorization context design: centralized
-# builder, never trust client-supplied values, IP from the connection,
-# time from the server clock).
+# Unit coverage for build_authorization_context, the one place every real
+# authorization check derives ip_address/current_time/security_context from.
+# Never trust client-supplied values: IP comes from the connection, time from
+# the server clock.
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
@@ -49,18 +46,17 @@ def test_security_context_defaults_to_empty_dict():
 
 
 def test_forged_x_forwarded_for_header_is_never_used():
-    """The literal attacker scenario this builder exists to prevent: a
-    client claiming a different IP via a spoofable header must not affect
-    the ip_address this app actually authorizes against."""
+    """The scenario this builder exists to prevent: a client claiming a
+    different IP via a spoofable header must not affect the ip_address
+    the app actually authorizes against."""
     request = _request(client_host="203.0.113.7", headers={"X-Forwarded-For": "1.2.3.4"})
     context = build_authorization_context(request)
     assert context["ip_address"] == "203.0.113.7"
 
 
 def test_client_supplied_current_time_query_param_is_never_used():
-    """A client cannot influence current_time by passing it as a query
-    param, header, or any other client-controlled input : only the
-    server's own clock is ever read."""
+    """A client cannot influence current_time via query param, header, or
+    any other client-controlled input: only the server's own clock is read."""
     request = _request(query_params={"current_time": "2000-01-01T00:00:00+00:00"})
     context = build_authorization_context(request)
     parsed_year = datetime.fromisoformat(context["current_time"]).year

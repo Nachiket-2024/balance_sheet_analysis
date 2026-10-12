@@ -2,56 +2,52 @@ import axios from "axios";
 
 import translations from "../translations/translations";
 
-/**
- * Shared helper for TanStack Query mutation catch blocks: pulls a
- * human-readable message out of a failed axios request, falling back to a
- * caller-supplied message for anything else (network failure, non-axios
- * error, missing body).
- *
- * Checks two response shapes, since this backend uses both:
- *   - `{ error: string, code?: string }`: this app's own custom auth handlers
- *     (login/logout/signup/etc.).
- *   - `{ detail: string, code?: string, params?: object }`: FastAPI's
- *     default HTTPException shape, extended by backend/mystic_auth/core/errors.py's
- *     AppError for routes that have been migrated to it. `detail` can also
- *     be a list of Pydantic validation error objects (422s) rather than a
- *     string. That shape is deliberately NOT stringified here and falls
- *     through to `fallback`, since showing the caller a decent generic
- *     message beats dumping raw validation internals into a toast.
- *
- * When `code` is present, it's looked up in the "errors" translations namespace
- * (translations/languages/*\/errors.json) and rendered in the user's chosen
- * language, interpolated with `params` (e.g. a policy name) - this is the
- * one place backend error strings get translated, rather than every mutation
- * call site needing its own lookup. Routes not yet migrated to AppError have
- * no `code`, so this falls back to the raw (English) `error`/`detail`
- * string exactly as before.
- *
- * A `code` present but missing from errors.json (someone added a new
- * AppError downstream and forgot the translation - see
- * docs/mystic_auth/translations/overview.md) still degrades to the raw
- * English string below, so a real caller never sees a blank/broken toast.
- * But that degradation looks identical to "working as intended" at a
- * glance, so the dev console gets a loud warning too: the gap should be
- * caught the first time someone exercises that code path in development,
- * not discovered later from a bug report.
- */
+// Turns a backend error `code` into a translated message via the "errors" namespace
+// (translations/languages/*/errors.json). Factored out of extractApiErrorMessage so
+// callers with just a code (e.g. a `?error=<code>` redirect param, see
+// OAuth2LoginButton.tsx) can reuse the same lookup. Returns null if there's nothing
+// to translate, so callers can chain their own fallback.
+//
+// A code missing from errors.json falls back to the raw English message rather than
+// breaking the toast, but that failure is silent otherwise, so we also warn in DEV.
+export function translateErrorCode(code: unknown, params?: Record<string, unknown>): string | null {
+    if (typeof code !== "string") {
+        return null;
+    }
+
+    const translationKey = `errors:${code}`;
+    if (translations.exists(translationKey)) {
+        return translations.t(translationKey, params ?? {}) as string;
+    }
+
+    if (import.meta.env.DEV) {
+        console.error(
+            `[translations] No entry for error code "${code}" in translations/languages/*/errors.json - ` +
+                "add one so this doesn't silently fall back to the raw English message."
+        );
+    }
+    return null;
+}
+
+// True if a request failed with a 403 from the backend's permission check. Used to
+// show a friendly "you don't have permission" message instead of a generic error,
+// for the rare case a permission got revoked after the page already loaded.
+export function isForbiddenError(error: unknown): boolean {
+    return axios.isAxiosError(error) && error.response?.status === 403;
+}
+
+// Pulls a readable message out of a failed axios request, for use in mutation catch
+// blocks. Checks two response shapes this backend uses: `{ error, code? }` (this
+// app's own auth handlers) and `{ detail, code?, params? }` (FastAPI's HTTPException,
+// extended by AppError). `detail` can also be a list of Pydantic validation errors
+// (422s); that shape isn't stringified, it falls through to `fallback` instead.
 export function extractApiErrorMessage(error: unknown, fallback: string): string {
     if (axios.isAxiosError(error)) {
         const data = error.response?.data;
 
-        const code = data?.code;
-        if (typeof code === "string") {
-            const translationKey = `errors:${code}`;
-            if (translations.exists(translationKey)) {
-                return translations.t(translationKey, data?.params ?? {}) as string;
-            }
-            if (import.meta.env.DEV) {
-                console.error(
-                    `[translations] No entry for error code "${code}" in translations/languages/*/errors.json - ` +
-                        "add one so this doesn't silently fall back to the raw English message."
-                );
-            }
+        const translated = translateErrorCode(data?.code, data?.params);
+        if (translated) {
+            return translated;
         }
 
         const serverMessage = data?.error ?? data?.detail;

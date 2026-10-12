@@ -48,8 +48,8 @@ _SELF_SERVICE = {
     "actions": ["users:read_own", "users:update_own"],
     "resource_type": "users",
 }
-_USER_ADMINISTRATION = {
-    "name": "user_administration",
+_USER_MANAGEMENT = {
+    "name": "user_management",
     "description": "Manage other users' accounts: list, update, delete, assign non-system roles.",
     "actions": ["users:list_all", "users:update_any", "users:delete_any", "users:assign_role"],
     "resource_type": "users",
@@ -118,7 +118,7 @@ def upgrade() -> None:
     )
 
     seeded_policy_ids: dict[str, int] = {}
-    for policy in (_SELF_SERVICE, _USER_ADMINISTRATION, _SYSTEM_SUPERUSER):
+    for policy in (_SELF_SERVICE, _USER_MANAGEMENT, _SYSTEM_SUPERUSER):
         result = connection.execute(
             policies_table.insert().values(
                 name=policy["name"],
@@ -134,7 +134,7 @@ def upgrade() -> None:
     # ---------------------------- Bridge existing users: role -> policy assignment ----------------------------
     # One-time data migration so upgrading never changes anyone's effective
     # access: every existing user gets self_service; admin/system also get
-    # user_administration; system also gets system_superuser. From here on,
+    # user_management; system also gets system_superuser. From here on,
     # the `role` column is never read to make this decision again.
     users_table = sa.table(
         'users',
@@ -154,7 +154,7 @@ def upgrade() -> None:
     for user_id, role in existing_users:
         policy_names_for_role = ["self_service"]
         if role in ("admin", "system"):
-            policy_names_for_role.append("user_administration")
+            policy_names_for_role.append("user_management")
         if role == "system":
             policy_names_for_role.append("system_superuser")
 

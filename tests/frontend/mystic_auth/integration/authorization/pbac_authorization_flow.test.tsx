@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor, renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ChakraProvider, defaultSystem } from '@chakra-ui/react';
 import MockAdapter from 'axios-mock-adapter';
 
 import api from '@/api/axiosInstance';
@@ -26,8 +25,8 @@ function queryWrapper() {
 function Dashboard() {
   return (
     <div>
-      <Authorized permission="users:list_all" fallback={<div>No admin access</div>}>
-        <div>Admin Panel</div>
+      <Authorized permission="users:list_all" fallback={<div>No matching permission</div>}>
+        <div>Permission Panel</div>
       </Authorized>
       <IfCan action="documents:view">
         <div>Document Viewer</div>
@@ -38,9 +37,7 @@ function Dashboard() {
 
 function renderDashboard() {
   return render(
-    <ChakraProvider value={defaultSystem}>
       <Dashboard />
-    </ChakraProvider>
   );
 }
 
@@ -63,8 +60,8 @@ describe('PBAC end-to-end: login -> permissions loaded -> conditional UI renders
 
     // Before login resolves, auth status is unknown, so neither gated
     // element nor its fallback should render yet.
-    expect(screen.queryByText('Admin Panel')).toBeNull();
-    expect(screen.queryByText('No admin access')).toBeNull();
+    expect(screen.queryByText('Permission Panel')).toBeNull();
+    expect(screen.queryByText('No matching permission')).toBeNull();
     expect(screen.queryByText('Document Viewer')).toBeNull();
 
     const { result } = renderHook(() => useLoginMutation(), { wrapper: queryWrapper() });
@@ -75,11 +72,11 @@ describe('PBAC end-to-end: login -> permissions loaded -> conditional UI renders
     await waitFor(() => {
       expect(screen.getByText('Document Viewer')).toBeInTheDocument();
     });
-    expect(screen.getByText('No admin access')).toBeInTheDocument();
-    expect(screen.queryByText('Admin Panel')).toBeNull();
+    expect(screen.getByText('No matching permission')).toBeInTheDocument();
+    expect(screen.queryByText('Permission Panel')).toBeNull();
   });
 
-  it('grants access to admin-gated UI when the user holds that permission too', async () => {
+  it('grants access to permission-gated UI when the user holds that permission too', async () => {
     mock.onPost('/auth/login').reply(200, { message: 'Login successful' });
     mock.onGet('/auth/me').reply(200, {
       name: 'Admin User',
@@ -96,16 +93,16 @@ describe('PBAC end-to-end: login -> permissions loaded -> conditional UI renders
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Admin Panel')).toBeInTheDocument();
+      expect(screen.getByText('Permission Panel')).toBeInTheDocument();
     });
     expect(screen.getByText('Document Viewer')).toBeInTheDocument();
-    expect(screen.queryByText('No admin access')).toBeNull();
+    expect(screen.queryByText('No matching permission')).toBeNull();
   });
 
   it('a failed login never reveals protected content, regardless of what the session check later resolves to', async () => {
     // A failed login short-circuits before the profile fetch, so
-    // isAuthenticated stays null until App.tsx's session-sync hook
-    // independently resolves it : simulated here via useAuthSession.
+    // isAuthenticated stays null until App.tsx's session-sync hook resolves
+    // it (simulated here via useAuthSession).
     mock.onPost('/auth/login').reply(401, { detail: 'Invalid credentials' });
     mock.onGet('/auth/me').reply(401, { detail: 'Not authenticated' });
 
@@ -115,7 +112,7 @@ describe('PBAC end-to-end: login -> permissions loaded -> conditional UI renders
     await act(async () => {
       await result_ignoreRejection(loginResult.current.mutateAsync({ email: 'user@example.com', password: 'wrong-password' }));
     });
-    expect(screen.queryByText('Admin Panel')).toBeNull();
+    expect(screen.queryByText('Permission Panel')).toBeNull();
     expect(screen.queryByText('Document Viewer')).toBeNull();
 
     renderHook(() => useAuthSession(), { wrapper: queryWrapper() });
@@ -124,13 +121,13 @@ describe('PBAC end-to-end: login -> permissions loaded -> conditional UI renders
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
     // Now resolved to unauthenticated: fallback renders, protected content doesn't.
-    expect(screen.getByText('No admin access')).toBeInTheDocument();
-    expect(screen.queryByText('Admin Panel')).toBeNull();
+    expect(screen.getByText('No matching permission')).toBeInTheDocument();
+    expect(screen.queryByText('Permission Panel')).toBeNull();
     expect(screen.queryByText('Document Viewer')).toBeNull();
   });
 });
 
-// Swallow the expected rejection from a failed mutateAsync : the test only
+// Swallow the expected rejection from a failed mutateAsync; the test only
 // cares about the resulting auth-store/DOM state.
 async function result_ignoreRejection(promise: Promise<unknown>): Promise<void> {
   await promise.catch(() => undefined);

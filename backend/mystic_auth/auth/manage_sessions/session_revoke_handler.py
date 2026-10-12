@@ -6,11 +6,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from ...audit_log.audit_log_service import SESSION_REVOKED, log_security_event
 from ...core.errors import AppError
 from ...logging.logging_config import get_logger
-from ...user_crud.user_crud_collector import user_crud
+from ...user.user_crud_collector import user_crud
 from ...user_session.session_repository import session_repository
 from ...user_session.session_service import session_service
 from ..current_user.current_user_handler import current_user_handler
 from ..token_logic.jwt_service import jwt_service
+from ..token_logic.token_version_store import TokenVersionUnavailableError
 
 logger = get_logger(__name__)
 
@@ -36,7 +37,7 @@ class SessionRevokeHandler:
                 raise AppError(status_code=status.HTTP_404_NOT_FOUND, code="SESSION_NOT_FOUND", detail="Session not found")
 
             target = await session_repository.get_by_id(db, session_id)
-            if not target or target.user_id != user.id or target.revoked_at is not None:
+            if not target or target.user_id != user.id:
                 raise AppError(status_code=status.HTTP_404_NOT_FOUND, code="SESSION_NOT_FOUND", detail="Session not found")
 
             current_chain_id = None
@@ -75,6 +76,17 @@ class SessionRevokeHandler:
 
         except HTTPException:
             raise
+
+        except TokenVersionUnavailableError as exc:
+            logger.error(
+                "Could not confirm chain version bump revoking session %s for %s:\n%s",
+                session_id, email, traceback.format_exc(),
+            )
+            raise AppError(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="SESSION_REVOCATION_UNAVAILABLE",
+                detail="Could not confirm this session was revoked; please try again shortly",
+            ) from exc
 
         except SQLAlchemyError as exc:
             logger.error("Database error revoking session:\n%s", traceback.format_exc())

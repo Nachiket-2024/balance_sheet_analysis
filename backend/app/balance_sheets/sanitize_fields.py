@@ -9,7 +9,7 @@ def sanitize_dict(data: dict) -> dict:
     Strips None/NaN/infinite/complex values and converts numpy scalar types
     (e.g. np.float64) to native Python ones, so a yfinance DataFrame row can
     be passed straight into a SQLAlchemy model constructor. Ported unchanged
-    from the pre-migration repo (to_arrange/backend/utils/sanitize_fields.py).
+    from the original application before the Mystic Auth integration.
     """
 
     def is_valid_value(value) -> bool:

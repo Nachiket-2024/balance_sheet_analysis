@@ -2,19 +2,15 @@ from fastapi import HTTPException
 
 
 class AppError(HTTPException):
-    """
-    HTTPException subclass that carries a stable machine-readable `code`
-    (and optional `params` for messages with runtime-interpolated values,
-    e.g. a policy name), alongside the existing English `detail` used for
-    logs/Sentry. The global exception handler in app/main.py surfaces
-    `code`/`params` in the JSON response so the frontend can translate the
-    error into the user's chosen language via
-    frontend/src/mystic_auth/translations/languages/*/errors.json, instead of
-    displaying the raw English `detail` string.
+    """HTTPException with a stable machine-readable `code` (plus optional
+    `params` for values like a policy name), alongside the English `detail`
+    used for logs/Sentry. main.py's exception handler puts `code`/`params`
+    in the JSON response so the frontend can translate the error via
+    frontend/src/mystic_auth/translations/languages/*/errors.json instead of
+    showing the raw `detail` string.
 
-    `detail` stays required (not derived from `code`) so call sites keep
-    writing a real English sentence for logs/Sentry, same as a plain
-    HTTPException today.
+    `detail` is still required so call sites keep writing a real English
+    sentence for logs/Sentry, same as a plain HTTPException.
     """
 
     def __init__(

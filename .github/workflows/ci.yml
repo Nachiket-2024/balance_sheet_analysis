@@ -1,12 +1,11 @@
 name: CI
 
-# Runs on every push and pull request targeting main. Five independent jobs
-# (backend, frontend, secrets scan, docker build, docker full suite) run in
-# parallel, though the last of these only actually executes on a push to main
-# (not on pull_request), see its own job below for why.
+# Runs on pushes to develop/main and PRs targeting main. The Docker full-suite
+# job only runs on pushes to main since it repeats the native suites inside
+# containers.
 on:
   push:
-    branches: [main]
+    branches: [develop, main]
   pull_request:
     branches: [main]
 
@@ -21,30 +20,29 @@ jobs:
 
     services:
       postgres:
-        # AWS ECR Public mirror of the Docker Official postgres image, not
-        # Docker Hub directly, since this sidesteps Docker Hub's anonymous-pull rate
-        # limiting, which is the most common cause of GitHub-hosted runners
-        # timing out ("context deadline exceeded") pulling service containers.
-        image: public.ecr.aws/docker/library/postgres:15
+        # GitHub-hosted runners are exempt from Docker Hub's anonymous-pull
+        # rate limit; Public ECR's shared anonymous data quota can be exhausted.
+        image: docker.io/library/postgres:15@sha256:724292da1f2e50bdccfc3302ce75bbba7f4a6076701b588cc795fcac65683550
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: mystic_auth_ci
+          POSTGRES_DB: balance_sheet_analysis_ci
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d mystic_auth_ci"
+          --health-cmd "pg_isready -U postgres -d balance_sheet_analysis_ci"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 5
 
-      redis:
-        # Same ECR Public mirror reasoning as postgres.
-        image: public.ecr.aws/docker/library/redis:7
+      valkey:
+        # Use the same pinned Valkey image as the Compose environments. Docker
+        # Hub is reliable for public images on GitHub-hosted runners.
+        image: docker.io/valkey/valkey:9.1.2-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "valkey-cli ping"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 5
@@ -54,30 +52,47 @@ jobs:
       # there is no checked-in .env file.
       BACKEND_BASE_URL: http://localhost:8000
       FRONTEND_BASE_URL: http://localhost:5173
+      FRONTEND_ADDITIONAL_BASE_URLS: ""
 
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/mystic_auth_ci
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/balance_sheet_analysis_ci
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mystic_auth_ci
+      POSTGRES_DB: balance_sheet_analysis_ci
+
+      # Least-privilege role created by alembic migration
+      # b1e6a9f3c7d2_add_least_privilege_app_role.py. Runs the app/tests
+      # under that role instead of the postgres superuser above, so CI
+      # actually exercises it.
+      APP_DB_PASSWORD: ci-test-app-db-password
+      APP_DATABASE_URL: postgresql+asyncpg://mystic_auth_app:ci-test-app-db-password@localhost:5432/balance_sheet_analysis_ci
+
+      DB_POOL_SIZE: "5"
+      DB_MAX_OVERFLOW: "10"
 
       SECRET_KEY: ci-test-secret-key-not-for-production-use-only
 
       ACCESS_TOKEN_EXPIRE_MINUTES: "15"
       REFRESH_TOKEN_EXPIRE_MINUTES: "43200"
       JWT_ALGORITHM: HS256
+      JWT_ISSUER: http://localhost:8000
+      JWT_AUDIENCE: http://localhost:8000
       RESET_TOKEN_EXPIRE_MINUTES: "60"
+      ACCOUNT_DELETE_TOKEN_EXPIRE_MINUTES: "60"
 
       GOOGLE_CLIENT_ID: ci-test-google-client-id
       GOOGLE_CLIENT_SECRET: ci-test-google-client-secret
       GOOGLE_REDIRECT_URI: http://localhost:8000/auth/oauth2/callback/google
 
-      REDIS_URL: redis://localhost:6379/0
+      VALKEY_URL: redis://localhost:6379/0
       CACHE_DEFAULT_TTL: "300"
 
       FROM_EMAIL: ci-test@example.com
       GMAIL_APP_PASSWORD: ci-test-app-password
+      SUPPORT_EMAIL: ""
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: "587"
 
-      APP_NAME: MysticAuth
+      APP_NAME: Balance Sheet Analysis
 
       LOGIN_LOCKOUT_TIME: "300"
       MAX_FAILED_LOGIN_ATTEMPTS: "5"
@@ -87,12 +102,36 @@ jobs:
       MAX_REQUESTS_PER_WINDOW: "100"
       REQUEST_WINDOW_SECONDS: "60"
 
-      PYTHONPATH: ${{ github.workspace }}
+      LOG_LEVEL: INFO
+
+      # Match the downstream task modules configured by env/app/.env.dev.example.
+      # Native tests run without creating local env files, so provide the same
+      # extension paths explicitly for this job.
+      PROCRASTINATE_TASK_IMPORT_PATHS: app.procrastinate_tasks.financial_refresh_tasks,app.procrastinate_tasks.analysis_notification_tasks
+      ENVIRONMENT: development
+      TRUSTED_PROXY_IPS: ""
+
+      # Empty = geolocation disabled (see core/geolocation.py); no .mmdb
+      # file is available in CI, so session tests exercise the fail-open
+      # "Unknown" path rather than a real lookup.
+      GEOIP_DB_PATH: ""
+
+      SENTRY_DSN: ""
+      SENTRY_ENVIRONMENT: ""
+
+      DEFAULT_APP_POLICIES: ""
+      ACCOUNT_PURGE_GRACE_DAYS: "30"
+      USER_EXPORT_MAX_ROWS: "50000"
+
+      # Native tests use both the repository import path (`backend.app`) and
+      # the Docker runtime path (`app`). Keep both roots available so the two
+      # supported package identities are exercised consistently in CI.
+      PYTHONPATH: ${{ github.workspace }}/backend:${{ github.workspace }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.14.6"
           cache: pip
@@ -102,21 +141,25 @@ jobs:
         run: pip install --no-cache-dir -r backend/requirements.txt -r backend/requirements-dev.txt
 
       - name: Audit Python dependencies for known vulnerabilities
-        run: |
-          pip install --no-cache-dir pip-audit
-          pip-audit -r backend/requirements.txt
+        run: ci/mystic_auth/backend.sh audit-dependencies
 
-      - name: Lint (ruff)
-        working-directory: backend
-        run: ruff check app mystic_auth alembic ../tests/backend
+      - name: Lint MysticAuth backend (ruff)
+        run: ci/mystic_auth/backend.sh lint
 
-      - name: Type-check (mypy)
-        working-directory: backend
-        run: mypy app mystic_auth
+      - name: Lint app backend (ruff)
+        run: ci/app/backend.sh lint
 
-      - name: Security scan (bandit)
-        working-directory: backend
-        run: bandit -r app mystic_auth -c pyproject.toml
+      - name: Type-check MysticAuth backend (mypy)
+        run: ci/mystic_auth/backend.sh typecheck
+
+      - name: Type-check app backend (mypy)
+        run: ci/app/backend.sh typecheck
+
+      - name: Security scan MysticAuth backend (bandit)
+        run: ci/mystic_auth/backend.sh security
+
+      - name: Security scan app backend (bandit)
+        run: ci/app/backend.sh security
 
       - name: Run database migrations
         working-directory: backend
@@ -127,32 +170,36 @@ jobs:
         working-directory: backend
         run: alembic check
 
-      # tests/backend/app covers the app/ wrapper layer; tests/backend/mystic_auth/unit
-      # covers the mystic_auth/ package. Both are fast, no-DB, and run as one coverage base.
-      - name: Run backend unit tests
-        run: python -m pytest tests/backend/app tests/backend/mystic_auth/unit -q
+      # app/ wrapper tests and mystic_auth tests run separately but share the
+      # same pytest coverage base through pytest.ini.
+      - name: Run app backend unit tests
+        run: ci/app/backend.sh unit
+
+      - name: Run MysticAuth backend unit tests
+        run: ci/mystic_auth/backend.sh unit
 
       # --cov-append makes the final gate cumulative across backend suites.
       - name: Run backend integration tests
-        run: python -m pytest tests/backend/mystic_auth/integration -q --cov-append
+        run: ci/mystic_auth/backend.sh integration
 
       # Regression gate. See docs/mystic_auth/testing/overview.md for coverage state.
       - name: Run backend security tests
-        run: python -m pytest tests/backend/mystic_auth/security -q --cov-append --cov-fail-under=85
+        run: ci/mystic_auth/backend.sh security-tests
 
-      # Non-blocking because timing can be noisy on shared runners.
+      # Non-blocking because Argon2 timing can be noisy on shared runners;
+      # the test still reports real connection/serialization regressions.
       - name: Run backend performance tests (non-blocking)
         continue-on-error: true
-        run: python -m pytest tests/backend/mystic_auth/performance -q
+        run: ci/mystic_auth/backend.sh performance
 
   frontend:
     name: Frontend (typecheck + lint + test + build)
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           # Pinned patch version, matching docker/frontend.Dockerfile: react-router
           # 8.x and @testing-library/jest-dom 7.x both declare an engines.node
@@ -162,37 +209,39 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # There is no checked-in frontend/.env; use the fork-configurable
+      # defaults from frontend/.env.example so CI reflects whatever a fork
+      # has set there, same as the docker-build job does for env/mystic_auth/.env.dev.
+      - name: Set up frontend .env
+        working-directory: frontend
+        run: cp .env.example .env
+
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci --legacy-peer-deps
 
       - name: Audit npm dependencies for known vulnerabilities
-        working-directory: frontend
-        run: npm audit --audit-level=high
+        run: ci/app/frontend.sh audit
 
       - name: Type-check
-        working-directory: frontend
-        run: npm run typecheck
+        run: ci/app/frontend.sh typecheck
 
       - name: Lint
-        working-directory: frontend
-        run: npm run lint
+        run: ci/app/frontend.sh lint
 
       # test:coverage evaluates vitest.config.ts coverage thresholds.
       - name: Run tests (with coverage threshold gate)
-        working-directory: frontend
-        run: npm run test:coverage
+        run: ci/app/frontend.sh test-coverage
 
       - name: Build
-        working-directory: frontend
-        run: npm run build
+        run: ci/app/frontend.sh build
 
   secrets-scan:
     name: Secrets scan (gitleaks)
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # gitleaks scans git history, not just the working tree, so it needs
           # the full commit log, not just the last commit, to catch a
@@ -200,45 +249,250 @@ jobs:
           fetch-depth: 0
 
       - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run JWT-aware Trivy secret scan
+        run: >-
+          docker run --rm
+          -v "${GITHUB_WORKSPACE}:/repo:ro"
+          aquasec/trivy:0.68.1@sha256:a93fd67162843c0f749002af9245fe9a2e5edc41445bd71d3949c803e95ef05b
+          fs --scanners secret --exit-code 1 --no-progress /repo
+
+  tooling-tests:
+    name: Tooling regression tests (env-tools, upstream-sync, script/split paths, image digests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Check every ci/scripts/local-scripts path reference resolves
+        run: ci/mystic_auth/tooling.sh script-paths
+
+      - name: Check for stale pre-split docker/env/scripts path references
+        run: ci/mystic_auth/tooling.sh split-paths
+
+      - name: Check operator-facing scripts have all platform wrappers
+        run: ci/mystic_auth/tooling.sh platform-wrappers
+
+      - name: Check every pinned compose image digest is a valid sha256
+        run: ci/mystic_auth/tooling.sh image-digests
+
+      - name: Check every compose service sets log rotation
+        run: ci/mystic_auth/tooling.sh log-rotation
+
+      - name: Check every CI action is pinned by commit SHA
+        run: ci/mystic_auth/tooling.sh action-pinning
+
+      - name: Check production-shaped services run with a read-only rootfs
+        run: ci/mystic_auth/tooling.sh readonly-rootfs
+
+      - name: Run env-tools regression suite
+        run: ci/mystic_auth/tooling.sh env-tools
+
+      - name: Run sync-upstream regression suite
+        run: ci/mystic_auth/tooling.sh upstream-sync
+
+      - name: Run backup-freshness regression suite
+        run: ci/mystic_auth/tooling.sh backup-freshness
+
+      - name: Check production backup network isolation
+        run: ci/mystic_auth/tooling.sh backup-network
+
+      - name: Run host-backend port derivation regression suite
+        run: ci/mystic_auth/tooling.sh host-backend
+
+  windows-tooling:
+    name: Windows PowerShell tooling regression tests
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Run PowerShell setup-env regression test
+        shell: pwsh
+        run: ./ci/mystic_auth/tooling.ps1
 
   docker-build:
     name: Docker image build verification
     runs-on: ubuntu-latest
 
-    # Confirms backend and frontend Dockerfiles still build correctly, and
-    # (via the smoke-test steps below) that the actual dev compose stack
-    # boots and serves traffic, catching a class of bug (bad env wiring in
-    # docker-compose.yml, a broken healthcheck, a missing file the app needs
-    # at runtime) the backend/frontend jobs above can't see at all, since
-    # those run the same source code on a bare runner, never through this
-    # image. This does NOT re-run the test suite through Docker: that's
-    # what docker-full-suite (below) does, only on a push to main, since
-    # re-running identical tests through Docker on every PR
-    # would mostly just double CI time for no new bug-catching power over
-    # the native runs above.
+    # Builds all runtime images, then boots and smoke-tests the real dev Compose stack.
+    # The full test suite inside containers is handled by docker-full-suite.
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      # Validates every compose file still parses and references existing
-      # service dependencies. Uses .env.example only to satisfy each file's
-      # `env_file: ./.env` directive, no real secrets involved.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          # React Router 8 requires Node 22.22.0 or newer.
+          node-version: "22.22.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies for browser tests
+        working-directory: frontend
+        run: npm ci --legacy-peer-deps
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      # Uses the *.example files only to satisfy each compose file's own
+      # env_file reference (env/mystic_auth/.env.dev + env/app/.env.dev, and the
+      # local-prod-*/prod equivalents) and --env-file for build-arg
+      # interpolation.
       - name: Validate docker-compose configs
         run: |
-          cp .env.example .env
-          docker compose -f docker-compose.yml config > /dev/null
-          docker compose -f docker-compose.local-prod.yml config > /dev/null
-          docker compose -f docker-compose.prod.yml config > /dev/null
-          rm .env
+          created_env_files="env/mystic_auth/.env.dev env/mystic_auth/.env.local-prod-cloudflare env/mystic_auth/.env.local-prod-ngrok env/mystic_auth/.env.local-prod-tailscale env/mystic_auth/.env.prod env/app/.env.dev env/app/.env.local-prod-cloudflare env/app/.env.local-prod-ngrok env/app/.env.local-prod-tailscale env/app/.env.prod"
+          for env_file in $created_env_files; do
+            if [ -e "$env_file" ]; then
+              echo "::error::Refusing to overwrite existing $env_file"
+              exit 1
+            fi
+          done
+          trap 'rm -f $created_env_files' EXIT
+          cp env/mystic_auth/.env.dev.example env/mystic_auth/.env.dev
+          cp env/mystic_auth/.env.local-prod-cloudflare.example env/mystic_auth/.env.local-prod-cloudflare
+          cp env/mystic_auth/.env.local-prod-ngrok.example env/mystic_auth/.env.local-prod-ngrok
+          cp env/mystic_auth/.env.local-prod-tailscale.example env/mystic_auth/.env.local-prod-tailscale
+          cp env/mystic_auth/.env.prod.example env/mystic_auth/.env.prod
+          cp env/app/.env.dev.example env/app/.env.dev
+          cp env/app/.env.local-prod-cloudflare.example env/app/.env.local-prod-cloudflare
+          cp env/app/.env.local-prod-ngrok.example env/app/.env.local-prod-ngrok
+          cp env/app/.env.local-prod-tailscale.example env/app/.env.local-prod-tailscale
+          cp env/app/.env.prod.example env/app/.env.prod
+          docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev config > /dev/null
+          # The examples intentionally leave the off-host backup command blank
+          # because it is deployment-specific. Supply a harmless interpolation
+          # value for config validation only; it is never used to start a stack.
+          BACKUP_UPLOAD_COMMAND=true docker compose -f docker/mystic_auth/compose/docker-compose.local-prod-cloudflare.yml -f docker/app/compose/docker-compose.local-prod-cloudflare.yml --env-file env/mystic_auth/.env.local-prod-cloudflare --env-file env/app/.env.local-prod-cloudflare config > /dev/null
+          BACKUP_UPLOAD_COMMAND=true docker compose -f docker/mystic_auth/compose/docker-compose.local-prod-ngrok.yml -f docker/app/compose/docker-compose.local-prod-ngrok.yml --env-file env/mystic_auth/.env.local-prod-ngrok --env-file env/app/.env.local-prod-ngrok config > /dev/null
+          BACKUP_UPLOAD_COMMAND=true docker compose -f docker/mystic_auth/compose/docker-compose.local-prod-tailscale.yml -f docker/app/compose/docker-compose.local-prod-tailscale.yml --env-file env/mystic_auth/.env.local-prod-tailscale --env-file env/app/.env.local-prod-tailscale config > /dev/null
+          BACKUP_UPLOAD_COMMAND=true docker compose -f docker/mystic_auth/compose/docker-compose.prod.yml -f docker/app/compose/docker-compose.prod.yml --env-file env/mystic_auth/.env.prod --env-file env/app/.env.prod config > /dev/null
 
       - name: Build backend image
-        run: docker build -f docker/backend.Dockerfile -t backend:ci .
+        run: docker build --target runtime -f docker/mystic_auth/dockerfiles/backend.Dockerfile -t backend:ci .
 
       - name: Build frontend production image
-        run: docker build --target production -f docker/frontend.Dockerfile -t frontend:ci .
+        run: docker build --target production -f docker/mystic_auth/dockerfiles/frontend.Dockerfile -t frontend:ci .
+
+      # The backup container has its own dependency surface (rclone, curl,
+      # the postgres:15 base) that drifts independently of backend/frontend -
+      # it has carried Critical/High CVEs while backend/frontend scanned
+      # clean, entirely unnoticed because nothing built or scanned it in CI.
+      # Build and scan it too.
+      - name: Build db_backup image
+        run: docker build -f docker/mystic_auth/dockerfiles/db-backup.Dockerfile -t db-backup:ci .
+
+      - name: Verify shipped dependency notices
+        run: |
+          docker run --rm --entrypoint sh backend:ci -c 'test -s /usr/share/licenses/mystic-auth/backend/PyYAML-6.0.3.txt'
+          docker run --rm --entrypoint sh db-backup:ci -ec '
+            notices=/usr/share/licenses/mystic-auth/db-backup/debian
+            rclone_notices=/usr/share/licenses/mystic-auth/db-backup/rclone
+            test -s "$rclone_notices/github.com/rclone/rclone/COPYING"
+            test "$(find "$rclone_notices" -type f | wc -l)" -gt 100
+            test -s "$notices/packages.tsv"
+            test -s "$notices/common-licenses/GPL-3"
+            test "$(wc -l < "$notices/packages.tsv")" -gt 20
+            while read -r package version; do
+              package_dir=${package%%:*}
+              test -s "$notices/$package_dir/copyright"
+            done < "$notices/packages.tsv"
+            rclone version | grep -F "go/version: go1.27.2"
+            ! rclone help | grep -q selfupdate
+          '
+          docker run --rm --add-host backend:127.0.0.1 --entrypoint sh frontend:ci -c 'test -s /usr/share/nginx/html/third-party-notices/react_19.3.0.txt && nginx -t'
+          docker run -d --name frontend-notices-smoke --add-host backend:127.0.0.1 -p 127.0.0.1:18080:80 frontend:ci
+          trap 'docker rm -f frontend-notices-smoke >/dev/null 2>&1 || true' EXIT
+          timeout 30 sh -c 'until curl -fsS http://127.0.0.1:18080/third-party-notices/ >/dev/null; do sleep 1; done'
+          curl -fsS http://127.0.0.1:18080/third-party-notices/ | grep -q 'react_19.3.0.txt'
+
+      - name: Scan built images for known-critical/high vulnerabilities (Trivy)
+        run: |
+          for image in backend:ci frontend:ci db-backup:ci; do
+            echo "::group::Trivy - $image"
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              aquasec/trivy:0.68.1@sha256:a93fd67162843c0f749002af9245fe9a2e5edc41445bd71d3949c803e95ef05b \
+              image --severity CRITICAL,HIGH --exit-code 1 --ignore-unfixed "$image"
+            echo "::endgroup::"
+          done
+
+      # Generate SBOMs from the exact images built above, not just from the
+      # source manifests. This describes what a deployment would actually
+      # run, including the Alpine/nginx/Python runtime packages and the
+      # installed backend dependencies. The frontend runtime SBOM correctly
+      # excludes Node/npm build dependencies because the production image is
+      # nginx-only.
+      - name: Prepare image SBOM output directory
+        run: mkdir -p sbom
+
+      - name: Generate backend runtime SBOM (SPDX JSON)
+        uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84
+        with:
+          image: backend:ci
+          format: spdx-json
+          output-file: sbom/backend-runtime.spdx.json
+          artifact-name: sbom-backend-runtime
+          upload-artifact: false
+          upload-release-assets: false
+          syft-version: v1.52.0
+
+      - name: Generate frontend runtime SBOM (SPDX JSON)
+        uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84
+        with:
+          image: frontend:ci
+          format: spdx-json
+          output-file: sbom/frontend-runtime.spdx.json
+          artifact-name: sbom-frontend-runtime
+          upload-artifact: false
+          upload-release-assets: false
+          syft-version: v1.52.0
+
+      - name: Generate db_backup runtime SBOM (SPDX JSON)
+        uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84
+        with:
+          image: db-backup:ci
+          format: spdx-json
+          output-file: sbom/db-backup-runtime.spdx.json
+          artifact-name: sbom-db-backup-runtime
+          upload-artifact: false
+          upload-release-assets: false
+          syft-version: v1.52.0
+
+      - name: Validate and package image SBOMs
+        env:
+          GIT_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for sbom in sbom/backend-runtime.spdx.json sbom/frontend-runtime.spdx.json sbom/db-backup-runtime.spdx.json; do
+            test -s "$sbom"
+            jq -e '(.spdxVersion | type == "string") and (.packages | type == "array" and length > 0)' "$sbom" >/dev/null
+          done
+
+          backend_image_id="$(docker image inspect backend:ci --format '{{.Id}}')"
+          frontend_image_id="$(docker image inspect frontend:ci --format '{{.Id}}')"
+          db_backup_image_id="$(docker image inspect db-backup:ci --format '{{.Id}}')"
+          jq -n \
+            --arg commit "$GIT_COMMIT" \
+            --arg backend_id "$backend_image_id" \
+            --arg frontend_id "$frontend_image_id" \
+            --arg db_backup_id "$db_backup_image_id" \
+            '{schemaVersion: 1, generatedForCommit: $commit, images: {
+              backend: {tag: "backend:ci", localImageId: $backend_id, sbom: "backend-runtime.spdx.json"},
+              frontend: {tag: "frontend:ci", localImageId: $frontend_id, sbom: "frontend-runtime.spdx.json"},
+              db_backup: {tag: "db-backup:ci", localImageId: $db_backup_id, sbom: "db-backup-runtime.spdx.json"}
+            }}' > sbom/manifest.json
+
+      - name: Upload image SBOMs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: image-sboms-${{ github.sha }}
+          path: sbom/
+          if-no-files-found: error
+          retention-days: 90
 
       # Regression guard: backend/logs/ (real request data) was previously
       # getting baked into the image via `COPY backend/ .`, since *.log alone
@@ -271,12 +525,45 @@ jobs:
       # real deployment.
       - name: Boot the dev stack
         run: |
-          cp .env.example .env
-          sed -i 's/^BUGSINK_SUPERUSER_EMAIL=.*/BUGSINK_SUPERUSER_EMAIL=/' .env
-          docker compose up -d --build postgres redis alembic seed-base-policies backend frontend
+          if [ -e env/mystic_auth/.env.dev ] || [ -e env/app/.env.dev ]; then
+            echo "::error::Refusing to overwrite existing env/mystic_auth/.env.dev or env/app/.env.dev"
+            exit 1
+          fi
+          cp env/mystic_auth/.env.dev.example env/mystic_auth/.env.dev
+          cp env/app/.env.dev.example env/app/.env.dev
+          touch env/mystic_auth/.env.dev.ci-created
+          sed -i 's/^BUGSINK_SUPERUSER_EMAIL=.*/BUGSINK_SUPERUSER_EMAIL=/' env/mystic_auth/.env.dev
+          sed -i 's/^EMAIL_ENABLED=.*/EMAIL_ENABLED=false/' env/mystic_auth/.env.dev
+          # Keep template-owned browser tests independent of a fork's app
+          # default policies. The disposable CI copy is the only file changed.
+          if grep -q '^DEFAULT_APP_POLICIES=' env/app/.env.dev; then
+            sed -i 's/^DEFAULT_APP_POLICIES=.*/DEFAULT_APP_POLICIES=/' env/app/.env.dev
+          else
+            printf '\nDEFAULT_APP_POLICIES=\n' >> env/app/.env.dev
+          fi
+          # The browser matrix intentionally makes more than 100 authenticated
+          # requests from one runner IP. Keep production's default limit intact
+          # while giving this disposable CI stack enough headroom to test the
+          # application instead of its own test traffic budget.
+          sed -i 's/^MAX_REQUESTS_PER_WINDOW=.*/MAX_REQUESTS_PER_WINDOW=1000/' env/mystic_auth/.env.dev
+          docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev up -d --build postgres valkey alembic backend frontend procrastinate_worker
 
       - name: Wait for backend to report healthy
         run: timeout 150 sh -c 'until curl -sf http://localhost:8000/health/ready >/dev/null 2>&1; do sleep 3; done'
+
+      # The real-account permission-matrix browser test requires these
+      # disposable verified/active PBAC accounts. The script is available
+      # through the backend container's /repo bind mount and only replaces
+      # users whose email starts with matrix-.
+      - name: Seed browser permission matrix accounts
+        run: >-
+          docker compose
+          -f docker/mystic_auth/compose/docker-compose.dev.yml
+          -f docker/app/compose/docker-compose.dev.yml
+          --env-file env/mystic_auth/.env.dev
+          --env-file env/app/.env.dev
+          exec -T -w /repo backend
+          python local-scripts/mystic_auth/seed-user-permission-matrix.py
 
       - name: Wait for frontend dev server to respond
         run: timeout 60 sh -c 'until curl -sf http://localhost:5173 >/dev/null 2>&1; do sleep 3; done'
@@ -288,18 +575,38 @@ jobs:
           curl -sf http://localhost:5173 | grep -qi '<div id="root">' \
             && echo "OK: frontend dev server serves the app shell through the actual image"
 
-      # Only ever runs when something above actually failed. Prints the
-      # containers' own logs so a CI failure shows *why* a container never
-      # became healthy instead of just "unhealthy"/a timeout with no context.
+      - name: "Backup: create encrypted dumps and verify freshness"
+        run: ci/mystic_auth/tooling.sh backup-roundtrip
+
+      - name: "Restore-drill: prove the backup path actually restores"
+        run: ci/mystic_auth/tooling.sh restore-drill
+
+      - name: Run MysticAuth browser E2E tests
+        env:
+          EMAIL_ENABLED: "false"
+          # Exercise the built frontend artifact; Vite's dev-server HMR can
+          # invalidate lazy route modules during the full cross-browser matrix.
+          PLAYWRIGHT_USE_PREVIEW: "1"
+        run: ci/mystic_auth/frontend-e2e.sh
+
+      - name: Run app browser E2E tests
+        env:
+          EMAIL_ENABLED: "false"
+          PLAYWRIGHT_USE_PREVIEW: "1"
+        run: ci/app/frontend-e2e.sh
+
+      # Prints container logs only when a previous step failed.
       - name: Show container logs (only runs on failure)
         if: failure()
-        run: docker compose logs --no-color
+        run: docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev logs --no-color
 
       - name: Tear down the dev stack
         if: always()
         run: |
-          docker compose down -v
-          rm -f .env
+          docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev down -v
+          if [ -f env/mystic_auth/.env.dev.ci-created ]; then
+            rm -f env/mystic_auth/.env.dev env/app/.env.dev env/mystic_auth/.env.dev.ci-created
+          fi
 
   # Re-runs the FULL backend + frontend suites through the actual dev
   # compose stack (not bare runners). This is the expensive, high-fidelity
@@ -322,61 +629,74 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      # See docker-build's identical override above for why
-      # BUGSINK_SUPERUSER_EMAIL is blanked here (CI-only), never reaches a
-      # real deployment.
+      # Same CI-only Bugsink DSN wait shortcut as docker-build.
+      # BACKEND_BUILD_TARGET=test builds the backend from the Dockerfile's
+      # `test` stage so pytest is available inside the container below,
+      # without the runtime image everyone else deploys ever shipping test
+      # tooling.
       - name: Boot the backend stack
+        env:
+          BACKEND_BUILD_TARGET: test
         run: |
-          cp .env.example .env
-          sed -i 's/^BUGSINK_SUPERUSER_EMAIL=.*/BUGSINK_SUPERUSER_EMAIL=/' .env
-          docker compose up -d --build postgres redis alembic seed-base-policies backend
+          if [ -e env/mystic_auth/.env.dev ] || [ -e env/app/.env.dev ]; then
+            echo "::error::Refusing to overwrite existing env/mystic_auth/.env.dev or env/app/.env.dev"
+            exit 1
+          fi
+          cp env/mystic_auth/.env.dev.example env/mystic_auth/.env.dev
+          cp env/app/.env.dev.example env/app/.env.dev
+          touch env/mystic_auth/.env.dev.ci-created
+          sed -i 's/^BUGSINK_SUPERUSER_EMAIL=.*/BUGSINK_SUPERUSER_EMAIL=/' env/mystic_auth/.env.dev
+          sed -i 's/^EMAIL_ENABLED=.*/EMAIL_ENABLED=false/' env/mystic_auth/.env.dev
+          # Keep template-owned backend tests independent of a fork's app
+          # default policies. The disposable CI copy is the only file changed.
+          if grep -q '^DEFAULT_APP_POLICIES=' env/app/.env.dev; then
+            sed -i 's/^DEFAULT_APP_POLICIES=.*/DEFAULT_APP_POLICIES=/' env/app/.env.dev
+          else
+            printf '\nDEFAULT_APP_POLICIES=\n' >> env/app/.env.dev
+          fi
+          docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev up -d --build postgres valkey alembic backend procrastinate_worker
 
       - name: Wait for backend to report healthy
         run: timeout 180 sh -c 'until curl -sf http://localhost:8000/health/ready >/dev/null 2>&1; do sleep 3; done'
 
-      # Same three tiers, same flags, as the native backend job above.
-      # This is a repeat, not a different set of tests, run through the
-      # actual container this time instead of a bare runner.
-      #
-      # --user root: pytest-cov writes its .coverage database (and
-      # --cov-report=html's htmlcov/) to the current working directory,
-      # here, /repo, the whole-repo bind mount, owned by whatever checked it
-      # out (the runner's own user on GitHub Actions, not the container's
-      # non-root `app` user). That's a broader version of the exact same
-      # class of bug backend_logs's volumes fix this repo's own /app/logs
-      # and /repo/backend/logs, but coverage's own output files are
-      # spread across whatever cwd it's given, not one fixed path, so
-      # carving out another individual named-volume mount per file doesn't
-      # scale. Running this one-off test invocation as root sidesteps the
-      # whole class at once: nothing here is the actual served application
-      # (which stays non-root by default, per backend.Dockerfile's `USER
-      # app`), just a throwaway test run inside a container that's torn
-      # down immediately after.
+      # Audit log rows (and every other Procrastinate task) are written by
+      # this worker asynchronously, not inline on the request: the audit-log
+      # integration suite polls for them (see its own _poll_for_entries), but
+      # only succeeds if a worker is actually running to process the queue.
+      - name: Wait for procrastinate_worker to report healthy
+        run: timeout 60 sh -c 'until [ "$(docker inspect -f "{{.State.Health.Status}}" $(docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev ps -q procrastinate_worker))" = "healthy" ]; do sleep 3; done'
+
+      # Same tiers and flags as the native backend job, but inside the backend
+      # container. --user root lets pytest-cov write coverage output to /repo,
+      # the whole-repo bind mount.
       - name: Run the full backend suite inside the backend container
         run: |
-          docker compose exec -T --user root backend bash -c '
+          docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev exec -T --user root backend sh -c '
+            export PATH=/opt/venv/bin:$PATH &&
             cd /repo &&
             python -m pytest tests/backend/app tests/backend/mystic_auth/unit -q &&
             python -m pytest tests/backend/mystic_auth/integration -q --cov-append &&
-            python -m pytest tests/backend/mystic_auth/security -q --cov-append --cov-fail-under=85
+            python -m pytest tests/backend/mystic_auth/security -q --cov-append --cov-fail-under=90
           '
 
       - name: Boot the frontend
-        run: docker compose up -d --build frontend
+        run: docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev up -d --build frontend
 
       - name: Run the full frontend suite inside the frontend container
-        run: docker compose exec -T frontend sh -c "npm run test -- --run"
+        run: docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev exec -T frontend sh -c "npm run test -- --run"
 
       # Only ever runs when something above actually failed, see
       # docker-build's identical step for why.
       - name: Show container logs (only runs on failure)
         if: failure()
-        run: docker compose logs --no-color
+        run: docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev logs --no-color
 
       - name: Tear down
         if: always()
         run: |
-          docker compose down -v
-          rm -f .env
+          docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev down -v
+          if [ -f env/mystic_auth/.env.dev.ci-created ]; then
+            rm -f env/mystic_auth/.env.dev env/app/.env.dev env/mystic_auth/.env.dev.ci-created
+          fi

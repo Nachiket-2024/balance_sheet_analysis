@@ -1,21 +1,20 @@
 # tests/backend/mystic_auth/performance/test_authorization_performance.py
 #
-# Real-DB smoke-level performance coverage (many users and many
-# policies, large authorization batches"). These are regression alarms
-# against gross performance regressions (e.g. an accidental N+1, or a
-# missing index), not a precise load-testing/benchmarking framework, so
-# thresholds are deliberately generous.
+# Real-DB smoke-level performance coverage (many users, many policies,
+# large authorization batches). These catch gross regressions like an
+# accidental N+1 or a missing index, not a precise benchmarking suite,
+# so thresholds are deliberately generous.
 import time
 import uuid
 
 import pytest
+
 from backend.mystic_auth.authorization.policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
 )
 from backend.mystic_auth.authorization.schemas.batch_authorization_schema import (
     MAX_BATCH_SIZE,
 )
-
 from tests.backend.mystic_auth.security.conftest import create_verified_user
 
 from .conftest import (
@@ -64,15 +63,15 @@ async def test_listing_policies_stays_reasonable_with_many_policies(client, crea
     try:
         system_email = f"sysuser_{tag}@example.com"
         # Reuse the security suite's system-user helper indirectly: build
-        # it here since it needs system_superuser + user_administration
+        # it here since it needs system_superuser + user_management
         # too, not just self_service.
         from backend.mystic_auth.authorization.policies.default_policies import (
             SYSTEM_SUPERUSER_POLICY_NAME,
-            USER_ADMINISTRATION_POLICY_NAME,
+            USER_MANAGEMENT_POLICY_NAME,
         )
         await create_verified_user(
             client, created_emails, system_email,
-            [SELF_SERVICE_POLICY_NAME, USER_ADMINISTRATION_POLICY_NAME, SYSTEM_SUPERUSER_POLICY_NAME],
+            [SELF_SERVICE_POLICY_NAME, USER_MANAGEMENT_POLICY_NAME, SYSTEM_SUPERUSER_POLICY_NAME],
         )
 
         start = time.perf_counter()

@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import StreamingResponse
 from starlette.types import ASGIApp
@@ -14,7 +16,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
     async def dispatch(self, request, call_next):
-        logger.info(f"Incoming request: {request.method} {request.url}")
+        request_path = request.url.path
+        started_at = perf_counter()
+        request_context = {
+            "http_method": request.method,
+            "http_path": request_path,
+        }
+        logger.info("Incoming request", extra=request_context)
 
         # Exceptions are intentionally NOT caught here; they're left to
         # propagate to the single global exception handler in main.py, which
@@ -23,11 +31,15 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # (non-traceback) error log usually fired instead of the global
         # handler's, silently discarding stack traces.
         response = await call_next(request)
+        duration_ms = round((perf_counter() - started_at) * 1000, 2)
+        response_context = {
+            **request_context,
+            "http_status": response.status_code,
+            "duration_ms": duration_ms,
+        }
 
         if not isinstance(response, StreamingResponse):
-            logger.info(
-                f"Response: {response.status_code} for {request.method} {request.url}"
-            )
+            logger.info("Response", extra=response_context)
 
         if isinstance(response, StreamingResponse):
             async def streaming_body():
@@ -39,6 +51,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 status_code=response.status_code,
                 headers=response.headers
             )
-            logger.info(f"Streaming response with status code: {response.status_code}")
+            logger.info("Streaming response", extra=response_context)
 
         return response

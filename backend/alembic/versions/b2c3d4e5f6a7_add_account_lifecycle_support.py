@@ -11,7 +11,7 @@ Schema + data migration:
    — see authorization/permissions.py) to the seeded system_superuser
    policy, following the same process docs/mystic_auth/authorization/adding-permissions.md
    documents (mirrors f3c1a9d7e5b2's grant of security_audit:read).
-   Deliberately NOT granted to user_administration: hard delete
+   Deliberately NOT granted to user_management: hard delete
    (irreversible data destruction) and reactivation (restoring access) are
    both more sensitive than day-to-day account management.
 """

@@ -1,6 +1,25 @@
 # Onboarding a Real User
+---
+```mermaid
+%%{init: {"themeVariables": {"lineColor": "#334155"}} }%%
+flowchart TD
+    Login[User signs in] --> Self[Receives self_service policy]
+    Self --> NoApp[No company access yet]
+    Admin[System superuser] --> Seed[Seed app baseline policies]
+    Seed --> Assign[Assign suitable app policy]
+    Assign --> Scope[Add company or group condition if needed]
+    Scope --> Access[App routes authorize scoped data]
+    classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef blocked fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    classDef decision fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
+    class Self,Assign,Scope,Access success
+    class NoApp blocked
+```
+---
 
 ## Why a fresh Google login sees no company data
+
+---
 
 Every new account, whether via signup or Google OAuth, is auto-assigned exactly
 one mystic_auth baseline policy, `self_service` (`users:read_own`,
@@ -20,7 +39,10 @@ it's granted by creating and assigning a policy, the same administrative
 action for every persona:
 
 1. Log in once as the reserved system superuser (created via
-   `docker compose exec backend python -m mystic_auth.scripts.create_system_user`;
+   `docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml \
+   -f docker/app/compose/docker-compose.dev.yml \
+   --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev \
+   exec backend python -m mystic_auth.scripts.create_system_user`;
    see the root `README.md`).
 2. On mystic_auth's own (unmodified) `/policies` and `/users` pages, either
    assign one of the two ready-made [baseline policies](baseline-policies.md)
@@ -35,8 +57,11 @@ action for every persona:
    for a shared password at run time); it's a reference for the
    condition/action shape to replicate, not something that runs against a
    real OAuth-created account automatically.
+---
 
 ## Alternative: auto-granting a policy on signup
+
+---
 
 mystic_auth's `DEFAULT_APP_POLICIES` setting (root `.env`, empty by default)
 auto-assigns a comma-separated list of policy names to every user alongside
@@ -49,3 +74,12 @@ future policy shape here is meant to apply to every user unconditionally
 `.env` instead of assigning it by hand each time. See
 `backend/mystic_auth/core/settings.py`'s `DEFAULT_APP_POLICIES` and
 `authorization/policies/default_policies.py` for the mechanics.
+
+---
+
+## See also
+
+---
+
+- [Access-control index](README.md)
+- [App documentation](../README.md)

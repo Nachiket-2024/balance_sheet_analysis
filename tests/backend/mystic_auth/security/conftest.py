@@ -1,38 +1,33 @@
-# tests/backend/mystic_auth/security/conftest.py
-#
-# Shares the same real-dependency fixtures (client, created_emails, Redis
-# isolation) as tests/backend/integration/ : security tests run against
-# the exact same real Postgres/Redis, they just group a different concern
-# (attack scenarios) rather than lifecycle coverage. Reusing the parent
-# conftest.py's fixtures (pytest auto-discovers the nearest conftest.py up
-# the directory tree first, then this one) plus a couple of small,
-# security-suite-specific user-creation helpers.
+# Reuses the real-dependency fixtures (client, created_emails, Valkey
+# isolation) from tests/backend/integration/, since pytest walks up to find
+# conftest.py files. This file just adds user-creation helpers for
+# security/attack-scenario tests.
 import uuid
 
 import pytest_asyncio
+
 from backend.mystic_auth.auth.verify_account.account_verification_service import (
     account_verification_service,
 )
 from backend.mystic_auth.authorization.policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
     SYSTEM_SUPERUSER_POLICY_NAME,
-    USER_ADMINISTRATION_POLICY_NAME,
+    USER_MANAGEMENT_POLICY_NAME,
 )
 from backend.mystic_auth.authorization.repositories.policy_repository import (
     policy_repository,
 )
 from backend.mystic_auth.database.connection import database
-from backend.mystic_auth.redis.client import redis_client
-from backend.mystic_auth.user_crud.user_crud_collector import user_crud
+from backend.mystic_auth.user.user_crud_collector import user_crud
+from backend.mystic_auth.valkey.client import valkey_client
 
 PASSWORD = "StrongPass123!"
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _cleanup_sectest_policies():
-    """Every policy this suite creates (directly, or via a test hitting
-    POST /authorization/policies) is prefixed 'sectest_policy_' : delete
-    them on teardown so repeated runs don't accumulate rows."""
+    """Deletes every policy prefixed 'sectest_policy_' after each test, so
+    repeated runs don't leave rows behind."""
     yield
     async with database.async_session() as session:
         for policy in await policy_repository.get_all(session):
@@ -56,7 +51,7 @@ async def create_verified_user(client, created_emails, email, policy_names):
     created_emails.append(email)
 
     token = await account_verification_service.create_verification_token(email)
-    await redis_client.set(f"verify:{token}", "1", ex=600)
+    await valkey_client.set(f"verify:{token}", "1", ex=600)
     verify_resp = await client.post("/auth/verify-account", json={"token": token})
     assert verify_resp.status_code == 200
 
@@ -65,7 +60,11 @@ async def create_verified_user(client, created_emails, email, policy_names):
         for policy_name in policy_names:
             policy = await policy_repository.get_by_name(policy_name, session)
             await policy_repository.assign_policy_to_user(
-                user_id=user.id, policy_id=policy.id, db=session, assigned_by="test", user_email=email
+                user_id=user.id,
+                policy_id=policy.id,
+                db=session,
+                assigned_by="test",
+                user_email=email,
             )
 
     login_resp = await client.post("/auth/login", json={"email": email, "password": PASSWORD})
@@ -76,14 +75,14 @@ async def create_verified_user(client, created_emails, email, policy_names):
 async def create_system_user(client, created_emails, email):
     return await create_verified_user(
         client, created_emails, email,
-        [SELF_SERVICE_POLICY_NAME, USER_ADMINISTRATION_POLICY_NAME, SYSTEM_SUPERUSER_POLICY_NAME],
+        [SELF_SERVICE_POLICY_NAME, USER_MANAGEMENT_POLICY_NAME, SYSTEM_SUPERUSER_POLICY_NAME],
     )
 
 
 async def create_user_with_custom_policy(client, created_emails, email, actions, resource_type="policies"):
-    """A user holding exactly self_service + one freshly created policy
-    granting `actions` on `resource_type` : used to prove a caller with
-    only a narrow slice of policies:* actions can't escalate beyond it."""
+    """Creates a user with only self_service plus one new policy granting
+    `actions` on `resource_type`, for testing that a narrowly-scoped caller
+    can't escalate beyond it."""
     policy_name = unique_policy_name()
     async with database.async_session() as session:
         await policy_repository.create(

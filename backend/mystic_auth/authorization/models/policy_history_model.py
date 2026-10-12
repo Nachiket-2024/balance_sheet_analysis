@@ -10,20 +10,16 @@ from ...database.base import Base
 
 class PolicyHistory(Base):
     """
-    One immutable row per policy mutation (create/update/delete/rollback),
-    per policy versioning and change history: policy changes
-    must be fully traceable and reversible, and rollback must create a new
-    version, never overwrite history. Written by PolicyRepository's
-    create/update/delete (the only places policies are ever mutated), so no
-    route needs to log anything itself.
+    One immutable row per policy mutation (create/update/delete/rollback).
+    Rollback creates a new version rather than overwriting history.
+    Written by PolicyRepository's create/update/delete, so no route needs
+    to log anything itself.
 
-    Deliberately no foreign key to `policies`, mirrors
-    AuthorizationAuditLog's own rationale (see audit_log_model.py): a policy
-    referenced by an old history entry may since have been edited, deleted,
-    or (in principle) have its id reused, and the history must keep
-    reflecting exactly what existed *at the time*, not whatever that id
-    currently means. `policy_name` is the durable identifier used to query
-    a policy's full history even after the policy itself is deleted.
+    No foreign key to `policies` (same rationale as AuthorizationAuditLog,
+    see authorization_audit_log_model.py): a referenced policy id may since be reused or
+    deleted, and history must reflect what existed at the time, not what
+    that id means now. `policy_name` is the durable lookup key, valid even
+    after the policy row is gone.
     """
 
     __tablename__ = "policy_history"

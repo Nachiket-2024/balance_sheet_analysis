@@ -1,0 +1,7 @@
+# Your own Compose overrides for this fork, merged on top of upstream's
+# docker/mystic_auth/compose/docker-compose.local-prod-ngrok.yml (docker compose -f
+# <that file> -f <this file> ...). Ships empty; upstream never edits this
+# file again. Add your own services, extra volumes, or env_file entries
+# here. See docs/mystic_auth/template-usage/overview.md for the
+# mystic_auth/app split this mirrors.
+services: {}

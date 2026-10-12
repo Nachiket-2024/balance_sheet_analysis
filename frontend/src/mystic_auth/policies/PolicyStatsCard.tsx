@@ -1,46 +1,92 @@
 import React from "react";
-import { SimpleGrid } from "@chakra-ui/react";
+import { ShieldCheck, ShieldOff, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import Card from "../ui/Card";
-import StatTile from "../ui/StatTile";
+import StatTile from "../ui/cards/StatTile";
+import { isDestructiveAction } from "../authorization/destructiveActions";
 import type { PolicyRead } from "../api/policies_api";
 
+export type PolicyStatTileKey = "total" | "active" | "inactive" | "destructive";
+
 interface PolicyStatsCardProps {
-    policies: PolicyRead[] | undefined;
-    isLoading: boolean;
+  policies: PolicyRead[] | undefined;
+  isLoading: boolean;
+  onFilterTotal?: () => void;
+  onFilterActive?: () => void;
+  onFilterInactive?: () => void;
+  onFilterDestructive?: () => void;
+  activeTile?: PolicyStatTileKey | null;
 }
 
 /**
  * PolicyStatsCard
  * ----------------------------
- * Summary counts for PoliciesPage, derived client-side from the already-
- * fully-loaded policy list (GET /authorization/policies loads everything at
- * once - see PoliciesPage's own comment on why - so there's no separate
- * aggregate endpoint to call here, unlike UserStatsCard's server-paginated
- * equivalent): total policies, how many are active, how many distinct
- * actions/permissions are granted across all of them, and how many distinct
- * resource types ("policy groups") those policies are organized under. Sits
- * between PageContainer's title and the Create Policy button, in the same
- * header row.
+ * One row of brand-tinted tiles under PoliciesPage's title (design/
+ * policies.html), replacing the old 2x2 blue/green/cyan/orange grid, which
+ * broke design.md's "tell tiles apart by icon, not by a fixed hue per
+ * category" rule. Each tile also acts as a quick filter, mirroring
+ * UserStatsCard: clicking Active/Inactive applies that status filter, and
+ * "Grant destructive actions" filters to policies holding at least one
+ * destructive action (isDestructiveAction) - more useful than the old
+ * "distinct actions" count, which didn't lead anywhere.
  */
-const PolicyStatsCard: React.FC<PolicyStatsCardProps> = ({ policies, isLoading }) => {
-    const { t } = useTranslation("policies");
-    const totalPolicies = policies?.length;
-    const activePolicies = policies?.filter((p) => p.is_active).length;
-    const totalActions = policies ? new Set(policies.flatMap((p) => p.actions)).size : undefined;
-    const resourceTypes = policies ? new Set(policies.map((p) => p.resource_type)).size : undefined;
+const PolicyStatsCard: React.FC<PolicyStatsCardProps> = ({
+  policies,
+  isLoading,
+  onFilterTotal,
+  onFilterActive,
+  onFilterInactive,
+  onFilterDestructive,
+  activeTile,
+}) => {
+  const { t } = useTranslation("policies");
+  const total = policies?.length;
+  const active = policies?.filter((p) => p.is_active).length;
+  const inactive = policies?.filter((p) => !p.is_active).length;
+  const destructive = policies?.filter((p) =>
+    p.actions.some(isDestructiveAction),
+  ).length;
 
-    return (
-        <Card p={4} w={{ base: "full", md: "280px" }}>
-            <SimpleGrid columns={2} gap={4}>
-                <StatTile label={t("policies:statsCard.totalPolicies")} value={totalPolicies} isLoading={isLoading} color="blue.500" />
-                <StatTile label={t("policies:statsCard.active")} value={activePolicies} isLoading={isLoading} color="green.500" />
-                <StatTile label={t("policies:statsCard.distinctActions")} value={totalActions} isLoading={isLoading} color="purple.500" />
-                <StatTile label={t("policies:statsCard.resourceTypes")} value={resourceTypes} isLoading={isLoading} color="orange.500" />
-            </SimpleGrid>
-        </Card>
-    );
+  return (
+    <div className="flex items-stretch flex-wrap gap-3">
+      <StatTile
+        icon={<ShieldCheck size={18} aria-hidden="true" />}
+        label={t("policies:statsCard.totalPolicies")}
+        value={total}
+        isLoading={isLoading}
+        onClick={onFilterTotal}
+        ariaLabel={t("policies:statsCard.totalPolicies")}
+        pressed={activeTile === "total"}
+      />
+      <StatTile
+        icon={<ShieldCheck size={18} aria-hidden="true" />}
+        label={t("policies:statsCard.active")}
+        value={active}
+        isLoading={isLoading}
+        onClick={onFilterActive}
+        ariaLabel={t("policies:statsCard.active")}
+        pressed={activeTile === "active"}
+      />
+      <StatTile
+        icon={<ShieldOff size={18} aria-hidden="true" />}
+        label={t("policies:statsCard.inactive")}
+        value={inactive}
+        isLoading={isLoading}
+        onClick={onFilterInactive}
+        ariaLabel={t("policies:statsCard.inactive")}
+        pressed={activeTile === "inactive"}
+      />
+      <StatTile
+        icon={<TriangleAlert size={18} aria-hidden="true" />}
+        label={t("policies:statsCard.destructive")}
+        value={destructive}
+        isLoading={isLoading}
+        onClick={onFilterDestructive}
+        ariaLabel={t("policies:statsCard.destructive")}
+        pressed={activeTile === "destructive"}
+      />
+    </div>
+  );
 };
 
 export default PolicyStatsCard;

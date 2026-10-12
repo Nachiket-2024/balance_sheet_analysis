@@ -1,10 +1,11 @@
 import React from "react";
-import { SimpleGrid } from "@chakra-ui/react";
+import { BadgeCheck, MailWarning, UserX, Users as UsersIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import Card from "../ui/Card";
-import StatTile from "../ui/StatTile";
-import { useUserStatsQuery } from "./userQueries";
+import StatTile from "../ui/cards/StatTile";
+import { useUserStatsQuery } from "./queries/userQueries";
+
+export type UserStatTileKey = "total" | "verified" | "unverified" | "inactive";
 
 interface UserStatsCardProps {
     /** Clears every filter, showing the unfiltered full list. */
@@ -13,27 +14,36 @@ interface UserStatsCardProps {
     onFilterVerified?: () => void;
     /** Filters the table to unverified users only. */
     onFilterUnverified?: () => void;
-    /** Filters the table to inactive users only. */
+    /** Filters the table to deactivated users only. */
     onFilterInactive?: () => void;
+    /** Which tile's own filter combination is currently applied, if any -
+     * drives the pressed/brand-highlighted look (design/users.html's
+     * `.tile[aria-pressed="true"]`), so the row also reads as "what this
+     * table is filtered to" rather than just four buttons. */
+    activeTile?: UserStatTileKey | null;
 }
 
 /**
  * UserStatsCard
  * ----------------------------
  * Summary counts (GET /users/stats) for UsersPage: total, verified,
- * unverified, inactive - always across the whole table, independent of
- * whatever page/search/filters the list below currently has applied, so
- * these numbers don't shift as an operator pages or filters through the list.
- * Sits in PageContainer's own actions slot (top-right, level with the page
- * title), so the search/filter row and table below it are unaffected.
+ * unverified, inactive. Always reflects the whole table, not whatever
+ * page/search/filters are currently applied, so the numbers don't shift as
+ * an operator pages or filters through the list.
  *
- * Each tile doubles as a filter shortcut when its handler is supplied:
- * clicking "Verified" applies the same filter an operator would otherwise set
- * by hand via the Verified select below, rather than just being a
- * read-only count next to it.
+ * One row of brand-tinted tiles under the page title (design/users.html:
+ * "Stat tiles are one short row under the title, so the filters get the
+ * full width instead of wrapping beside a tall stats card") - rendered via
+ * UsersPage's `headerExtra`, not `actions`, so it spans the full width
+ * instead of sitting narrow beside the title.
+ *
+ * Each tile also acts as a filter shortcut when its handler is supplied:
+ * clicking "Verified" applies the same filter as the Verified select below,
+ * and stays visually pressed while that filter (and only that filter) is
+ * the active one.
  */
 const UserStatsCard: React.FC<UserStatsCardProps> = ({
-    onFilterTotal, onFilterVerified, onFilterUnverified, onFilterInactive,
+    onFilterTotal, onFilterVerified, onFilterUnverified, onFilterInactive, activeTile,
 }) => {
     const { t } = useTranslation("users");
     const { data, isLoading, isError } = useUserStatsQuery();
@@ -41,26 +51,51 @@ const UserStatsCard: React.FC<UserStatsCardProps> = ({
     if (isError) return null;
 
     return (
-        <Card p={4} w={{ base: "full", md: "280px" }}>
-            <SimpleGrid columns={2} gap={4}>
-                <StatTile
-                    label={t("users:statsCard.totalUsers")} value={data?.total} isLoading={isLoading} onClick={onFilterTotal}
-                    ariaLabel={t("users:statsCard.filterTotal")}
-                />
-                <StatTile
-                    label={t("users:statsCard.verified")} value={data?.verified} isLoading={isLoading} color="green.500"
-                    onClick={onFilterVerified} ariaLabel={t("users:statsCard.filterVerified")}
-                />
-                <StatTile
-                    label={t("users:statsCard.unverified")} value={data?.unverified} isLoading={isLoading} color="yellow.500"
-                    onClick={onFilterUnverified} ariaLabel={t("users:statsCard.filterUnverified")}
-                />
-                <StatTile
-                    label={t("users:statsCard.inactive")} value={data?.inactive} isLoading={isLoading} color="red.500"
-                    onClick={onFilterInactive} ariaLabel={t("users:statsCard.filterInactive")}
-                />
-            </SimpleGrid>
-        </Card>
+        <div className="flex items-stretch flex-wrap gap-3">
+            <StatTile
+                icon={<UsersIcon size={18} aria-hidden="true" />}
+                label={t("users:statsCard.totalUsers")}
+                value={data?.total}
+                isLoading={isLoading}
+                isError={isError}
+                onClick={onFilterTotal}
+                ariaLabel={t("users:statsCard.filterTotal")}
+                pressed={activeTile === "total"}
+            />
+            <StatTile
+                icon={<BadgeCheck size={18} aria-hidden="true" />}
+                label={t("users:statsCard.verified")}
+                value={data?.verified}
+                isLoading={isLoading}
+                isError={isError}
+                dotColor="var(--green-500)"
+                onClick={onFilterVerified}
+                ariaLabel={t("users:statsCard.filterVerified")}
+                pressed={activeTile === "verified"}
+            />
+            <StatTile
+                icon={<MailWarning size={18} aria-hidden="true" />}
+                label={t("users:statsCard.unverified")}
+                value={data?.unverified}
+                isLoading={isLoading}
+                isError={isError}
+                dotColor="#eab308"
+                onClick={onFilterUnverified}
+                ariaLabel={t("users:statsCard.filterUnverified")}
+                pressed={activeTile === "unverified"}
+            />
+            <StatTile
+                icon={<UserX size={18} aria-hidden="true" />}
+                label={t("users:statsCard.inactive")}
+                value={data?.inactive}
+                isLoading={isLoading}
+                isError={isError}
+                dotColor="var(--red-500)"
+                onClick={onFilterInactive}
+                ariaLabel={t("users:statsCard.filterInactive")}
+                pressed={activeTile === "inactive"}
+            />
+        </div>
     );
 };
 

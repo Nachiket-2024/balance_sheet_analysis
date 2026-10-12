@@ -4,13 +4,16 @@ from typing import Protocol
 import aiosmtplib
 
 from ..core.settings import settings
+from ..logging.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class EmailSender(Protocol):
-    """Minimal seam between `taskiq_tasks/email_tasks.py` and whatever
+    """Minimal seam between `procrastinate_tasks/email_tasks.py` and whatever
     actually transports the message: swapping providers (e.g. SES,
     SendGrid, Postmark) means writing one new class here, not touching the
-    Taskiq task or any of its callers."""
+    Procrastinate task or any of its callers."""
 
     async def send(self, to_email: str, subject: str, body: str, is_html: bool = True) -> None:
         ...
@@ -44,4 +47,15 @@ class SMTPEmailSender:
         )
 
 
-email_sender: EmailSender = SMTPEmailSender()
+class NullEmailSender:
+    """Used instead of SMTPEmailSender when settings.EMAIL_ENABLED is False:
+    logs what would have been sent (recipient/subject only, never the body -
+    it can contain a raw verification/reset token) without opening an SMTP
+    connection. Keeps local dev/test runs from burning a real provider's
+    send quota on every signup/reset/account-deletion flow."""
+
+    async def send(self, to_email: str, subject: str, body: str, is_html: bool = True) -> None:
+        logger.info("EMAIL_ENABLED=false, not sending: to=%s subject=%r", to_email, subject)
+
+
+email_sender: EmailSender = SMTPEmailSender() if settings.EMAIL_ENABLED else NullEmailSender()

@@ -1,4 +1,7 @@
 # Condition Schema Reference
+---
+
+*New to a term here? See the [Authorization Glossary](../glossary/authorization.md).*
 
 A policy's `conditions` field is a JSON object where each key is a condition type. All present keys are AND'ed: every one must pass for the policy to grant access on a given check. `conditions: null` (or omitted) means an unconditional grant.
 
@@ -119,7 +122,7 @@ The current date (UTC) must fall within `[start, end]`. Used for temporary/contr
 
 ## `network`
 
-The caller's IP (from the real request connection, see [Architecture: Context Builder](architecture.md#authorization-context-builder)) must match one of the listed single IPs or CIDR ranges.
+The caller's IP (from the real request connection, see [Architecture: Context Builder](architecture/component-responsibilities.md#authorization-context-builder)) must match one of the listed single IPs or CIDR ranges.
 
 ```json
 {
@@ -140,7 +143,7 @@ The caller's IP (from the real request connection, see [Architecture: Context Bu
 
 ## `security_context`
 
-Every listed key must match its expected value in `context["security_context"]`, the reserved sub-key every real request context carries (see [Architecture: Context Builder](architecture.md#authorization-context-builder)).
+Every listed key must match its expected value in `context["security_context"]`, the reserved sub-key every real request context carries (see [Architecture: Context Builder](architecture/component-responsibilities.md#authorization-context-builder)).
 
 ```json
 {
@@ -175,3 +178,5 @@ All present keys are AND'ed:
 ```
 
 This grants access only during business hours **and** from the corporate network; both must pass.
+
+---

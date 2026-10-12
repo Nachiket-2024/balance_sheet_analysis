@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth.refresh_token_logic.refresh_token_service import refresh_token_service
 from ...auth.security.login_protection_service import login_protection_service
-from ...auth.security.rate_limiter_service import rate_limiter_service
+from ...auth.security.rate_limiting.rate_limiter_service import rate_limiter_service
+from ...auth.token_logic.jwt_service import jwt_service
 from ...core.errors import AppError
 from ...logging.logging_config import get_logger
 
@@ -49,6 +50,29 @@ class RefreshTokenHandler:
             rate_key = f"refresh:ratelimit:ip:{client_ip}"
             lock_key = f"refresh:lockout:ip:{client_ip}"
 
+            # Account-level lockout dimension, mirroring login_lock:email:* on
+            # the login flow (see login_protection_service's other caller).
+            # Without this, the IP-keyed lock_key above is the only backstop:
+            # a leaked/stolen refresh token replayed from many different IPs
+            # (a botnet, rotating proxies, a mobile connection that changes
+            # IP) never accumulates enough failures on any single IP key to
+            # lock out, while two unrelated accounts sharing one IP (same
+            # office network/NAT) can lock each other out of refresh through
+            # no fault of their own. decode_payload does signature+expiry
+            # checks only, deliberately skipping the revocation check (same
+            # reason jwt_service.decode_payload exists for reuse-detection
+            # below this handler's own call chain) - a stolen-but-still-
+            # correctly-signed token still yields its account email even
+            # once revoked/stale, which is exactly the token this dimension
+            # needs to catch. A token that fails signature verification
+            # entirely (a guess, not a leaked real token) yields no email;
+            # the IP-keyed lock above already covers that case.
+            account_lock_key: str | None = None
+            payload = await jwt_service.decode_payload(refresh_token)
+            email = payload.get("email") if payload else None
+            if email:
+                account_lock_key = f"refresh:lockout:account:{email}"
+
             allowed = await rate_limiter_service.record_request(rate_key)
             if not allowed:
                 raise AppError(
@@ -58,6 +82,8 @@ class RefreshTokenHandler:
                 )
 
             is_locked = await login_protection_service.is_locked(lock_key)
+            if not is_locked and account_lock_key:
+                is_locked = await login_protection_service.is_locked(account_lock_key)
             if is_locked:
                 raise AppError(
                     status_code=429,
@@ -72,6 +98,8 @@ class RefreshTokenHandler:
 
             if not tokens_dict or not tokens_dict.get("access_token"):
                 await login_protection_service.record_failed_attempt(lock_key)
+                if account_lock_key:
+                    await login_protection_service.record_failed_attempt(account_lock_key)
                 raise AppError(
                     status_code=401,
                     code="INVALID_OR_REVOKED_REFRESH_TOKEN",
@@ -81,6 +109,8 @@ class RefreshTokenHandler:
             tokens = TokenPairResponseSchema(**tokens_dict)
 
             await login_protection_service.reset_failed_attempts(lock_key)
+            if account_lock_key:
+                await login_protection_service.reset_failed_attempts(account_lock_key)
 
             response = JSONResponse(content={"message": "Tokens refreshed successfully"})
 

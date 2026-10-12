@@ -1,4 +1,7 @@
 {
     "COMPANY_NOT_FOUND": "Company not found",
-    "BALANCE_SHEET_NOT_FOUND": "Balance sheet not found"
+    "BALANCE_SHEET_NOT_FOUND": "Balance sheet not found",
+    "FINANCIAL_STATEMENT_NOT_FOUND": "Financial statement not found",
+    "REVIEW_REPORT_NOT_FOUND": "Review report not found",
+    "ALERT_NOT_FOUND": "Alert not found"
 }

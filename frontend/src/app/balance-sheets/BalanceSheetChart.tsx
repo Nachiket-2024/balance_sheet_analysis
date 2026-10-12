@@ -1,6 +1,6 @@
 import React from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Box, HStack, Text } from "@chakra-ui/react";
+import { LineChart as ChartIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Card } from "../sdk";
@@ -52,10 +52,11 @@ const BalanceSheetChart: React.FC<BalanceSheetChartProps> = ({ balanceSheets }) 
         }));
 
     return (
-        <Card p={5} mb={6}>
-            <Text fontWeight="semibold" mb={4} fontSize="lg">
+        <Card className="mb-6 p-5">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                <ChartIcon size={18} className="text-brand-fg" aria-hidden="true" />
                 {t("chartTitle")}
-            </Text>
+            </h2>
 
             {/* Axis titles are plain Chakra text outside the chart's own SVG,
                 not recharts' inline <Label> (which sits inside the plot area
@@ -63,40 +64,34 @@ const BalanceSheetChart: React.FC<BalanceSheetChartProps> = ({ balanceSheets }) 
                 numbers it's meant to caption). Laying them out with flexbox
                 keeps a fixed gap from the tick labels regardless of chart
                 size, so they can never collide. */}
-            <HStack align="stretch" gap={1}>
-                <Box flexShrink={0} w="28px" display="flex" alignItems="center" justifyContent="center">
-                    <Text
-                        fontSize="md"
-                        fontWeight="semibold"
-                        color="fg.muted"
-                        whiteSpace="nowrap"
-                        style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
-                    >
+            <div className="flex items-stretch gap-1">
+                <div className="flex w-7 shrink-0 items-center justify-center">
+                    <span className="whitespace-nowrap text-base font-semibold text-fg-muted" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
                         {t("amountAxisLabel")}
-                    </Text>
-                </Box>
+                    </span>
+                </div>
 
-                <Box flex="1" minW={0}>
+                <div className="min-w-0 flex-1">
                     {/* initialDimension is the size used until ResizeObserver reports a
                         real measurement; real browsers always have ResizeObserver, so
                         this only affects the very first paint frame there, but it's
                         also what makes this chart testable in jsdom at all, which has
                         no ResizeObserver and would otherwise measure a permanent 0x0
                         container and render no children (see BalanceSheetChart.test.tsx). */}
-                    <ResponsiveContainer width="100%" height={340} initialDimension={{ width: 800, height: 340 }}>
+                    <ResponsiveContainer width="100%" height={280} initialDimension={{ width: 800, height: 280 }}>
                         <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 4 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--chakra-colors-border-default)" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
                             <XAxis
                                 dataKey="year"
-                                stroke="var(--chakra-colors-fg-muted)"
-                                tick={{ fill: "var(--chakra-colors-fg-muted)", fontSize: 12 }}
+                                stroke="var(--fg-muted)"
+                                tick={{ fill: "var(--fg-muted)", fontSize: 12 }}
                                 tickMargin={8}
                             />
                             <YAxis
                                 tickFormatter={formatCompactUsd}
                                 width={64}
-                                stroke="var(--chakra-colors-fg-muted)"
-                                tick={{ fill: "var(--chakra-colors-fg-muted)", fontSize: 12 }}
+                                stroke="var(--fg-muted)"
+                                tick={{ fill: "var(--fg-muted)", fontSize: 12 }}
                                 tickMargin={6}
                             />
                             {/* Recharts v3 infers a wider Tooltip formatter type than v2. */}
@@ -104,14 +99,14 @@ const BalanceSheetChart: React.FC<BalanceSheetChartProps> = ({ balanceSheets }) 
                                 formatter={(value) => (typeof value === "number" ? value.toLocaleString() : value)}
                                 labelFormatter={(label) => t("tooltipFiscalYear", { year: label })}
                                 contentStyle={{
-                                    background: "var(--chakra-colors-bg-surface)",
-                                    border: "1px solid var(--chakra-colors-border-default)",
+                                    background: "var(--bg-surface)",
+                                    border: "1px solid var(--border-default)",
                                     borderRadius: "6px",
-                                    color: "var(--chakra-colors-fg-default)",
+                                    color: "var(--fg-default)",
                                 }}
-                                labelStyle={{ color: "var(--chakra-colors-fg-default)", fontWeight: 600 }}
+                                labelStyle={{ color: "var(--fg-default)", fontWeight: 600 }}
                             />
-                            <Legend wrapperStyle={{ color: "var(--chakra-colors-fg-muted)", paddingTop: 8 }} />
+                            <Legend wrapperStyle={{ color: "var(--fg-muted)", paddingTop: 8 }} />
                             {SERIES.map((series) => (
                                 <Line
                                     key={series.key}
@@ -128,11 +123,11 @@ const BalanceSheetChart: React.FC<BalanceSheetChartProps> = ({ balanceSheets }) 
                         </LineChart>
                     </ResponsiveContainer>
 
-                    <Text fontSize="md" fontWeight="semibold" color="fg.muted" textAlign="center" mt={1}>
+                    <p className="mt-1 text-center text-base font-semibold text-fg-muted">
                         {t("fiscalYearAxisLabel")}
-                    </Text>
-                </Box>
-            </HStack>
+                    </p>
+                </div>
+            </div>
         </Card>
     );
 };

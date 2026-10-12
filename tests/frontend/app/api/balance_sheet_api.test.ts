@@ -5,6 +5,7 @@ import {
   listCompanyBalanceSheetsApi,
   getCompanyBalanceSheetApi,
   importCompanyBalanceSheetApi,
+  exportCompanyBalanceSheetsApi,
   deleteCompanyBalanceSheetApi,
 } from '@app/api/balance_sheet_api';
 
@@ -48,6 +49,24 @@ describe('importCompanyBalanceSheetApi', () => {
     const response = await importCompanyBalanceSheetApi(5, 2024);
 
     expect(response.status).toBe(201);
+  });
+
+  it('sends refresh=true only for an explicit refresh', async () => {
+    mock.onPost('/balance-sheets/5/2024', undefined, { params: { refresh: true } }).reply(201, { id: 2, company_id: 5, year: 2024 });
+
+    const response = await importCompanyBalanceSheetApi(5, 2024, true);
+
+    expect(response.status).toBe(201);
+  });
+});
+
+describe('exportCompanyBalanceSheetsApi', () => {
+  it('requests a CSV blob for the selected company', async () => {
+    mock.onGet('/balance-sheets/company/5/export.csv').reply(200, "year,total_assets\n2024,10");
+
+    const response = await exportCompanyBalanceSheetsApi(5);
+
+    expect(response.data).toContain('year,total_assets');
   });
 });
 

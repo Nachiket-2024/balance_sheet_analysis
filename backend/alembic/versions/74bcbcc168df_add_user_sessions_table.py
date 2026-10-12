@@ -6,7 +6,7 @@ Create Date: 2026-08-01 00:00:00.000000
 
 Adds the persistent, per-session tracking backing the "Manage Sessions"
 dashboard card: one row per login session (device/browser, IP, first-seen,
-last-used), independent of (but kept in sync with) the actual Redis-backed
+last-used), independent of (but kept in sync with) the actual Valkey-backed
 account/chain version counters that govern real token validity
 (jwt_service.py). Refresh tokens rotate their jti on every /auth/refresh
 call, so `current_jti` tracks whichever jti currently represents a session
@@ -35,7 +35,7 @@ def upgrade() -> None:
         # Stable per-login identity, unchanged across every rotation of
         # this session (unlike current_jti, which is single-use and
         # rotates on every /auth/refresh call): what a single-session
-        # revoke or logout actually invalidates in Redis (jwt_service's
+        # revoke or logout actually invalidates in Valkey (jwt_service's
         # chain_ver:{email}:{chain_id} counter), and what ties every row's
         # rotations back to the one login that started it. Nullable since
         # sessions predating this column carry none.

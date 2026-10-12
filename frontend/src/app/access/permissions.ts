@@ -14,6 +14,7 @@ export const APP_PERMISSIONS = {
     BALANCE_SHEET_IMPORT: "balance_sheet:import",
     BALANCE_SHEET_DELETE: "balance_sheet:delete",
     LLM_CHAT: "llm:chat",
+    LLM_USAGE_READ_ALL: "llm:usage_read_all",
 } as const;
 
 export type AppPermissionValue = (typeof APP_PERMISSIONS)[keyof typeof APP_PERMISSIONS];

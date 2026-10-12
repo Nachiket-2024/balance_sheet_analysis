@@ -1,18 +1,24 @@
 # Writing and Testing Policies
+---
+
+*New to a term here? See the [Authorization Glossary](../glossary/authorization.md).*
 
 ## Policy creation workflow
 
 ```mermaid
+%%{init: {"themeVariables": {"lineColor": "#334155"}} }%%
 flowchart TD
-    A["1. Decide action(s)<br/>+ resource type"] --> B["2. Decide conditions,<br/>if any"]
-    B --> C["3. Create policy<br/><small>POST /authorization/policies<br/>requires policies:create</small>"]
-    C --> D["4. Assign to a user<br/><small>POST /authorization/users/{email}/policies<br/>requires policies:assign</small>"]
-    D --> E["5. Verify<br/><small>POST /authorization/users/{email}/authorization-check<br/>requires policies:read</small>"]
+    A["1. Decide action(s)\n + resource type"] --> B["2. Decide conditions,\n if any"]
+    B --> C["3. Create policy\n POST\n /authorization/policies\n requires policies:create"]
+    C --> D["4. Assign to a user\n POST /authorization/\n users/{email}/policies\n requires policies:assign"]
+    D --> E["5. Verify\n POST /authorization/\n users/{email}/\n authorization-check\n requires policies:read"]
+    linkStyle default stroke:#334155,stroke-width:2px
 ```
+---
 
 1. **Decide the action(s) and resource type.** Use an existing `Permission` value if this is about users/policies themselves ([Adding New Permissions](adding-permissions.md)); otherwise any action string works for a downstream application's own resources.
 2. **Decide conditions, if any.** See the [Condition Schema Reference](condition-schema-reference.md): omit `conditions` entirely for an unconditional grant.
-3. **Create it** via `POST /authorization/policies` (requires `policies:create`, and you must already hold every action you're granting: see [Architecture](architecture.md#authorization-service)):
+3. **Create it** via `POST /authorization/policies` (requires `policies:create`, and you must already hold every action you're granting: see [Architecture](architecture/component-responsibilities.md#authorization-service)):
 
    ```bash
    curl -X POST https://your-app/authorization/policies \
@@ -43,17 +49,25 @@ flowchart TD
      -d '{"action": "reports:view", "resource_type": "reports"}'
    ```
 
+---
+
 ### Editing a policy
 
 `PUT /authorization/policies/{name}` (requires `policies:update`): only the fields you send are changed. Every edit is versioned: see [Policy history and rollback](#policy-history-and-rollback) below. If you change `actions`, you must already hold every action in the *new* list, not just the ones being added.
 
+---
+
 ### Protected baseline policies
 
-`self_service`, `user_administration`, and `system_superuser` can never be deleted or renamed via the management API, regardless of who's calling: every default account assignment (signup, OAuth2, `create_system_user.py`) looks them up by these exact names. Their other fields (description, actions, conditions) can still be edited.
+`self_service`, `user_management`, and `system_superuser` can never be deleted or renamed via the management API, regardless of who's calling: every default account assignment (signup, OAuth2, `create_system_user.py`) looks them up by these exact names. Their other fields (description, actions, conditions) can still be edited.
+
+---
 
 ### Giving every user a second default policy
 
-`self_service` is assigned unconditionally at signup, before the account is even verified. If your app wants every user to *also* get one of its own policies by default, once verified, set `DEFAULT_APP_POLICIES` (`.env`, comma-separated policy names) rather than editing `signup_service.py`/`oauth2_service.py`/`user_verification_service.py` directly: those three call a shared, downstream-configurable hook (`authorization/policies/default_policies.py::assign_app_default_policies`) the moment an account transitions to verified (email-link verification, or OAuth2, which verifies on the spot). Empty (the default) is a no-op — self_service only, same as before this setting existed. The policies it names must already exist (create them the normal way: `POST /authorization/policies` or your own Alembic migration) or the assignment is skipped with a logged error, not a failure of the signup/login request that triggered it.
+`self_service` is assigned unconditionally at signup, before the account is even verified. If your app wants every user to *also* get one of its own policies by default, once verified, set the app-owned `DEFAULT_APP_POLICIES` in the matching `env/app/.env.<mode>` file (comma-separated policy names) rather than editing `signup_service.py`/`oauth2_service.py`/`user_verification_service.py` directly: those three call a shared, downstream-configurable hook (`authorization/policies/default_policies.py::assign_app_default_policies`) the moment an account transitions to verified (email-link verification, or OAuth2, which verifies on the spot). Empty (the default) is a no-op: self_service only, same as before this setting existed. The policies it names must already exist (create them the normal way: `POST /authorization/policies` or your own Alembic migration) or the assignment is skipped with a logged error, not a failure of the signup/login request that triggered it.
+
+---
 
 ### Policy history and rollback
 
@@ -67,7 +81,7 @@ Every create/update/delete stages an immutable row in `policy_history` in the sa
 
 ## Local testing approach
 
-**Fastest feedback: unit tests with mocked policies** (no DB needed): see `tests/backend/mystic_auth/unit/authorization/evaluators/test_policy_evaluator_unit.py` and `evaluators/test_authorization_decision_unit.py`. Build a `Policy(...)` instance directly (it's a plain SQLAlchemy model, freely instantiable without a session) and call `PolicyEvaluationEngine.evaluate_detailed` directly:
+**Fastest feedback: unit tests with mocked policies** (no DB needed): see `tests/backend/mystic_auth/unit/authorization/evaluators/test_policy_evaluator_unit.py` and `tests/backend/mystic_auth/unit/authorization/evaluators/test_authorization_decision_unit.py`. Build a `Policy(...)` instance directly (it's a plain SQLAlchemy model, freely instantiable without a session) and call `PolicyEvaluationEngine.evaluate_detailed` directly:
 
 ```python
 from backend.mystic_auth.authorization.models.policy_model import Policy
@@ -84,7 +98,7 @@ def test_my_new_policy_shape_grants_the_right_action():
     assert decision.allowed is True
 ```
 
-**Against a real database** (via `scripts/docker/backend-exec.sh pytest tests/backend/mystic_auth/integration/`, see [Troubleshooting](troubleshooting.md): or from the host once `docker compose up -d postgres redis`): create a real user, assign the real policy, log in, and hit a real protected route:
+**Against a real database** (via `scripts/mystic_auth/docker/dev/backend-exec.sh pytest tests/backend/mystic_auth/integration/`, see [Troubleshooting](troubleshooting/README.md): or from the host once `docker compose -f docker/mystic_auth/compose/docker-compose.dev.yml -f docker/app/compose/docker-compose.dev.yml --env-file env/mystic_auth/.env.dev --env-file env/app/.env.dev up -d postgres valkey`): create a real user, assign the real policy, log in, and hit a real protected route:
 
 ```python
 @pytest.mark.asyncio
@@ -97,7 +111,7 @@ async def test_assigning_report_viewers_actually_grants_access(client, created_e
     assert resp.status_code == 200
 ```
 
-See `tests/backend/mystic_auth/integration/authorization_test_accounts.py` for the full fixture pattern (`create_verified_user`, `create_system_user`, `create_user_with_custom_policy_actions`) and `tests/backend/mystic_auth/security/conftest.py` for the shared reusable version of the same helpers.
+See `tests/backend/mystic_auth/integration/authorization/authorization_test_accounts.py` for the full fixture pattern (`create_verified_user`, `create_system_user`, `create_user_with_custom_policy_actions`) and `tests/backend/mystic_auth/security/conftest.py` for the shared reusable version of the same helpers.
 
 ---
 
@@ -122,7 +136,7 @@ def test_self_only_denies_a_different_owner():
     assert allowed is False
 ```
 
-**Multiple policies, one grants and one fails** (the exact scenario `AuthorizationDecision` exists to explain: see `authorization/test_authorization_decision_unit.py`):
+**Multiple policies, one grants and one fails** (the exact scenario `AuthorizationDecision` exists to explain: see `tests/backend/mystic_auth/unit/authorization/evaluators/test_authorization_decision_unit.py`):
 
 ```python
 def test_one_matching_policy_is_enough_even_if_another_rejects():
@@ -145,3 +159,5 @@ def test_inactive_policy_is_never_a_candidate():
     # engine ever sees a policy, so pass an empty list to simulate that:
     assert PolicyEvaluationEngine.evaluate([], "x:read", "x", "u@example.com") is False
 ```
+
+---

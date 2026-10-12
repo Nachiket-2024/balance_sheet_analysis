@@ -1,65 +1,177 @@
 import React, { useMemo, useState } from "react";
-import { Badge, Button, HStack, Input, Text, Wrap } from "@chakra-ui/react";
 import { useTranslation } from "react-i18next";
-
-import PageContainer from "../ui/PageContainer";
-import DataTable, { type DataTableColumn } from "../ui/DataTable";
-import ConfirmDialog from "../ui/ConfirmDialog";
-import TableActionButton from "../ui/TableActionButton";
-import { SEARCH_INPUT_PROPS } from "../ui/styles/inputStyles";
-import { BRAND_SOLID_HOVER_PROPS } from "../ui/styles/buttonStyles";
-import { IfCan } from "../authorization/IfCan";
+import { useSearchParams } from "react-router";
+import { useCan } from "../authorization/useCan";
 import { PERMISSIONS } from "../authorization/permissions";
+import { useDebouncedValue } from "../ui/hooks/useDebouncedValue";
+import { usePageResetOn } from "../ui/hooks/usePageResetOn";
 import { toaster } from "../ui/toaster/toasterInstance";
-import { usePoliciesQuery } from "./policyQueries";
-import { useCreatePolicyMutation, useUpdatePolicyMutation, useDeletePolicyMutation } from "./policyMutations";
-import PolicyFormDialog, { type PolicyFormValues } from "./PolicyFormDialog";
-import PolicyStatsCard from "./PolicyStatsCard";
+import { usePoliciesQuery, usePoliciesListQuery, usePolicyHoldersQuery } from "./queries/policyQueries";
+import { useCreatePolicyMutation, useUpdatePolicyMutation, useDeletePolicyMutation } from "./queries/policyMutations";
+import type { PolicyFormValues } from "./dialogs/PolicyFormDialog";
+import { ALL_VALUE } from "./PoliciesFilterBar";
 import type { PolicyRead } from "../api/policies_api";
+import { usePoliciesUiStore } from "./policiesUiStore";
+import PoliciesPageContent from "./PoliciesPageContent";
+import { groupPoliciesByResourceType } from "./policyListHelpers";
+import * as pageHandlers from "./policiesPageHandlers";
+import { useOptimisticPolicyActivity } from "./useOptimisticPolicyActivity";
+
+const PAGE_SIZE = 25;
+
+/** Maps the placeholder "All" option ("") to `undefined` (no filter). */
+function toBoolFilter(value: string): boolean | undefined {
+    if (value === ALL_VALUE) return undefined;
+    return value === "true";
+}
 
 /**
  * PoliciesPage
  * ----------------------------
- * Management CRUD for policies (backend: /authorization/policies). Route itself
- * is gated by ProtectedRoute permission="policies:read"; the create/edit/
- * delete affordances are additionally gated per-action here via IfCan,
- * since a caller might hold policies:read without policies:create/update/
- * delete.
+ * Management CRUD for policies (backend: /authorization/policies). The
+ * route is gated by ProtectedRoute on policies:read or policies:create;
+ * create/edit/delete are further gated per-action via IfCan since a caller
+ * might have read without create/update/delete. Search and resource-type/
+ * status filters run server-side (same as UsersPage) since the policy list
+ * can no longer be assumed small enough to filter client-side.
+ *
+ * Renders one card per policy (design/policies.html), not a table: at
+ * dozens of policies and hundreds of actions, a table row of badges became
+ * a wall of text. Each card collapses its actions by default and expands
+ * to show them grouped by verb. Activating/deactivating is an instant
+ * switch with a 6s Undo toast instead of a confirm dialog, since it's
+ * fully reversible; only Delete keeps a confirmation.
+ *
+ * A caller with only policies:create (not policies:read) can't list, search,
+ * or filter policies, since GET /authorization/policies requires read. For
+ * them the list/stats queries never fire (see canReadPolicies below) and the
+ * page shows a restricted-view notice plus a standalone Create Policy
+ * button instead of an empty list stuck in an error state.
  */
 const PoliciesPage: React.FC = () => {
     const { t } = useTranslation(["policies", "ui_text"]);
-    const { data: policies, isLoading, isError } = usePoliciesQuery();
 
-    // Client-side, same reasoning as UsersPage's search: GET /policies
-    // already loads the full list, so there's nothing to save by filtering
-    // server-side, and filtering this small an in-memory array needs no
-    // debounce.
-    const [search, setSearch] = useState("");
-    const filteredPolicies = useMemo(() => {
-        if (!policies) return policies;
-        const q = search.trim().toLowerCase();
-        if (!q) return policies;
-        return policies.filter(
-            (p) => p.name.toLowerCase().includes(q) || p.resource_type.toLowerCase().includes(q)
-        );
-    }, [policies, search]);
+    const canReadPolicies = useCan(PERMISSIONS.POLICIES_READ);
+
+    const [searchParams] = useSearchParams();
+    const policyUiStore = usePoliciesUiStore();
+    // Search accepts a one-shot URL override for command-palette and external
+    // deep links. Other filters remain session-persisted, matching Users and
+    // Permissions, because they represent operator workspace preferences.
+    const [search, setSearchState] = useState(() => searchParams.get("search") ?? policyUiStore.search);
+    const { resourceType, status, containsAction, destructiveOnly, update } = policyUiStore;
+    const setSearch = (value: string) => {
+        setSearchState(value);
+        update({ search: value });
+    };
+    // Debounced since search is now a server request, not a client filter -
+    // typing shouldn't fire one request per keystroke.
+    const debouncedSearch = useDebouncedValue(search);
+    const setResourceType = (value: string) => update({ resourceType: value });
+    const setStatus = (value: string) => update({ status: value });
+    const setContainsAction = (value: string) => update({ containsAction: value });
+    // Which stats tile (if any) drives the current status filter, purely to
+    // decide which tile renders pressed - "destructive" has no server-side
+    // filter param, so it's applied client-side below instead of joining
+    // this piece of state.
+    const setDestructiveOnly = (value: boolean | ((prev: boolean) => boolean)) =>
+        update({ destructiveOnly: typeof value === "function" ? value(destructiveOnly) : value });
+
+    // Any search/filter change can make the current page meaningless, so
+    // always reset to page 1. See usePageResetOn's docstring for why this
+    // is derived during render rather than in an effect.
+    const [page, setPage] = usePageResetOn(
+        `${debouncedSearch}|${resourceType}|${status}|${containsAction}|${destructiveOnly}`
+    );
+
+    const { data, isFetching, isLoading, isError, refetch } = usePoliciesListQuery(
+        page,
+        PAGE_SIZE,
+        {
+            search: debouncedSearch,
+            resourceType: resourceType || undefined,
+            isActive: toBoolFilter(status),
+            containsAction: containsAction || undefined,
+            destructiveOnly,
+            sortBy: "name",
+            sortDir: "asc",
+        },
+        canReadPolicies
+    );
+    // PolicyStatsCard's counts should stay independent of the current page/
+    // filters, so it uses the full unfiltered list.
+    const {
+        data: allPolicies,
+        isLoading: isStatsLoading,
+    } = usePoliciesQuery(canReadPolicies);
+
+    const serverPolicies = data?.policies;
+    const { policies: filteredPolicies, setOptimisticActive, rollbackOptimisticActive } = useOptimisticPolicyActivity(serverPolicies);
+    const displayTotal = data?.total;
+    const displayData = data && displayTotal !== undefined
+        ? { policies: filteredPolicies ?? [], total: displayTotal }
+        : data;
+    const displayIsLoading = isLoading;
+    const displayIsError = isError && !data;
+    const displayRefetch = refetch;
+    const totalPages = displayTotal !== undefined ? Math.max(1, Math.ceil(displayTotal / PAGE_SIZE)) : 1;
+
+    // Policies are always grouped by resource type. Rows within a group keep
+    // the server's own name-sort order and show the group count.
+    const groupedByResourceType = useMemo(
+        () => groupPoliciesByResourceType(filteredPolicies ?? []),
+        [filteredPolicies],
+    );
 
     const [formOpen, setFormOpen] = useState(false);
     const [editingPolicy, setEditingPolicy] = useState<PolicyRead | undefined>(undefined);
     const [deletingPolicy, setDeletingPolicy] = useState<PolicyRead | null>(null);
+    const [viewingPolicy, setViewingPolicy] = useState<PolicyRead | null>(null);
+    const [viewingPolicyTrigger, setViewingPolicyTrigger] = useState<HTMLElement | null>(null);
+    const [initialPolicyTab, setInitialPolicyTab] = useState<"details" | "edit">("details");
+    const [openNames, setOpenNames] = useState<Set<string>>(new Set());
+
+    // Fetched only once the delete confirm is actually open, to show "N
+    // users will lose access" (design/policies.html's deleteNote) instead
+    // of the generic warning alone.
+    const {
+        data: deletingPolicyHolders,
+        isLoading: isDeletingPolicyHoldersLoading,
+        isError: isDeletingPolicyHoldersError,
+        refetch: refetchDeletingPolicyHolders,
+    } = usePolicyHoldersQuery(deletingPolicy?.name ?? "", !!deletingPolicy);
 
     const createMutation = useCreatePolicyMutation();
     const updateMutation = useUpdatePolicyMutation();
+    const actionUpdateMutation = useUpdatePolicyMutation();
     const deleteMutation = useDeletePolicyMutation();
+    // Separate from updateMutation (the edit form's own save call) so a
+    // switch click's pending state doesn't bleed into PolicyFormDialog's
+    // isSaving.
+    const statusMutation = useUpdatePolicyMutation();
+    const togglingName = statusMutation.isPending ? statusMutation.variables?.policyName : undefined;
 
     const openCreateForm = () => {
         setEditingPolicy(undefined);
+        setViewingPolicy(null);
+        setViewingPolicyTrigger(null);
         setFormOpen(true);
     };
 
     const openEditForm = (policy: PolicyRead) => {
         setEditingPolicy(policy);
-        setFormOpen(true);
+        setInitialPolicyTab("edit");
+        setViewingPolicy(policy);
+        setFormOpen(false);
+    };
+
+    const openView = (policy: PolicyRead | null, trigger?: HTMLElement) => {
+        if (policy) {
+            setEditingPolicy(policy);
+            setInitialPolicyTab("details");
+            if (trigger) setViewingPolicyTrigger(trigger);
+        }
+        setViewingPolicy(policy);
     };
 
     const closeForm = () => {
@@ -76,6 +188,7 @@ const PoliciesPage: React.FC = () => {
                     onSuccess: () => {
                         toaster.create({ title: t("policies:page.policyUpdatedToast"), type: "success" });
                         closeForm();
+                        setViewingPolicy(null);
                     },
                 }
             );
@@ -88,6 +201,13 @@ const PoliciesPage: React.FC = () => {
             });
         }
     };
+
+    const handleActionsChange = (
+        actions: string[],
+        rollback: () => void,
+        previousActions: string[],
+        apply: () => void,
+    ) => pageHandlers.handleActionsChange({ editingPolicy, actions, rollback, previousActions, apply, t, actionUpdateMutation });
 
     const handleDeleteConfirm = () => {
         if (!deletingPolicy) return;
@@ -105,118 +225,107 @@ const PoliciesPage: React.FC = () => {
         );
     };
 
-    const columns: DataTableColumn<PolicyRead>[] = [
-        {
-            key: "name",
-            header: t("policies:columns.name"),
-            width: "220px",
-            truncate: true,
-            render: (p) => (
-                <Text fontWeight="medium">
-                    {p.name}
-                    {!p.is_active && (
-                        <Badge ml={2} colorPalette="gray" size="md">
-                            {t("ui_text:inactive")}
-                        </Badge>
-                    )}
-                </Text>
-            ),
-        },
-        { key: "resource_type", header: t("policies:columns.resourceType"), width: "150px", truncate: true, render: (p) => p.resource_type },
-        {
-            key: "actions_list",
-            header: t("policies:columns.actions"),
-            render: (p) => (
-                <Wrap gap={1}>
-                    {p.actions.map((a) => (
-                        <Badge key={a} colorPalette="brand" variant="subtle" fontSize="15px" px={2} py={0.5}>
-                            {a}
-                        </Badge>
-                    ))}
-                </Wrap>
-            ),
-        },
-        {
-            key: "row_actions",
-            header: "",
-            align: "end",
-            // 150px only fit the English "Edit"/"Delete" labels; Hindi/Marathi
-            // translations (e.g. "संपादित करें"/"काढून टाका") are noticeably
-            // longer and got clipped by the table's fixed-width, overflow-hidden
-            // cell. Widened and wrapped the same way usersColumns.tsx's own
-            // row-actions column already handles multiple/longer buttons.
-            width: "260px",
-            render: (p) => (
-                <HStack justify="flex-end" gap={2} wrap="wrap">
-                    <IfCan action={PERMISSIONS.POLICIES_UPDATE}>
-                        <TableActionButton colorPalette="orange" onClick={() => openEditForm(p)}>
-                            {t("policies:columns.edit")}
-                        </TableActionButton>
-                    </IfCan>
-                    <IfCan action={PERMISSIONS.POLICIES_DELETE}>
-                        <TableActionButton colorPalette="red" onClick={() => setDeletingPolicy(p)}>
-                            {t("ui_text:delete")}
-                        </TableActionButton>
-                    </IfCan>
-                </HStack>
-            ),
-        },
-    ];
+    const handleToggleActive = (policy: PolicyRead) => {
+        const nextActive = !policy.is_active;
+        setOptimisticActive(policy, nextActive);
+        pageHandlers.handleToggleActive({
+            policy,
+            t,
+            statusMutation,
+            onError: () => rollbackOptimisticActive(policy.name),
+        });
+    };
 
-    return (
-        <PageContainer
-            title={t("policies:page.title")}
-            description={t("policies:page.description")}
-            actions={<PolicyStatsCard policies={policies} isLoading={isLoading} />}
-            headerExtra={
-                <HStack gap={3} wrap="wrap">
-                    <Input
-                        placeholder={t("policies:page.searchPlaceholder")}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        maxW="sm"
-                        {...SEARCH_INPUT_PROPS}
-                    />
+    const toggleOpen = (policyName: string) => {
+        setOpenNames((prev) => {
+            const next = new Set(prev);
+            if (next.has(policyName)) next.delete(policyName);
+            else next.add(policyName);
+            return next;
+        });
+    };
+    const expandAll = () => setOpenNames(new Set((filteredPolicies ?? []).map((p) => p.name)));
+    const collapseAll = () => setOpenNames(new Set());
+    const allOpen = !!filteredPolicies?.length && filteredPolicies.every((p) => openNames.has(p.name));
+    const noneOpen = openNames.size === 0;
 
-                    <IfCan action={PERMISSIONS.POLICIES_CREATE}>
-                        <Button colorPalette="brand" onClick={openCreateForm} {...BRAND_SOLID_HOVER_PROPS}>
-                            {t("policies:page.createPolicy")}
-                        </Button>
-                    </IfCan>
-                </HStack>
-            }
-        >
-            <DataTable
-                columns={columns}
-                rows={filteredPolicies}
-                rowKey={(p) => p.id}
-                isLoading={isLoading}
-                isError={isError}
-                errorMessage={t("policies:page.failedToLoadPolicies")}
-                emptyMessage={search ? t("policies:page.noPoliciesMatchSearch") : t("policies:page.noPoliciesYet")}
-                startIndex={0}
-            />
+    const hasSearchOrFilters =
+        !!search || resourceType !== ALL_VALUE || status !== ALL_VALUE || containsAction !== ALL_VALUE || destructiveOnly;
+    const clearAllFilters = () => {
+        setSearch("");
+        setResourceType(ALL_VALUE);
+        setStatus(ALL_VALUE);
+        setContainsAction(ALL_VALUE);
+        setDestructiveOnly(false);
+    };
 
-            <PolicyFormDialog
-                isOpen={formOpen}
-                policy={editingPolicy}
-                isSaving={createMutation.isPending || updateMutation.isPending}
-                errorMessage={createMutation.error?.message ?? updateMutation.error?.message ?? null}
-                onSubmit={handleFormSubmit}
-                onClose={closeForm}
-            />
+    const activeTile = destructiveOnly
+        ? "destructive"
+        : status === "true" && resourceType === ALL_VALUE && !search
+          ? "active"
+          : status === "false" && resourceType === ALL_VALUE && !search
+            ? "inactive"
+            : !hasSearchOrFilters
+              ? "total"
+              : null;
 
-            <ConfirmDialog
-                isOpen={!!deletingPolicy}
-                title={t("policies:page.deleteDialogTitle")}
-                description={t("policies:page.deleteDialogDescription", { policyName: deletingPolicy?.name })}
-                confirmLabel={t("ui_text:delete")}
-                isLoading={deleteMutation.isPending}
-                onConfirm={handleDeleteConfirm}
-                onCancel={() => setDeletingPolicy(null)}
-            />
-        </PageContainer>
-    );
+    return <PoliciesPageContent
+        canReadPolicies={canReadPolicies}
+        data={displayData}
+        allPolicies={allPolicies}
+        isStatsLoading={isStatsLoading}
+        isFetching={isFetching}
+        isLoading={displayIsLoading}
+        isError={displayIsError}
+        refetch={displayRefetch}
+        page={page}
+        totalPages={totalPages}
+        filteredPolicies={filteredPolicies}
+        groupedByResourceType={groupedByResourceType}
+        search={search}
+        resourceType={resourceType}
+        status={status}
+        containsAction={containsAction}
+        destructiveOnly={destructiveOnly}
+        hasSearchOrFilters={hasSearchOrFilters}
+        activeTile={activeTile}
+        openNames={openNames}
+        togglingName={togglingName}
+        deletingPolicy={deletingPolicy}
+        deletingPolicyHolders={deletingPolicyHolders}
+        isDeletingPolicyHoldersLoading={isDeletingPolicyHoldersLoading}
+        isDeletingPolicyHoldersError={isDeletingPolicyHoldersError}
+        refetchDeletingPolicyHolders={refetchDeletingPolicyHolders}
+        editingPolicy={editingPolicy}
+        viewingPolicy={viewingPolicy}
+        viewingPolicyTrigger={viewingPolicyTrigger}
+        initialPolicyTab={initialPolicyTab}
+        formOpen={formOpen}
+        isSaving={createMutation.isPending || updateMutation.isPending}
+        formError={createMutation.error?.message ?? updateMutation.error?.message ?? null}
+        isDeletePending={deleteMutation.isPending}
+        onPageChange={setPage}
+        onSearchChange={setSearch}
+        onResourceTypeChange={setResourceType}
+        onStatusChange={setStatus}
+        onContainsActionChange={setContainsAction}
+        onDestructiveOnlyChange={setDestructiveOnly}
+        onClearFilters={clearAllFilters}
+        onExpandAll={expandAll}
+        onCollapseAll={collapseAll}
+        allOpen={allOpen}
+        noneOpen={noneOpen}
+        onCreate={openCreateForm}
+        onEdit={openEditForm}
+        onView={openView}
+        onToggleOpen={toggleOpen}
+        onToggleActive={handleToggleActive}
+        onDeleteRequest={setDeletingPolicy}
+        onSubmit={handleFormSubmit}
+        onActionsChange={handleActionsChange}
+        onCloseForm={closeForm}
+        onConfirmDelete={handleDeleteConfirm}
+    />;
 };
 
 export default PoliciesPage;

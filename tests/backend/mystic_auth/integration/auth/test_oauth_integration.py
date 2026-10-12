@@ -1,19 +1,19 @@
-# tests/backend/mystic_auth/integration/test_oauth_integration.py
+# tests/backend/mystic_auth/integration/auth/test_oauth_integration.py
 #
 # OAuth2 account-linking / CSRF flows against the real ASGI app, real
-# PostgreSQL, and real Redis (see conftest.py). The only mocked pieces are
-# the two outbound calls to Google itself (token exchange, userinfo), an
-# external provider calls are mocked at the HTTP boundary. Everything else,
-# including state
-# generation and single-use consumption in Redis, account
+# PostgreSQL, and real Valkey (see conftest.py). The only mocked pieces are
+# the two outbound calls to Google itself (token exchange, userinfo); the
+# external provider is mocked at the HTTP boundary. Everything else,
+# including state generation and single-use consumption in Valkey, account
 # lookup/creation/linking in Postgres, and JWT issuance and cookie
 # handling, is real.
 import uuid
 from unittest.mock import AsyncMock
 
 import pytest
-from backend.mystic_auth.database.connection import database
 from sqlalchemy import text
+
+from backend.mystic_auth.database.connection import database
 
 HANDLER_MODULE = "backend.mystic_auth.auth.oauth2.oauth2_login_handler"
 PASSWORD = "StrongPass123!"
@@ -88,9 +88,9 @@ async def test_oauth2_login_links_existing_unverified_password_account(client, c
     # Existing password account is linked (verified), not duplicated, but
     # its password is cleared rather than preserved. See
     # test_oauth2_login_clears_password_on_pre_hijacked_unverified_account
-    # for why: an *unverified* account's password was never proven to
-    # belong to this email's real owner, so it must not survive the account
-    # being claimed by whoever Google just verified as the owner.
+    # for why: an unverified account's password was never proven to belong
+    # to this email's real owner, so it must not survive the account being
+    # claimed by whoever Google just verified as the owner.
     row_after = await _get_user_row(email)
     assert row_after.is_verified is True
     assert row_after.hashed_password is None
@@ -148,10 +148,10 @@ async def test_oauth2_login_does_not_touch_password_of_already_verified_account(
     from backend.mystic_auth.auth.verify_account.account_verification_service import (
         account_verification_service,
     )
-    from backend.mystic_auth.redis.client import redis_client
+    from backend.mystic_auth.valkey.client import valkey_client
 
     token = await account_verification_service.create_verification_token(email)
-    await redis_client.set(f"verify:{token}", "1", ex=600)
+    await valkey_client.set(f"verify:{token}", "1", ex=600)
     verify_resp = await client.post("/auth/verify-account", json={"token": token})
     assert verify_resp.status_code == 200
 
@@ -228,11 +228,11 @@ async def test_oauth2_state_token_is_single_use(client, created_emails, mocker):
 
 @pytest.mark.asyncio
 async def test_oauth2_pkce_mismatch_rejected_end_to_end_no_user_created(client, created_emails, mocker):
-    # Simulates Google actually enforcing PKCE: a code_verifier that doesn't
-    # match the code_challenge sent at authorization time gets the token
-    # exchange rejected (400 invalid_grant), which exchange_code_for_tokens
-    # surfaces as None (see the unit-level fail-closed test). This is the
-    # real behavioral proof of the PKCE security property: a stolen
+    # Simulates Google enforcing PKCE: a code_verifier that doesn't match
+    # the code_challenge sent at authorization time gets the token exchange
+    # rejected (400 invalid_grant), which exchange_code_for_tokens surfaces
+    # as None (see the unit-level fail-closed test). This is the real
+    # behavioral proof of the PKCE security property: a stolen
     # authorization code alone must never be enough to complete login.
     email = _unique_email()
     mocker.patch(

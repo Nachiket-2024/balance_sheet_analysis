@@ -9,6 +9,7 @@
 # than folded into either routes file's test file) since each test here
 # exercises both CRUD and assignment routes together in one pass.
 import pytest
+
 from backend.mystic_auth.authorization.policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
 )
@@ -28,7 +29,7 @@ from .authorization_test_accounts import (
 __all__ = ["cleanup_test_policies"]
 
 
-async def _attempt_policy_routes(client, target_email):
+async def _attempt_policy_routes(client, target_email, policy_action):
     """As the currently logged-in caller, attempts every policy-management
     route against a disposable policy, returning {action: status_code}.
     A 403 means the authorization dependency denied the caller; any other
@@ -38,7 +39,7 @@ async def _attempt_policy_routes(client, target_email):
 
     create_resp = await client.post(
         "/authorization/policies",
-        json={"name": policy_name, "actions": ["projects:read"], "resource_type": "projects"},
+        json={"name": policy_name, "actions": [policy_action], "resource_type": "policies"},
     )
     statuses = {"create": create_resp.status_code}
 
@@ -50,8 +51,8 @@ async def _attempt_policy_routes(client, target_email):
             await policy_repository.create(
                 {
                     "name": policy_name,
-                    "actions": ["projects:read"],
-                    "resource_type": "projects",
+                    "actions": [policy_action],
+                    "resource_type": "policies",
                     "conditions": None,
                 },
                 session,
@@ -79,7 +80,7 @@ async def test_policies_read_only_can_read_but_not_write(client, created_emails)
     await create_verified_user(client, created_emails, target_email, [SELF_SERVICE_POLICY_NAME])
     await create_user_with_custom_policy_actions(client, created_emails, email, ["policies:read"])
 
-    statuses = await _attempt_policy_routes(client, target_email)
+    statuses = await _attempt_policy_routes(client, target_email, "policies:read")
     assert statuses["read_list"] != 403
     assert statuses["read_get"] != 403
     for action in ("create", "update", "delete", "assign", "revoke"):
@@ -93,7 +94,7 @@ async def test_policies_create_only_cannot_read_update_delete_assign_or_revoke(c
     await create_verified_user(client, created_emails, target_email, [SELF_SERVICE_POLICY_NAME])
     await create_user_with_custom_policy_actions(client, created_emails, email, ["policies:create"])
 
-    statuses = await _attempt_policy_routes(client, target_email)
+    statuses = await _attempt_policy_routes(client, target_email, "policies:create")
     assert statuses["create"] != 403
     for action in ("read_list", "read_get", "update", "delete", "assign", "revoke"):
         assert statuses[action] == 403
@@ -106,7 +107,7 @@ async def test_policies_update_only_cannot_read_create_delete_assign_or_revoke(c
     await create_verified_user(client, created_emails, target_email, [SELF_SERVICE_POLICY_NAME])
     await create_user_with_custom_policy_actions(client, created_emails, email, ["policies:update"])
 
-    statuses = await _attempt_policy_routes(client, target_email)
+    statuses = await _attempt_policy_routes(client, target_email, "policies:update")
     assert statuses["update"] != 403
     for action in ("read_list", "read_get", "create", "delete", "assign", "revoke"):
         assert statuses[action] == 403
@@ -119,7 +120,7 @@ async def test_policies_delete_only_cannot_read_create_update_assign_or_revoke(c
     await create_verified_user(client, created_emails, target_email, [SELF_SERVICE_POLICY_NAME])
     await create_user_with_custom_policy_actions(client, created_emails, email, ["policies:delete"])
 
-    statuses = await _attempt_policy_routes(client, target_email)
+    statuses = await _attempt_policy_routes(client, target_email, "policies:delete")
     assert statuses["delete"] != 403
     for action in ("read_list", "read_get", "create", "update", "assign", "revoke"):
         assert statuses[action] == 403
@@ -132,7 +133,7 @@ async def test_policies_assign_only_cannot_read_create_update_delete_or_revoke(c
     await create_verified_user(client, created_emails, target_email, [SELF_SERVICE_POLICY_NAME])
     await create_user_with_custom_policy_actions(client, created_emails, email, ["policies:assign"])
 
-    statuses = await _attempt_policy_routes(client, target_email)
+    statuses = await _attempt_policy_routes(client, target_email, "policies:assign")
     assert statuses["assign"] != 403
     for action in ("read_list", "read_get", "create", "update", "delete", "revoke"):
         assert statuses[action] == 403
@@ -145,7 +146,7 @@ async def test_policies_revoke_only_cannot_read_create_update_delete_or_assign(c
     await create_verified_user(client, created_emails, target_email, [SELF_SERVICE_POLICY_NAME])
     await create_user_with_custom_policy_actions(client, created_emails, email, ["policies:revoke"])
 
-    statuses = await _attempt_policy_routes(client, target_email)
+    statuses = await _attempt_policy_routes(client, target_email, "policies:revoke")
     assert statuses["revoke"] != 403
     for action in ("read_list", "read_get", "create", "update", "delete", "assign"):
         assert statuses[action] == 403

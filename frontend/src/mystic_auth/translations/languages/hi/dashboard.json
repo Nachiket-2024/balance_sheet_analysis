@@ -1,25 +1,65 @@
 {
+    "pageTitle": "डैशबोर्ड",
+    "greeting": {
+        "morning": "सुप्रभात, {{name}}",
+        "afternoon": "नमस्ते, {{name}}",
+        "evening": "शुभ संध्या, {{name}}"
+    },
     "loadingDetails": "आपका विवरण लोड हो रहा है...",
     "unableToFetch": "उपयोगकर्ता विवरण प्राप्त करने में असमर्थ",
     "noRole": "कोई भूमिका निर्धारित नहीं",
     "memberSince": "सदस्य बने",
-    "lastLogin": "पिछला लॉगिन",
+    "previousLogin": "पिछला लॉगिन",
+    "noPreviousLogin": "इससे पहले कोई नहीं",
     "activeSession": "सक्रिय सत्र",
     "activeSessions": "सक्रिय सत्र",
-    "accountSettingsButton": "खाता सेटिंग्स",
-    "logoutAllButton": "सभी से लॉगआउट",
+    "goToActiveSessions_one": "{{count}} सक्रिय सत्र, सत्र सूची पर जाएँ",
+    "goToActiveSessions_other": "{{count}} सक्रिय सत्र, सत्र सूची पर जाएँ",
     "noUserData": "कोई उपयोगकर्ता डेटा उपलब्ध नहीं",
+    "administration": {
+        "heading": "प्रशासन",
+        "loadError": "लोड नहीं हो सका",
+        "users": {
+            "label": "उपयोगकर्ता",
+            "secondary": "{{unverified}} असत्यापित · {{inactive}} निष्क्रिय"
+        },
+        "policies": {
+            "label": "नीतियाँ",
+            "secondary": "{{active}} सक्रिय · {{inactive}} निष्क्रिय"
+        },
+        "permissions": {
+            "label": "अनुमतियाँ",
+            "secondary": "{{count}} संसाधन प्रकारों में"
+        },
+        "rateLimits": {
+            "label": "दर सीमाएं",
+            "secondary": "अभी ट्रैक किए गए काउंटर"
+        },
+        "securityEvents": {
+            "label": "सुरक्षा घटनाएं",
+            "secondary": "हाल की खाता और सुरक्षा गतिविधि देखें"
+        }
+    },
+    "quickLinks": {
+        "changePassword": "पासवर्ड बदलें",
+        "appearance": "दिखावट"
+    },
     "logoutAllDialog": {
         "title": "सभी उपकरणों से लॉगआउट",
         "description": "इससे आपके खाते के हर उपकरण पर, इस उपकरण सहित, हर सक्रिय सत्र समाप्त हो जाएगा। जारी रखें?",
         "confirmLabel": "सभी से लॉगआउट"
     },
-    "manageSessions": {
-        "heading": "सत्र प्रबंधित करें",
+    "activeSessionsCard": {
+        "heading": "सक्रिय सत्र",
+        "logOutEverywhereButton": "हर जगह से लॉगआउट",
         "deviceColumn": "उपकरण",
         "thisDeviceBadge": "यह उपकरण",
         "ipColumn": "IP",
-        "ipUnknown": "अज्ञात",
+        "ipUnavailable": "IP उपलब्ध नहीं",
+        "locationColumn": "स्थान",
+        "locationUnavailable": "स्थान उपलब्ध नहीं",
+        "sessionCount_one": "{{count}} सक्रिय सत्र",
+        "sessionCount_other": "{{count}} सक्रिय सत्र",
         "signedInColumn": "साइन इन किया",
         "lastSeenColumn": "आखिरी बार देखा गया",
         "logOut": "लॉगआउट",
@@ -33,12 +73,25 @@
             "logoutThisDeviceDescription": "इससे आप अभी इस उपकरण से लॉगआउट हो जाएंगे। जारी रखें?",
             "endSessionDescription": "\"{{device}}\"{{ipSuffix}} पर सत्र समाप्त करें? वह उपकरण तुरंत साइन आउट कर दिया जाएगा।",
             "confirmLabel": "लॉगआउट"
-        }
+        },
+        "thisDeviceNotSelectable": "यह उपकरण चुना नहीं जा सकता",
+        "logOutSelected": "चयनित लॉगआउट करें",
+        "rowClickSelect": "चयन मोड",
+        "rowClickSelectTitle": "किसी पंक्ति का चयन करने के लिए उसमें कहीं भी क्लिक करें, केवल उसके चेकबॉक्स पर नहीं",
+        "bulkEndDialog": {
+            "title": "{{count}} सत्र समाप्त करें",
+            "description": "चयनित {{count}} सत्र समाप्त करें? वे उपकरण तुरंत साइन आउट कर दिए जाएंगे।",
+            "confirmLabel": "चयनित लॉगआउट करें"
+        },
+        "bulkEndSuccessToast": "{{count}} सत्र समाप्त हुए",
+        "bulkEndPartialToast": "{{success}} सत्र समाप्त हुए, {{error}} विफल"
     },
     "parseUserAgent": {
         "unknownDevice": "अज्ञात उपकरण",
         "unknownBrowser": "अज्ञात ब्राउज़र",
         "unknownOS": "अज्ञात OS",
         "deviceLabel": "{{browser}}, {{os}} पर"
-    }
+    },
+    "loginActivityHeading": "मेरी लॉगिन गतिविधि",
+    "loginActivitySubtitle": "पिछले {{days}} दिन"
 }

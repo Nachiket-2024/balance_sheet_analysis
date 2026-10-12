@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Button, Field, Input, Stack } from "@chakra-ui/react";
 import { useTranslation } from "react-i18next";
 
-import Card from "../ui/Card";
-import FormAlert from "../ui/FormAlert";
+import Card from "../ui/cards/Card";
+import SectionHeading from "../ui/navigation/SectionHeading";
+import FormAlert from "../ui/feedback/FormAlert";
 import { useUpdateMyAccountMutation } from "./useUpdateMyAccountMutation";
 import { toaster } from "../ui/toaster/toasterInstance";
-import { BRAND_SOLID_HOVER_PROPS } from "../ui/styles/buttonStyles";
-import { SEARCH_INPUT_PROPS } from "../ui/styles/inputStyles";
+import { Button } from "../ui/buttons/Button";
+import { Input } from "../ui/inputs/Input";
+import { Label } from "../ui/shadcn/label";
 
 interface ProfileNameCardProps {
     name: string | null;
@@ -37,7 +38,7 @@ const ProfileNameCard: React.FC<ProfileNameCardProps> = ({ name, onDirtyChange }
         onDirtyChange(isDirty);
     }, [isDirty, onDirtyChange]);
 
-    const handleNameSubmit = (e: React.SubmitEvent<HTMLDivElement>) => {
+    const handleNameSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
         e.preventDefault();
         setNameError("");
 
@@ -58,33 +59,37 @@ const ProfileNameCard: React.FC<ProfileNameCardProps> = ({ name, onDirtyChange }
     };
 
     return (
-        <Card p={5}>
-            <Stack as="form" onSubmit={handleNameSubmit} gap={4}>
-                <Field.Root>
-                    <Field.Label>{t("profileName.nameLabel")}</Field.Label>
+        <Card className="p-5">
+            <form onSubmit={handleNameSubmit} className="flex flex-col gap-4">
+                <div>
+                    <SectionHeading>{t("tabs.profile")}</SectionHeading>
+                    <p className="mt-1 text-sm text-fg-muted">{t("profileName.description")}</p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="profile-name">{t("profileName.nameLabel")}</Label>
                     <Input
+                        id="profile-name"
                         value={editedName}
                         onChange={(e) => setEditedName(e.target.value)}
                         aria-invalid={!!nameError || nameMutation.isError}
                         aria-describedby={nameError ? "name-local-error" : nameMutation.isError ? "name-mutation-error" : undefined}
-                        {...SEARCH_INPUT_PROPS}
+                        size="lg"
+                        maxLength={100}
                     />
-                </Field.Root>
+                </div>
 
-                {nameError && <FormAlert status="error" id="name-local-error">{nameError}</FormAlert>}
-                {nameMutation.isError && <FormAlert status="error" id="name-mutation-error">{nameMutation.error.message}</FormAlert>}
+                {nameError && <FormAlert size="lg" status="error" id="name-local-error">{nameError}</FormAlert>}
+                {nameMutation.isError && <FormAlert size="lg" status="error" id="name-mutation-error">{nameMutation.error.message}</FormAlert>}
 
                 <Button
                     type="submit"
-                    colorPalette="brand"
-                    alignSelf="flex-start"
+                    variant="brand"
+                    className="self-start"
                     loading={nameMutation.isPending}
-                    loadingText={t("ui_text:saving")}
-                    {...BRAND_SOLID_HOVER_PROPS}
                 >
                     {t("profileName.saveChanges")}
                 </Button>
-            </Stack>
+            </form>
         </Card>
     );
 };

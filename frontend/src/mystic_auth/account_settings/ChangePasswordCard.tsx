@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { Button, Field, Heading, Input, Stack, Text } from "@chakra-ui/react";
 import { useTranslation } from "react-i18next";
 
-import Card from "../ui/Card";
-import FormAlert from "../ui/FormAlert";
-import PasswordRulesChecklist from "../auth/password_rules/PasswordRulesChecklist";
+import Badge from "../ui/badges/Badge";
+import Card from "../ui/cards/Card";
+import SectionHeading from "../ui/navigation/SectionHeading";
+import FormAlert from "../ui/feedback/FormAlert";
+import PasswordInput from "../ui/inputs/PasswordInput";
+import PasswordStrengthPanel from "../auth/password_rules/PasswordStrengthPanel";
 import { useUpdateMyAccountMutation } from "./useUpdateMyAccountMutation";
 import { checkPasswordRules, evaluatePasswordStrength, validatePassword } from "../auth/password_rules/passwordRules";
 import { toaster } from "../ui/toaster/toasterInstance";
-import { BRAND_SOLID_HOVER_PROPS } from "../ui/styles/buttonStyles";
-import { SEARCH_INPUT_PROPS } from "../ui/styles/inputStyles";
+import { Button } from "../ui/buttons/Button";
+import { Label } from "../ui/shadcn/label";
 
 interface ChangePasswordCardProps {
     hasPassword: boolean;
@@ -26,6 +28,11 @@ interface ChangePasswordCardProps {
  * mutation instance (not shared with ProfileNameCard) so saving a password
  * change never shows a loading spinner or a stale error on the unrelated
  * name card, and vice versa.
+ *
+ * Also owns the read-only Set/Not set status badge. It used to live on the
+ * Account Status tab, but that's authorization info, and whether a password
+ * is set is a password concern, not an authorization one. Living here also
+ * puts the badge right next to the form that would change it.
  */
 const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, onDirtyChange }) => {
     const { t } = useTranslation("account_settings");
@@ -43,7 +50,7 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
         onDirtyChange(isDirty);
     }, [isDirty, onDirtyChange]);
 
-    const handlePasswordSubmit = (e: React.SubmitEvent<HTMLDivElement>) => {
+    const handlePasswordSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
         e.preventDefault();
         setPasswordError("");
 
@@ -53,8 +60,8 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
             return;
         }
         // Only an account that already has a password needs to confirm it:
-        // setting one for the first time on an OAuth-only account has
-        // nothing to confirm against.
+        // setting one for the first time on an OAuth-only account has nothing
+        // to confirm against.
         if (hasPassword && !currentPassword) {
             setPasswordError(t("changePassword.confirmCurrentRequired"));
             return;
@@ -64,8 +71,16 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
         if (hasPassword) payload.current_password = currentPassword;
 
         passwordMutation.mutate(payload, {
-            onSuccess: () => {
-                toaster.create({ title: t("changePassword.updatedToast"), type: "success" });
+            onSuccess: (data) => {
+                // sessions_revoked === false: the password changed successfully,
+                // but Valkey was unreachable so other sessions weren't revoked.
+                // Show a narrower warning instead of the plain success toast, since
+                // "other devices signed out" didn't actually happen here.
+                if (data.sessions_revoked === false) {
+                    toaster.create({ title: t("changePassword.updatedButSessionsNotRevokedToast"), type: "warning" });
+                } else {
+                    toaster.create({ title: t("changePassword.updatedToast"), type: "success" });
+                }
                 setNewPassword("");
                 setCurrentPassword("");
             },
@@ -73,15 +88,25 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
     };
 
     return (
-        <Card p={5} flex="1 1 320px" maxW="lg">
-            <Heading as="h2" size="md" mb={3}>
-                {hasPassword ? t("changePassword.changeTitle") : t("changePassword.setTitle")}
-            </Heading>
-            <Stack as="form" onSubmit={handlePasswordSubmit} gap={4}>
-                <Field.Root>
-                    <Field.Label>{hasPassword ? t("changePassword.newPasswordLabel") : t("changePassword.setPasswordFieldLabel")}</Field.Label>
-                    <Input
-                        type="password"
+        <Card className="p-5 flex-1 basis-80 max-w-3xl">
+            <div className="flex items-center flex-wrap gap-2 mb-1">
+                <SectionHeading>
+                    {hasPassword ? t("changePassword.changeTitle") : t("changePassword.setTitle")}
+                </SectionHeading>
+                <Badge colorPalette={hasPassword ? "brand" : "gray"} variant="subtle" size="md">
+                    {hasPassword ? t("accountStatus.set") : t("accountStatus.notSet")}
+                </Badge>
+            </div>
+            <p className="text-fg-muted text-sm mb-4">
+                {hasPassword
+                    ? t("accountStatus.hasPasswordDescription")
+                    : t("accountStatus.noPasswordDescription")}
+            </p>
+            <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="change-password-new">{hasPassword ? t("changePassword.newPasswordLabel") : t("changePassword.setPasswordFieldLabel")}</Label>
+                    <PasswordInput
+                        id="change-password-new"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder={
@@ -91,67 +116,55 @@ const ChangePasswordCard: React.FC<ChangePasswordCardProps> = ({ hasPassword, on
                         }
                         aria-invalid={!!passwordError || passwordMutation.isError}
                         aria-describedby={passwordError ? "password-local-error" : passwordMutation.isError ? "password-mutation-error" : undefined}
-                        {...SEARCH_INPUT_PROPS}
+                        size="lg"
+                        maxLength={128}
                     />
-                    {/* Always rendered (a neutral "-" before typing starts),
-                        same reasoning as SignupForm/PasswordResetConfirmForm:
-                        reserving this line's height from the first render
-                        means it filling in never shifts the fields below it. */}
-                    <Text
-                        mt={1}
-                        fontSize="sm"
-                        fontWeight="bold"
-                        color={
-                            strength === "Weak" ? "red.500" :
-                            strength === "Medium" ? "orange.400" :
-                            strength === "Strong" ? "green.500" : "fg.muted"
-                        }
-                    >
-                        {t("changePassword.strengthLabel", { strength: strength || "-" })}
-                    </Text>
-                </Field.Root>
+                </div>
 
-                {/* Directly below New password, not after Current
-                    password: these rules describe the new password
-                    you're typing above, not the confirmation field
-                    below, so they read more naturally attached to
-                    the field they're actually validating. */}
-                <PasswordRulesChecklist rules={rules} />
+                {/* Placed right below New password since these rules describe
+                    that field, not the confirmation field below. Always rendered
+                    (pristine before typing starts), same as SignupForm/
+                    PasswordResetConfirmForm, so reserving its height up front
+                    means it filling in never shifts the fields below. */}
+                <PasswordStrengthPanel
+                    password={newPassword}
+                    label={t("changePassword.strengthLabel", { strength: strength || "-" })}
+                    rules={rules}
+                    pristine={!isDirty}
+                    className="mt-1"
+                />
 
-                {/* Always rendered when the account has a password to
-                    confirm against, not only once newPassword has a
-                    value: this whole card should look the same the
-                    moment it opens as it does mid-edit, not visibly grow
-                    a field the instant you start typing. */}
+                {/* Always rendered when the account has a password to confirm
+                    against, not only once newPassword has a value: the card
+                    should look the same on open as it does mid-edit. */}
                 {hasPassword && (
-                    <Field.Root>
-                        <Field.Label>{t("changePassword.currentPasswordLabel")}</Field.Label>
-                        <Input
-                            type="password"
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="change-password-current">{t("changePassword.currentPasswordLabel")}</Label>
+                        <PasswordInput
+                            id="change-password-current"
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
                             placeholder={t("changePassword.currentPasswordPlaceholder")}
                             aria-invalid={!!passwordError}
                             aria-describedby={passwordError ? "password-local-error" : undefined}
-                            {...SEARCH_INPUT_PROPS}
+                            size="lg"
+                            maxLength={128}
                         />
-                    </Field.Root>
+                    </div>
                 )}
 
-                {passwordError && <FormAlert status="error" id="password-local-error">{passwordError}</FormAlert>}
-                {passwordMutation.isError && <FormAlert status="error" id="password-mutation-error">{passwordMutation.error.message}</FormAlert>}
+                {passwordError && <FormAlert size="lg" status="error" id="password-local-error">{passwordError}</FormAlert>}
+                {passwordMutation.isError && <FormAlert size="lg" status="error" id="password-mutation-error">{passwordMutation.error.message}</FormAlert>}
 
                 <Button
                     type="submit"
-                    colorPalette="brand"
-                    alignSelf="flex-start"
+                    variant="brand"
+                    className="self-start"
                     loading={passwordMutation.isPending}
-                    loadingText={t("ui_text:saving")}
-                    {...BRAND_SOLID_HOVER_PROPS}
                 >
                     {hasPassword ? t("changePassword.updateButton") : t("changePassword.setButton")}
                 </Button>
-            </Stack>
+            </form>
         </Card>
     );
 };

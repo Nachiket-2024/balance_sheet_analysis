@@ -1,10 +1,27 @@
 # tests/backend/mystic_auth/unit/test_settings_unit.py
+import pytest
+from pydantic import ValidationError
+
 from backend.mystic_auth.core.settings import Settings
 
-_REQUIRED_FIELDS = {
+# Every Settings field is required, no Python-level defaults, with two
+# exceptions (see the dedicated tests below for each): TRUSTED_PROXY_IPS
+# defaults to "" since only the backend service needs a real value, while
+# alembic and procrastinate_worker read the same env file directly and never
+# use it; SESSION_ROW_RETENTION_HOURS defaults to 1 since it's a generic
+# internal buffer with no reason to vary by deployment, not a value forks
+# need to tune per .env/AGENTS.md's "default a required-but-service-specific
+# Settings field instead of padding every env file with it" convention.
+# .env.dev (or the process environment) is the single source of truth for every
+# other field, in dev and prod alike. This fixture is a complete, valid
+# payload; the tests below poke at deviations from it.
+_ALL_FIELDS = {
     "BACKEND_BASE_URL": "http://localhost:8000",
     "FRONTEND_BASE_URL": "http://localhost:5173",
+    "FRONTEND_ADDITIONAL_BASE_URLS": "",
     "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost:5432/db",
+    "DB_POOL_SIZE": 10,
+    "DB_MAX_OVERFLOW": 20,
     "POSTGRES_USER": "user",
     "POSTGRES_PASSWORD": "pass",
     "POSTGRES_DB": "db",
@@ -12,14 +29,20 @@ _REQUIRED_FIELDS = {
     "ACCESS_TOKEN_EXPIRE_MINUTES": 15,
     "REFRESH_TOKEN_EXPIRE_MINUTES": 43200,
     "JWT_ALGORITHM": "HS256",
+    "JWT_ISSUER": "http://localhost:8000",
+    "JWT_AUDIENCE": "http://localhost:8000",
     "RESET_TOKEN_EXPIRE_MINUTES": 60,
+    "ACCOUNT_DELETE_TOKEN_EXPIRE_MINUTES": 60,
     "GOOGLE_CLIENT_ID": "client-id",
     "GOOGLE_CLIENT_SECRET": "client-secret",
     "GOOGLE_REDIRECT_URI": "http://localhost:8000/auth/oauth2/callback/google",
-    "REDIS_URL": "redis://localhost:6379/0",
+    "VALKEY_URL": "redis://localhost:6379/0",
     "CACHE_DEFAULT_TTL": 300,
     "FROM_EMAIL": "from@example.com",
     "GMAIL_APP_PASSWORD": "app-password",
+    "SUPPORT_EMAIL": "",
+    "SMTP_HOST": "smtp.gmail.com",
+    "SMTP_PORT": 587,
     "APP_NAME": "TestApp",
     "LOGIN_LOCKOUT_TIME": 300,
     "MAX_FAILED_LOGIN_ATTEMPTS": 5,
@@ -27,128 +50,111 @@ _REQUIRED_FIELDS = {
     "MAX_FAILED_LOGIN_ATTEMPTS_PER_IP": 20,
     "MAX_REQUESTS_PER_WINDOW": 100,
     "REQUEST_WINDOW_SECONDS": 60,
+    "LOG_LEVEL": "INFO",
+    "ENVIRONMENT": "development",
+    "TRUSTED_PROXY_IPS": "",
+    "GEOIP_DB_PATH": "",
+    "SENTRY_DSN": "",
+    "SENTRY_ENVIRONMENT": "",
+    "ACCOUNT_PURGE_GRACE_DAYS": 30,
+    "SESSION_ROW_RETENTION_HOURS": 1,
+    "REFRESH_TOKEN_REUSE_GRACE_SECONDS": 10,
+    "USER_EXPORT_MAX_ROWS": 50000,
 }
 
 
 def test_settings_construction_succeeds_with_only_declared_fields():
-    # Baseline: the fixture above actually is a complete, valid Settings
-    # payload : if this ever fails, the extra-field regression guards below
-    # would be testing against a payload that was already broken for an
-    # unrelated reason.
-    Settings(**_REQUIRED_FIELDS)
+    # Baseline: confirms the fixture above is a complete, valid payload.
+    # If this fails, every other test in the file is testing against a
+    # payload that was already broken for an unrelated reason.
+    Settings(_env_file=None, **_ALL_FIELDS)
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    sorted(set(_ALL_FIELDS) - {"TRUSTED_PROXY_IPS", "SESSION_ROW_RETENTION_HOURS", "REFRESH_TOKEN_REUSE_GRACE_SECONDS"}),
+)
+def test_settings_construction_fails_when_any_field_is_missing(missing_field, monkeypatch):
+    # Every field except TRUSTED_PROXY_IPS and SESSION_ROW_RETENTION_HOURS is
+    # required: a silent fallback could let a real deployment start up
+    # misconfigured with no error.
+    # monkeypatch.delenv is needed alongside omitting the kwarg: _env_file=None
+    # only disables reading a dotenv file, pydantic-settings still falls back
+    # to the real process environment (set here by docker-compose's env_file:),
+    # which this suite runs inside.
+    monkeypatch.delenv(missing_field, raising=False)
+    payload = {key: value for key, value in _ALL_FIELDS.items() if key != missing_field}
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **payload)
+
+
+def test_trusted_proxy_ips_defaults_to_empty_when_missing(monkeypatch):
+    # The one exception to "every field is required": alembic and
+    # procrastinate_worker read the same env file as the backend but never
+    # call get_client_ip(), so they shouldn't need a value here at all. Only
+    # the backend service actually needs a real value, injected via each
+    # prod/local-prod-* Compose file's own environment: override.
+    monkeypatch.delenv("TRUSTED_PROXY_IPS", raising=False)
+    payload = {key: value for key, value in _ALL_FIELDS.items() if key != "TRUSTED_PROXY_IPS"}
+
+    settings = Settings(_env_file=None, **payload)
+
+    assert settings.TRUSTED_PROXY_IPS == ""
+
+
+def test_session_row_retention_hours_defaults_to_one_when_missing(monkeypatch):
+    # The other exception to "every field is required": a generic internal
+    # cleanup buffer, not a per-deployment knob, so no env file needs to
+    # carry it (see the fixture comment above).
+    monkeypatch.delenv("SESSION_ROW_RETENTION_HOURS", raising=False)
+    payload = {key: value for key, value in _ALL_FIELDS.items() if key != "SESSION_ROW_RETENTION_HOURS"}
+
+    settings = Settings(_env_file=None, **payload)
+
+    assert settings.SESSION_ROW_RETENTION_HOURS == 1
 
 
 def test_settings_ignores_env_vars_that_are_not_declared_fields():
-    # Regression guard: the root .env is shared with docker-compose.yml's
-    # `env_file:` directive, which also passes it to infra-only services :
-    # REDIS_PASSWORD (redis-server's own auth) and BUGSINK_* (the optional
+    # Regression guard: env/mystic_auth/.env.dev is shared with docker-compose.dev.yml's
+    # `env_file:` directive, which also passes it to infra-only services.
+    # VALKEY_PASSWORD (valkey-server's own auth) and BUGSINK_* (the optional
     # self-hosted error-monitoring service, see
-    # docs/mystic_auth/error-monitoring/overview.md) have no corresponding Settings
-    # field. pydantic-settings defaults to extra="forbid", which crashed
-    # Settings() construction the moment any such var was present : this
-    # only actually surfaced when Settings' own env_file resolved to a real
-    # file (true when cwd=/repo, e.g. running tests) rather than the app's
-    # own cwd=/app, where a relative ".env" never resolves to anything :
-    # so the same .env silently worked for the running app while crashing
-    # every test collection. Settings.Config now sets extra="ignore".
+    # docs/mystic_auth/error-monitoring/overview.md) have no corresponding
+    # Settings field. pydantic-settings defaults to extra="forbid", which
+    # crashed Settings() construction whenever such a var was present.
+    # Settings.Config now sets extra="ignore".
     payload = {
-        **_REQUIRED_FIELDS,
-        "REDIS_PASSWORD": "redis-password",
+        **_ALL_FIELDS,
+        "VALKEY_PASSWORD": "valkey-password",
         "BUGSINK_SECRET_KEY": "bugsink-secret",
         "BUGSINK_SUPERUSER_EMAIL": "admin@example.com",
         "BUGSINK_SUPERUSER_PASSWORD": "bugsink-password",
         "BUGSINK_BASE_URL": "http://localhost:8010",
     }
 
-    settings = Settings(**payload)
+    settings = Settings(_env_file=None, **payload)
 
     assert settings.APP_NAME == "TestApp"
-    assert not hasattr(settings, "REDIS_PASSWORD")
-
-
-# ---------------------------- optional field defaults ----------------------------
-
-_OPTIONAL_FIELDS = (
-    "SUPPORT_EMAIL",
-    "SMTP_HOST",
-    "SMTP_PORT",
-    "LOG_LEVEL",
-    "ENVIRONMENT",
-    "TRUSTED_PROXY_IPS",
-    "FRONTEND_ADDITIONAL_BASE_URLS",
-    "SENTRY_DSN",
-    "SENTRY_ENVIRONMENT",
-)
-
-
-def test_optional_fields_default_when_unset(monkeypatch):
-    # These fields are all optional so existing .env files/CI configs that
-    # predate them keep working unchanged : verify the defaults actually
-    # match what main.py/client_ip.py/sentry_service.py assume when unset.
-    # The real repo-root .env (loaded by Settings.Config.env_file, and also
-    # passed into this process's environment by docker-compose) sets several
-    # of these, so it must be cleared from both places for this test to
-    # actually observe the field defaults rather than the real deployment's
-    # config.
-    for field in _OPTIONAL_FIELDS:
-        monkeypatch.delenv(field, raising=False)
-
-    settings = Settings(_env_file=None, **_REQUIRED_FIELDS)
-
-    assert settings.SUPPORT_EMAIL == ""
-    assert settings.SMTP_HOST == "smtp.gmail.com"
-    assert settings.SMTP_PORT == 587
-    assert settings.LOG_LEVEL == "INFO"
-    assert settings.ENVIRONMENT == "development"
-    assert settings.TRUSTED_PROXY_IPS == ""
-    assert settings.FRONTEND_ADDITIONAL_BASE_URLS == ""
-    assert settings.SENTRY_DSN == ""
-    assert settings.SENTRY_ENVIRONMENT == ""
-
-
-def test_optional_fields_can_be_overridden():
-    payload = {
-        **_REQUIRED_FIELDS,
-        "SUPPORT_EMAIL": "support@example.com",
-        "SMTP_HOST": "smtp.example.com",
-        "SMTP_PORT": 2525,
-        "LOG_LEVEL": "DEBUG",
-        "ENVIRONMENT": "production",
-        "TRUSTED_PROXY_IPS": "10.0.0.1,10.0.0.2",
-        "FRONTEND_ADDITIONAL_BASE_URLS": "https://staging.example.com,https://www.example.com",
-        "SENTRY_DSN": "https://public@sentry.example.com/1",
-        "SENTRY_ENVIRONMENT": "staging",
-    }
-
-    settings = Settings(**payload)
-
-    assert settings.SUPPORT_EMAIL == "support@example.com"
-    assert settings.SMTP_HOST == "smtp.example.com"
-    assert settings.SMTP_PORT == 2525
-    assert settings.LOG_LEVEL == "DEBUG"
-    assert settings.ENVIRONMENT == "production"
-    assert settings.TRUSTED_PROXY_IPS == "10.0.0.1,10.0.0.2"
-    assert settings.FRONTEND_ADDITIONAL_BASE_URLS == "https://staging.example.com,https://www.example.com"
-    assert settings.SENTRY_DSN == "https://public@sentry.example.com/1"
-    assert settings.SENTRY_ENVIRONMENT == "staging"
+    assert not hasattr(settings, "VALKEY_PASSWORD")
 
 
 # ---------------------------- cors_allowed_origins ----------------------------
 
 
 def test_cors_allowed_origins_is_just_frontend_base_url_when_additional_unset():
-    settings = Settings(**_REQUIRED_FIELDS)
+    settings = Settings(_env_file=None, **_ALL_FIELDS)
 
     assert settings.cors_allowed_origins == ["http://localhost:5173"]
 
 
 def test_cors_allowed_origins_includes_additional_origins_in_order():
     payload = {
-        **_REQUIRED_FIELDS,
+        **_ALL_FIELDS,
         "FRONTEND_ADDITIONAL_BASE_URLS": "https://staging.example.com,https://www.example.com",
     }
 
-    settings = Settings(**payload)
+    settings = Settings(_env_file=None, **payload)
 
     assert settings.cors_allowed_origins == [
         "http://localhost:5173",
@@ -159,11 +165,11 @@ def test_cors_allowed_origins_includes_additional_origins_in_order():
 
 def test_cors_allowed_origins_ignores_blank_entries_and_stray_whitespace():
     payload = {
-        **_REQUIRED_FIELDS,
+        **_ALL_FIELDS,
         "FRONTEND_ADDITIONAL_BASE_URLS": " https://staging.example.com , , https://www.example.com ,",
     }
 
-    settings = Settings(**payload)
+    settings = Settings(_env_file=None, **payload)
 
     assert settings.cors_allowed_origins == [
         "http://localhost:5173",
@@ -174,10 +180,24 @@ def test_cors_allowed_origins_ignores_blank_entries_and_stray_whitespace():
 
 def test_cors_allowed_origins_deduplicates_a_repeated_origin():
     payload = {
-        **_REQUIRED_FIELDS,
+        **_ALL_FIELDS,
         "FRONTEND_ADDITIONAL_BASE_URLS": "http://localhost:5173,https://www.example.com",
     }
 
-    settings = Settings(**payload)
+    settings = Settings(_env_file=None, **payload)
 
     assert settings.cors_allowed_origins == ["http://localhost:5173", "https://www.example.com"]
+
+
+def test_refresh_token_reuse_grace_seconds_defaults_to_ten_when_missing(monkeypatch):
+    monkeypatch.delenv("REFRESH_TOKEN_REUSE_GRACE_SECONDS", raising=False)
+    payload = {key: value for key, value in _ALL_FIELDS.items() if key != "REFRESH_TOKEN_REUSE_GRACE_SECONDS"}
+
+    settings = Settings(_env_file=None, **payload)
+
+    assert settings.REFRESH_TOKEN_REUSE_GRACE_SECONDS == 10
+
+
+def test_secret_key_validation_rejects_short_values():
+    with pytest.raises(ValidationError, match="SECRET_KEY must be at least 32 characters"):
+        Settings(_env_file=None, **{**_ALL_FIELDS, "SECRET_KEY": "too-short"})

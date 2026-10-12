@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BalanceSheetResponse(BaseModel):
@@ -10,6 +10,16 @@ class BalanceSheetResponse(BaseModel):
     company_id: int
     year: int
     created_at: datetime
+    imported_at: datetime
+    period_end_date: date | None = None
+    period_type: str = "annual"
+    source_provider: str = "yfinance"
+    source_url: str | None = None
+    currency_code: str | None = None
+    unit_scale: float = 1.0
+    data_quality_status: str = "current"
+    source_fields: list[str] = Field(default_factory=list)
+    version: int = 1
 
     treasury_shares_number: float | None = None
     ordinary_shares_number: float | None = None

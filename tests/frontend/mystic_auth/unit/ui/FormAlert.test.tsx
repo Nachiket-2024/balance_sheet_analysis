@@ -1,15 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { ChakraProvider, defaultSystem } from '@chakra-ui/react';
 
-import FormAlert from '@/ui/FormAlert';
+import FormAlert from '@/ui/feedback/FormAlert';
 
 function renderAlert(status: 'error' | 'success', children: React.ReactNode) {
-  return render(
-    <ChakraProvider value={defaultSystem}>
-      <FormAlert status={status}>{children}</FormAlert>
-    </ChakraProvider>
-  );
+  return render(<FormAlert status={status}>{children}</FormAlert>);
 }
 
 describe('FormAlert', () => {
@@ -19,10 +14,10 @@ describe('FormAlert', () => {
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
   });
 
-  it('renders the Chakra alert root for error status', () => {
-    const { container } = renderAlert('error', 'Something went wrong');
+  it('renders an alert role for error status', () => {
+    renderAlert('error', 'Something went wrong');
 
-    expect(container.querySelector('.chakra-alert__root')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 
   it('renders success content distinctly from error content', () => {

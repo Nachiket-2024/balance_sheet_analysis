@@ -1,16 +1,13 @@
 import type { AxiosResponse } from "axios";
 
 /**
- * Shape every paged audit-log query hook resolves to, both in
- * authorization_log/authorizationLogQueries.ts and
- * security_log/securityLogQueries.ts: the two tabs'
- * result shape is identical, so this lives here once rather than in either.
+ * Shape every paged audit-log query hook resolves to (authorization_log/authorizationLogQueries.ts
+ * and security_log/securityLogQueries.ts share this shape, so it lives here once).
  */
 export interface AuditLogPageResult<T> {
     rows: T[];
-    /** From the X-Total-Count response header; 0 if somehow missing rather
-     * than throwing, so a transient proxy/CORS misconfig degrades to "no
-     * pages" instead of crashing the page. */
+    /** From the X-Total-Count response header; 0 if missing rather than throwing, so a
+     * transient proxy/CORS misconfig degrades to "no pages" instead of crashing the page. */
     total: number;
 }
 

@@ -1,14 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ChakraProvider, defaultSystem } from '@chakra-ui/react';
 import { MemoryRouter } from 'react-router';
 import MockAdapter from 'axios-mock-adapter';
 
 import api from '@/api/axiosInstance';
 import { useAuthStore } from '@/store/authStore';
 import UsersPage from '@/users/UsersPage';
+
+// Row-level actions: viewing, deleting, changing role, reactivating, and
+// purging a user. Pagination/search/filter/sort/export live in
+// users_page_list_controls.test.tsx, and the Policies dialog in
+// users_page_policies.test.tsx.
 
 const mock = new MockAdapter(api);
 const initialAuthState = useAuthStore.getState();
@@ -24,6 +28,7 @@ function seed(permissions: string[], email = 'admin@example.com') {
     has_password: true,
     created_at: '2026-01-15T00:00:00Z',
     active_sessions: 1,
+    brand_color: null,
   });
 }
 
@@ -31,11 +36,9 @@ function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ChakraProvider value={defaultSystem}>
         <MemoryRouter>
           <UsersPage />
         </MemoryRouter>
-      </ChakraProvider>
     </QueryClientProvider>
   );
 }
@@ -89,40 +92,138 @@ describe('UsersPage', () => {
     const viewButtons = screen.getAllByRole('button', { name: 'View' });
     await user.click(viewButtons[viewButtons.length - 1]);
 
-    expect(await screen.findByText('User details')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
     // The dialog's own "Regular User"/"user@example.com" (not the table row's).
     expect(screen.getAllByText('Regular User').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText('user@example.com').length).toBeGreaterThanOrEqual(2);
+    expect(within(dialog).getByRole('tab', { name: /Details/ })).toHaveAttribute('aria-selected', 'true');
 
-    await user.click(screen.getByRole('button', { name: 'Close' }));
-    await waitFor(() => expect(screen.queryByText('User details')).toBeNull());
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('hides the Delete row action when the caller lacks that permission', async () => {
+  it('shows separate Policies and Permissions actions only when each read permission is available', async () => {
+    seed(['users:list_all', 'permissions:read']);
+    mock.onGet('/users/').reply(200, SAMPLE_USERS);
+
+    renderPage();
+
+    await screen.findByText('Regular User');
+    expect(screen.getAllByRole('button', { name: 'Permissions' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Policies' })).toBeNull();
+  });
+
+  it('opens the dedicated Permissions action directly on the Permissions tab', async () => {
+    seed(['users:list_all', 'permissions:read']);
+    mock.onGet('/users/').reply(200, SAMPLE_USERS);
+
+    renderPage();
+    const user = userEvent.setup();
+
+    await screen.findByText('Regular User');
+    const accessButtons = screen.getAllByRole('button', { name: 'Permissions' });
+    await user.click(accessButtons[accessButtons.length - 1]);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('tab', { name: /Permissions/ })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByRole('tab', { name: /Details/ })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('hides both access actions when the caller cannot read policies or permissions', async () => {
     seed(['users:list_all']);
     mock.onGet('/users/').reply(200, SAMPLE_USERS);
 
     renderPage();
 
     await screen.findByText('Regular User');
-    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Policies' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Permissions' })).toBeNull();
   });
 
-  it('disables the delete button for the caller\'s own row even with users:delete_any', async () => {
-    seed(['users:list_all', 'users:delete_any'], 'admin@example.com');
+  it('hides the Deactivate row action when the caller lacks that permission', async () => {
+    seed(['users:list_all']);
+    mock.onGet('/users/').reply(200, SAMPLE_USERS);
+
+    renderPage();
+
+    await screen.findByText('Regular User');
+    const regularRow = screen.getByText('user@example.com').closest('tr');
+    expect(regularRow).not.toBeNull();
+    await userEvent.setup().click(within(regularRow!).getByRole('button', { name: /more actions/i }));
+    expect(screen.queryByRole('menuitem', { name: 'Deactivate' })).toBeNull();
+  });
+
+  it('hides destructive actions for the protected system user', async () => {
+    seed(['users:list_all', 'users:deactivate_any', 'users:delete_any']);
+    mock.onGet('/users/').reply(200, [{ ...SAMPLE_USERS[0], role: 'system', email: 'system@example.com' }, SAMPLE_USERS[1]]);
+
+    renderPage();
+
+    await screen.findByText('system@example.com');
+    const systemRow = screen.getByText('system@example.com').closest('tr');
+    expect(systemRow).not.toBeNull();
+    expect(within(systemRow!).queryByRole('button', { name: /more actions/i })).toBeNull();
+  });
+
+  it('disables the deactivate button for the caller\'s own row even with users:deactivate_any', async () => {
+    seed(['users:list_all', 'users:deactivate_any'], 'admin@example.com');
     mock.onGet('/users/').reply(200, SAMPLE_USERS);
 
     renderPage();
 
     await screen.findByText('Admin User');
-    const deleteButtons = screen.getAllByRole('button', { name: 'Delete' });
-    // First row is the admin (self) : must be disabled to prevent self-deletion
-    expect(deleteButtons[0]).toBeDisabled();
-    expect(deleteButtons[1]).toBeEnabled();
+    const user = userEvent.setup();
+    const adminRow = screen.getByText('admin@example.com').closest('tr');
+    const regularRow = screen.getByText('user@example.com').closest('tr');
+    expect(adminRow).not.toBeNull();
+    expect(regularRow).not.toBeNull();
+
+    // The caller's own row still has the menu (so the disabled state is
+    // discoverable, not just absent), but Deactivate itself is disabled.
+    await user.click(within(adminRow!).getByRole('button', { name: /more actions/i }));
+    expect(screen.getByRole('menuitem', { name: 'Deactivate' })).toHaveAttribute('data-disabled');
+    await user.keyboard('{Escape}');
+
+    await user.click(within(regularRow!).getByRole('button', { name: /more actions/i }));
+    expect(screen.getByRole('menuitem', { name: 'Deactivate' })).toBeEnabled();
   });
 
-  it('deletes a user after confirming in the ConfirmDialog', async () => {
-    seed(['users:list_all', 'users:delete_any']);
+  it('explains why the caller cannot deactivate their own account on hover', async () => {
+    seed(['users:list_all', 'users:deactivate_any'], 'admin@example.com');
+    mock.onGet('/users/').reply(200, SAMPLE_USERS);
+
+    renderPage();
+
+    await screen.findByText('Admin User');
+    const user = userEvent.setup();
+    const adminRow = screen.getByText('admin@example.com').closest('tr');
+    expect(adminRow).not.toBeNull();
+
+    await user.click(within(adminRow!).getByRole('button', { name: /more actions/i }));
+    await user.hover(screen.getByRole('menuitem', { name: 'Deactivate' }));
+    expect(await screen.findByText('You cannot deactivate your own account through this page')).toBeInTheDocument();
+  });
+
+  it('disables Delete (not just Deactivate) for the caller\'s own already-deleted row, with an explanation', async () => {
+    seed(['users:list_all', 'users:delete_any'], 'admin@example.com');
+    const deletedSelf = { ...SAMPLE_USERS[0], deleted_at: '2026-01-02T00:00:00Z' };
+    mock.onGet('/users/').reply(200, [deletedSelf, SAMPLE_USERS[1]]);
+
+    renderPage();
+
+    await screen.findByText('Admin User');
+    const user = userEvent.setup();
+    const adminRow = screen.getByText('admin@example.com').closest('tr');
+    expect(adminRow).not.toBeNull();
+
+    await user.click(within(adminRow!).getByRole('button', { name: /more actions/i }));
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toHaveAttribute('data-disabled');
+    await user.hover(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(await screen.findByText('You cannot delete your own account through this page')).toBeInTheDocument();
+  });
+
+  it('deactivates a user after confirming in the ConfirmDialog', async () => {
+    seed(['users:list_all', 'users:deactivate_any']);
     mock.onGet('/users/').reply(200, SAMPLE_USERS);
     mock.onDelete('/users/user%40example.com').reply(200);
 
@@ -130,11 +231,13 @@ describe('UsersPage', () => {
     const user = userEvent.setup();
 
     await screen.findByText('Regular User');
-    const deleteButtons = screen.getAllByRole('button', { name: 'Delete' });
-    await user.click(deleteButtons[deleteButtons.length - 1]);
+    const regularRow = screen.getByText('user@example.com').closest('tr');
+    expect(regularRow).not.toBeNull();
+    await user.click(within(regularRow!).getByRole('button', { name: /more actions/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Deactivate' }));
 
-    expect(await screen.findByText(/Delete "user@example.com"\?/)).toBeInTheDocument();
-    const confirmButtons = screen.getAllByRole('button', { name: 'Delete' });
+    expect(await screen.findByText(/Deactivate "user@example.com"\?/)).toBeInTheDocument();
+    const confirmButtons = screen.getAllByRole('button', { name: 'Deactivate' });
     await user.click(confirmButtons[confirmButtons.length - 1]);
 
     await waitFor(() => expect(mock.history.delete.length).toBe(1));
@@ -149,11 +252,9 @@ describe('UsersPage', () => {
     const user = userEvent.setup();
 
     await screen.findByText('Regular User');
-    // StyledSelect's visible trigger button and its hidden native <select>
-    // mirror share the same accessible name (both properly labeled via
-    // Select.Label), so getByRole('combobox', ...) alone is ambiguous -
-    // selectOptions needs the real <select>, found via getByLabelText's
-    // selector option instead.
+    // StyledSelect's visible button and its hidden native <select> share the
+    // same accessible name, so getByRole('combobox') is ambiguous; get the
+    // real <select> via getByLabelText instead.
     await user.selectOptions(screen.getByLabelText('Change role for user@example.com', { selector: 'select' }), 'admin');
 
     // The dialog capitalizes the role for display ("Admin", not the raw "admin" option value).
@@ -173,13 +274,16 @@ describe('UsersPage', () => {
     renderPage();
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Reactivate' }));
+    const regularRow = (await screen.findByText('user@example.com')).closest('tr');
+    expect(regularRow).not.toBeNull();
+    await user.click(within(regularRow!).getByRole('button', { name: /more actions/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Reactivate' }));
 
     await waitFor(() => expect(mock.history.patch.length).toBe(1));
   });
 
-  it('permanently removes a soft-deleted user after confirming purge', async () => {
-    seed(['users:list_all', 'users:purge']);
+  it('permanently deletes a soft-deactivated user after confirming', async () => {
+    seed(['users:list_all', 'users:delete_any']);
     const deletedUser = { ...SAMPLE_USERS[1], deleted_at: '2026-01-02T00:00:00Z' };
     mock.onGet('/users/').reply(200, [SAMPLE_USERS[0], deletedUser]);
     mock.onDelete('/users/user%40example.com/purge').reply(200);
@@ -187,15 +291,19 @@ describe('UsersPage', () => {
     renderPage();
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Purge' }));
-    expect(await screen.findByText(/Permanently remove "user@example.com"\?/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Permanently remove' }));
+    const regularRow = (await screen.findByText('user@example.com')).closest('tr');
+    expect(regularRow).not.toBeNull();
+    await user.click(within(regularRow!).getByRole('button', { name: /more actions/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(await screen.findByText(/Delete "user@example.com" permanently\?/)).toBeInTheDocument();
+    const confirmButtons = screen.getAllByRole('button', { name: 'Delete' });
+    await user.click(confirmButtons[confirmButtons.length - 1]);
 
     await waitFor(() => expect(mock.history.delete.length).toBe(1));
   });
 
-  it('shows an error toast-triggering message when deleting a user fails', async () => {
-    seed(['users:list_all', 'users:delete_any']);
+  it('shows an error toast-triggering message when deactivating a user fails', async () => {
+    seed(['users:list_all', 'users:deactivate_any']);
     mock.onGet('/users/').reply(200, SAMPLE_USERS);
     mock.onDelete('/users/user%40example.com').reply(500);
 
@@ -203,181 +311,14 @@ describe('UsersPage', () => {
     const user = userEvent.setup();
 
     await screen.findByText('Regular User');
-    const deleteButtons = screen.getAllByRole('button', { name: 'Delete' });
-    await user.click(deleteButtons[deleteButtons.length - 1]);
-    const confirmButtons = await screen.findAllByRole('button', { name: 'Delete' });
+    const regularRow = screen.getByText('user@example.com').closest('tr');
+    expect(regularRow).not.toBeNull();
+    await user.click(within(regularRow!).getByRole('button', { name: /more actions/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Deactivate' }));
+    const confirmButtons = await screen.findAllByRole('button', { name: 'Deactivate' });
     await user.click(confirmButtons[confirmButtons.length - 1]);
 
     // Failure surfaces via a toast, not inline text, so just confirm the DELETE fired.
     await waitFor(() => expect(mock.history.delete.length).toBe(1));
-  });
-
-  it('opens the Policies dialog, assigns an available policy, and revokes an assigned one', async () => {
-    seed(['users:list_all', 'policies:read', 'policies:assign', 'policies:revoke']);
-    mock.onGet('/users/').reply(200, SAMPLE_USERS);
-    mock.onGet('/authorization/policies').reply(200, [
-      { id: 1, name: 'self_service', description: '', actions: ['users:read_own'], resource_type: 'users', conditions: null, is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', created_by: null },
-      { id: 2, name: 'reporting', description: '', actions: ['reports:view'], resource_type: 'reports', conditions: null, is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', created_by: null },
-    ]);
-    mock.onGet('/authorization/users/user%40example.com/policies').reply(200, {
-      user_email: 'user@example.com',
-      policies: [{ id: 1, name: 'self_service', description: '', actions: ['users:read_own'], resource_type: 'users', conditions: null, is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', created_by: null }],
-    });
-    mock.onPost('/authorization/users/user%40example.com/policies').reply(200);
-    mock.onDelete('/authorization/users/user%40example.com/policies/self_service').reply(204);
-
-    renderPage();
-    const user = userEvent.setup();
-
-    await screen.findByText('Regular User');
-    const policiesButtons = screen.getAllByRole('button', { name: 'Policies' });
-    await user.click(policiesButtons[policiesButtons.length - 1]);
-
-    expect(await screen.findByText('self_service')).toBeInTheDocument();
-
-    // StyledSelect's visible trigger button and its hidden native <select>
-    // mirror now share the same accessible name (both properly labeled via
-    // Select.Label), so getByRole('combobox', ...) alone is ambiguous here
-    // - selectOptions needs the real <select>, found via getByLabelText's
-    // selector option instead.
-    await user.selectOptions(screen.getByLabelText('Select a policy to assign', { selector: 'select' }), 'reporting');
-    await user.click(screen.getByRole('button', { name: 'Assign' }));
-    await waitFor(() => expect(mock.history.post.length).toBe(1));
-    expect(JSON.parse(mock.history.post[0].data)).toEqual({ policy_name: 'reporting' });
-
-    await user.click(screen.getByRole('button', { name: 'Revoke self_service' }));
-    // Revoking now goes through a ConfirmDialog (it strips access
-    // immediately and irreversibly), matching every other destructive
-    // action in the app - the click above only opens it.
-    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
-    await waitFor(() => expect(mock.history.delete.length).toBe(1));
-  });
-
-  it("disables revoke for the caller's own assigned policies in the Policies dialog", async () => {
-    seed(['users:list_all', 'policies:read', 'policies:revoke'], 'admin@example.com');
-    mock.onGet('/users/').reply(200, SAMPLE_USERS);
-    mock.onGet('/authorization/policies').reply(200, []);
-    mock.onGet('/authorization/users/admin%40example.com/policies').reply(200, {
-      user_email: 'admin@example.com',
-      policies: [{ id: 1, name: 'self_service', description: '', actions: ['users:read_own'], resource_type: 'users', conditions: null, is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', created_by: null }],
-    });
-
-    renderPage();
-    const user = userEvent.setup();
-
-    await screen.findByText('Admin User');
-    const policiesButtons = screen.getAllByRole('button', { name: 'Policies' });
-    await user.click(policiesButtons[0]);
-
-    expect(await screen.findByText(/You cannot revoke your own policies from here/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Revoke self_service' })).toBeDisabled();
-  });
-
-  it('shows numbered pages (from X-Total-Count) and fetches the next page on click', async () => {
-    seed(['users:list_all']);
-    mock.onGet('/users/').reply((config) => {
-      const offset = Number(config.params?.offset ?? 0);
-      if (offset === 0) {
-        return [200, SAMPLE_USERS, { 'x-total-count': '30' }];
-      }
-      return [200, [{ ...SAMPLE_USERS[0], id: 3, name: 'Page Two User', email: 'page2@example.com' }], { 'x-total-count': '30' }];
-    });
-
-    renderPage();
-    const user = userEvent.setup();
-
-    await screen.findByText('Regular User');
-    // 30 users / 25 per page = 2 pages, so page buttons should render.
-    const page2Buttons = screen.getAllByRole('button', { name: 'Page 2' });
-    expect(page2Buttons.length).toBeGreaterThan(0);
-
-    await user.click(page2Buttons[0]);
-
-    expect(await screen.findByText('Page Two User')).toBeInTheDocument();
-    const getRequests = mock.history.get.filter((r) => r.url === '/users/');
-    expect(getRequests[getRequests.length - 1].params).toMatchObject({ offset: 25 });
-  });
-
-  it('searches server-side (debounced) and resets to page 1', async () => {
-    seed(['users:list_all']);
-    mock.onGet('/users/').reply((config) => {
-      if (config.params?.search === 'regular') {
-        return [200, [SAMPLE_USERS[1]], { 'x-total-count': '1' }];
-      }
-      return [200, SAMPLE_USERS, { 'x-total-count': '2' }];
-    });
-
-    renderPage();
-    const user = userEvent.setup();
-
-    await screen.findByText('Regular User');
-    await user.type(screen.getByPlaceholderText('Search by name or email...'), 'regular');
-
-    // Debounced: the filtered result (and the admin row disappearing)
-    // shouldn't show up until after the debounce window.
-    await waitFor(() => expect(screen.queryByText('Admin User')).toBeNull(), { timeout: 2000 });
-    expect(screen.getByText('Regular User')).toBeInTheDocument();
-
-    const lastRequest = mock.history.get[mock.history.get.length - 1];
-    expect(lastRequest.params).toMatchObject({ search: 'regular' });
-  });
-
-  it('filters by role via the Role select and resets to page 1', async () => {
-    seed(['users:list_all']);
-    mock.onGet('/users/').reply((config) => {
-      if (config.params?.role === 'admin') {
-        return [200, [SAMPLE_USERS[0]], { 'x-total-count': '1' }];
-      }
-      return [200, SAMPLE_USERS, { 'x-total-count': '2' }];
-    });
-
-    renderPage();
-    const user = userEvent.setup();
-
-    await screen.findByText('Regular User');
-    // StyledSelect now also renders a (visually hidden) Select.Label for
-    // the visible combobox button itself, so "Filter by role" alone
-    // matches both that button and this hidden native <select> - narrow to
-    // the actual <select> element, which is what selectOptions needs.
-    await user.selectOptions(screen.getByLabelText('Filter by role', { selector: 'select' }), 'admin');
-
-    await waitFor(() => expect(screen.queryByText('Regular User')).toBeNull());
-    expect(screen.getByText('Admin User')).toBeInTheDocument();
-
-    const lastRequest = mock.history.get[mock.history.get.length - 1];
-    expect(lastRequest.params).toMatchObject({ role: 'admin' });
-  });
-
-  it('sorts by clicking the Name column header, toggling direction on a second click', async () => {
-    seed(['users:list_all']);
-    mock.onGet('/users/').reply((config) => {
-      const sortDir = config.params?.sort_dir;
-      const sortBy = config.params?.sort_by;
-      if (sortBy === 'name' && sortDir === 'asc') {
-        return [200, [SAMPLE_USERS[0]], { 'x-total-count': '2' }];
-      }
-      if (sortBy === 'name' && sortDir === 'desc') {
-        return [200, [SAMPLE_USERS[1]], { 'x-total-count': '2' }];
-      }
-      return [200, SAMPLE_USERS, { 'x-total-count': '2' }];
-    });
-
-    renderPage();
-    const user = userEvent.setup();
-
-    await screen.findByText('Regular User');
-    await user.click(screen.getByText('Name'));
-
-    await waitFor(() => {
-      const lastRequest = mock.history.get[mock.history.get.length - 1];
-      expect(lastRequest.params).toMatchObject({ sort_by: 'name', sort_dir: 'asc' });
-    });
-
-    await user.click(screen.getByText('Name'));
-
-    await waitFor(() => {
-      const lastRequest = mock.history.get[mock.history.get.length - 1];
-      expect(lastRequest.params).toMatchObject({ sort_by: 'name', sort_dir: 'desc' });
-    });
   });
 });

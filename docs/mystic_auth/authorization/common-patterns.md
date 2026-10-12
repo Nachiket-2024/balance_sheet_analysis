@@ -1,6 +1,11 @@
 # Common Authorization Patterns
+---
+
+*New to a term here? See the [Authorization Glossary](../glossary/authorization.md).*
 
 Unlike [Policy JSON Examples](policy-examples.md) (what a condition type's JSON looks like) or [Condition Schema Reference](condition-schema-reference.md) (the exact fields each condition type accepts), this page is about **modeling choices on your own resource tables** to get a common real-world access shape out of PBAC's existing, deliberately small set of condition types. Nothing here requires a new condition type or any change to `mystic_auth/`: every pattern below is achievable with what already ships.
+
+---
 
 ## Scoping access to a hierarchy (org chart, company group, folder tree)
 
@@ -39,3 +44,5 @@ A user scoped to one specific project instead (not a whole division) uses the sa
 ```
 
 Both policies use the exact same condition type and the exact same route-side code (`require_authorization("projects:read", "projects")` with the resource passed in for evaluation): only the scoping *data* differs, which is the whole point of PBAC being data-driven rather than code-driven.
+
+---

@@ -11,11 +11,13 @@ class SessionRead(BaseModel):
 
     Built manually by session_list_handler.py (not `model_validate` off the
     ORM row directly): `is_current` isn't a column, it's computed by
-    comparing each row's jti against the caller's own current session.
+    comparing each row's chain_id against the caller's own current session.
     """
 
     id: int
     ip_address: str | None
+    city: str | None
+    country: str | None
     user_agent: str | None
     created_at: datetime
     last_used_at: datetime

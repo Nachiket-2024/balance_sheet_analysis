@@ -35,7 +35,7 @@ class TokenCookieHandler:
             key="access_token",
             value=access_token,
             httponly=True,
-            secure=True,
+            secure=settings.secure_cookies,
             samesite="strict",
             max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         )
@@ -44,12 +44,29 @@ class TokenCookieHandler:
             key="refresh_token",
             value=refresh_token,
             httponly=True,
-            secure=True,
+            secure=settings.secure_cookies,
             samesite="strict",
             max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60,
             path="/auth"
         )
 
+        return response
+
+    def clear_tokens_from_cookies(self, response: Response) -> Response:
+        """
+        Used by every logout-shaped path (logout_handler, logout_all_handler,
+        account_deletion_confirm_handler, user_self_service_routes' self-
+        delete) instead of each duplicating its own pair of delete_cookie
+        calls. Every attribute here (path, httponly, secure, samesite) must
+        match set_tokens_in_cookies above exactly - the identity a browser
+        uses to line up delete_cookie's expired Set-Cookie with the cookie
+        it's meant to remove doesn't check samesite/secure/httponly, but
+        keeping every attribute identical to how each cookie was actually
+        set avoids relying on that, and stays honest about what policy the
+        cookie carried right up to deletion.
+        """
+        response.delete_cookie(key="access_token", httponly=True, secure=settings.secure_cookies, samesite="strict")
+        response.delete_cookie(key="refresh_token", httponly=True, secure=settings.secure_cookies, samesite="strict", path="/auth")
         return response
 
 

@@ -1,0 +1,7 @@
+{
+    "logIn": "Log in", "signUp": "Sign up", "skipToContent": "Skip to main content", "brandHome": "Go to {{appName}} home", "primaryNavigation": "Primary navigation", "footerNavigation": "Footer navigation",
+    "hero": { "title": "See the balance sheet clearly.", "subtitle": "{{appName}} turns public-company balance sheets into explainable trends, decision-ready signals, and secure analysis for every team.", "getStarted": "Get started" },
+    "snapshot": { "label": "A clearer view of financial position", "title": "From reported figures to management insight", "assets": "Total assets", "liabilities": "Total liabilities", "equity": "Stockholders' equity", "change": "Year-over-year change", "viewAnalysis": "Explore the analysis" },
+    "highlights": { "heading": "Everything needed for a confident review", "companyImport": { "title": "Import company data", "description": "Bring in public-company balance sheets by ticker and keep every fiscal year together." }, "trends": { "title": "Understand the movement", "description": "Compare assets, liabilities, equity, liquidity, and leverage across fiscal years." }, "llmQa": { "title": "Ask grounded questions", "description": "Get answers tied to the imported figures and deterministic analysis, not guesswork." }, "accessControl": { "title": "Keep analysis scoped", "description": "Company and group policies ensure every analyst sees only the data they are allowed to review." } },
+    "footer": { "privacyPolicy": "Privacy Policy", "termsOfService": "Terms of Service", "support": "Contact support" }
+}

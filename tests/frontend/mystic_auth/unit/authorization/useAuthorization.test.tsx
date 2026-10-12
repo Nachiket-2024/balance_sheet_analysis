@@ -12,7 +12,7 @@ function seed(permissions?: string[]) {
     useAuthStore.getState().setAuthenticated(true);
     useAuthStore.getState().setProfile({
       name: 'Test User', email: 'test@example.com', role: 'user', permissions, has_password: true,
-      created_at: '2026-01-15T00:00:00Z', active_sessions: 1,
+      created_at: '2026-01-15T00:00:00Z', active_sessions: 1, brand_color: null,
     });
   }
 }
@@ -45,6 +45,14 @@ describe('useAuthorization', () => {
 
     expect(result.current.can('documents:view', 'documents')).toBe(true);
     expect(result.current.can('documents:view', 'some_other_resource_type')).toBe(true);
+  });
+
+  it('can() with an array argument returns true if the caller holds ANY of the listed actions', () => {
+    seed(['policies:create']);
+    const { result } = renderHook(() => useAuthorization());
+
+    expect(result.current.can(['policies:read', 'policies:create'])).toBe(true);
+    expect(result.current.can(['policies:update', 'policies:delete'])).toBe(false);
   });
 
   it('can() fails closed (returns false) while unauthenticated / permissions empty', () => {

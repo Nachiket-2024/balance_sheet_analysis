@@ -1,0 +1,690 @@
+# Production-style build for a local machine or self-hosted server, exposed
+# to the internet through Tailscale Funnel. Run from the repo root with:
+#   docker compose -f docker/mystic_auth/compose/docker-compose.local-prod-tailscale.yml --env-file env/mystic_auth/.env.local-prod-tailscale --env-file env/app/.env.local-prod-tailscale up -d --build
+# (or scripts/mystic_auth/docker/local-prod-tailscale/local-prod-tailscale-up.sh/.ps1/.cmd).
+#
+# One of three local-prod variants, differing only in which tunnel exposes
+# `frontend` to the internet - see docker-compose.local-prod-cloudflare.yml
+# and docker-compose.local-prod-ngrok.yml for the other two, and
+# docs/mystic_auth/deployment/local-prod/README.md for the comparison.
+#
+# Differs from docker-compose.dev.yml (dev) by: no bind mounts (images are
+# self-contained), no reload process, frontend builds the `production`
+# target (nginx + static build, not the Vite dev server), `restart:
+# unless-stopped` and `deploy.resources.limits` on every service.
+#
+# Public entrypoint is Tailscale Funnel: outbound tunnel to your tailnet,
+# routed to frontend:80, at a stable https://<TS_HOSTNAME>.<tailnet>.ts.net
+# URL. docker/tailscale-serve-config.json holds the actual proxy config.
+# See docs/mystic_auth/deployment/local-prod/tailscale-funnel.md for the one-time
+# tailnet setup this needs.
+#
+# frontend and backend publish localhost-only ports for local debugging only;
+# the tunnel is the only externally reachable entrypoint.
+#
+# Explicit project name so this stack's containers/network/volumes don't
+# collide with the other compose files, including the other local-prod
+# variants. Set in env/mystic_auth/.env.local-prod-tailscale - see
+# docs/mystic_auth/docker/compose-modes.md.
+name: ${COMPOSE_PROJECT_NAME}
+
+x-container-hardening: &container_hardening
+  cap_drop: [ALL]
+  # no-new-privileges blocks a process from gaining more than it started
+  # with via a setuid/setgid binary, independent of the capability set
+  # above. pids_limit caps fork-bomb-style resource exhaustion (a runaway
+  # or compromised process spawning children until the host's PID table
+  # fills) - the CPU/memory limits below don't cover process count.
+  # pids_limit (the top-level Compose field) can't live here: it conflicts
+  # with every service's own `deploy.resources.limits` block below
+  # ("can't set distinct values on 'pids_limit' and
+  # 'deploy.resources.limits.pids'", confirmed live against this file) -
+  # each service sets its own `pids:` under its own deploy block instead
+  # (see each service's own comment on that line). Caught by actually
+  # running Docker Bench for Security (CIS Docker Benchmark) against the
+  # live stack rather than a manual `docker inspect` sweep (which also
+  # confirmed `.HostConfig.SecurityOpt` was empty on every container
+  # before this was added).
+  security_opt: [no-new-privileges:true]
+  # Bounds each container's own json-file log driver so a noisy or
+  # attacked service can't fill the host disk - confirmed live via
+  # `docker inspect .HostConfig.LogConfig` returning no limit before
+  # this was added.
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+
+  tailscale:
+    <<: *container_hardening
+    image: tailscale/tailscale@sha256:c507f3a2a6ab1cabd8d809b98edeb41edbd5c3fb6ad9632ffd098b4c7d0b4065
+    restart: unless-stopped
+    # Not read_only this pass: unlike ngrok/postgres/valkey/backend/frontend/
+    # etc. above (verified live against docker-compose.local-prod-ngrok.yml,
+    # see the ngrok file's own comments), this mode wasn't live-tested with a real
+    # Tailscale auth key this session. The tailscaled daemon needs network
+    # device access and its own writable paths beyond TS_STATE_DIR (already
+    # a named volume); verify live before relying on this container being
+    # hardened the same way as the others.
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_HOSTNAME: ${TS_HOSTNAME:-mystic-auth}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve-config.json
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+      - ../../tailscale-serve-config.json:/config/serve-config.json:ro
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    # Pinned address for TRUSTED_PROXY_IPS, same reasoning as cloudflared's
+    # in the other local-prod variants.
+    networks:
+      default:
+        ipv4_address: ${TAILSCALE_STATIC_IP}
+    depends_on:
+      frontend:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+          # PIDs cgroup limit - caps fork-bomb-style resource exhaustion that
+          # cpus/memory above don't bound (can't live in
+          # the shared x-container-hardening anchor - see its own comment).
+          pids: 32
+
+  postgres:
+    <<: *container_hardening
+    read_only: true
+    tmpfs: [/tmp, /var/run/postgresql]
+    image: postgres:15.19-trixie@sha256:c961aa287d8698297cb26cdfadfbe9fd2cbaf77e53cfffe9636e8d8a1e4d842c
+    restart: unless-stopped
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    # Keep database traffic on the isolated backend network while giving the
+    # uploader a separate egress-capable network for B2/rclone.
+    networks: [postgres_net]
+    env_file:
+      - ../../../env/mystic_auth/.env.local-prod-tailscale
+      - ../../../env/app/.env.local-prod-tailscale
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Creates the separate "bugsink" database Bugsink uses, once on a
+      # fresh volume.
+      - ../postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+          # PIDs cgroup limit - caps fork-bomb-style resource exhaustion that
+          # cpus/memory above don't bound (can't live in
+          # the shared x-container-hardening anchor - see its own comment).
+          pids: 256
+
+  valkey:
+    <<: *container_hardening
+    read_only: true
+    tmpfs: [/tmp, /data]
+    image: valkey/valkey:9.1.2-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+    restart: unless-stopped
+    cap_add: [CHOWN, SETUID, SETGID]
+    networks: [valkey_net]
+    # VALKEY_PASSWORD should always be set in production.
+    command: ["valkey-server", "--requirepass", "${VALKEY_PASSWORD:?VALKEY_PASSWORD must be set for local production}"]
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"${VALKEY_PASSWORD:?VALKEY_PASSWORD must be set for local production}\" --no-auth-warning ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+          # PIDs cgroup limit - caps fork-bomb-style resource exhaustion that
+          # cpus/memory above don't bound (can't live in
+          # the shared x-container-hardening anchor - see its own comment).
+          pids: 32
+
+  backend:
+    <<: *container_hardening
+    read_only: true
+    tmpfs: [/tmp]
+    build:
+      context: ../../..
+      dockerfile: docker/mystic_auth/dockerfiles/backend.Dockerfile
+      target: runtime
+    restart: unless-stopped
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    # app_egress_net: Google OAuth token/userinfo endpoints and outbound
+    # SMTP both need a real route to the internet; postgres_net/valkey_net/frontend_proxy
+    # are both internal:true (DB/cache/proxy isolation), so without this,
+    # OAuth login and email sending silently fail outbound (confirmed live,
+    # confirmed live). Mirrors db_backup's existing
+    # backup_egress_net pattern below rather than dropping internal:true.
+    networks: [frontend_proxy, postgres_net, valkey_net, app_egress_net]
+    env_file:
+      - ../../../env/mystic_auth/.env.local-prod-tailscale
+      - ../../../env/app/.env.local-prod-tailscale
+    # Overrides env/mystic_auth/.env.local-prod-tailscale's own TRUSTED_PROXY_IPS:
+    # derived here from FRONTEND_STATIC_IP/TAILSCALE_STATIC_IP so it can
+    # never drift out of sync with the actual pinned addresses below.
+    environment:
+      TRUSTED_PROXY_IPS: ${FRONTEND_PROXY_STATIC_IP},${TAILSCALE_STATIC_IP}
+      EMAIL_ENABLED: ${EMAIL_ENABLED:?EMAIL_ENABLED must be set explicitly}
+    # Wait up to ~10s for bugsink-seed to write the (container-to-container)
+    # SENTRY_DSN, only when Bugsink is configured.
+    command: |
+      sh -c "if [ -n \"$$BUGSINK_SUPERUSER_EMAIL\" ]; then
+        for i in $$(seq 1 20); do
+          [ -f /shared/bugsink-dsn/backend.env ] && . /shared/bugsink-dsn/backend.env && break
+          sleep 0.5
+        done
+      fi
+      WORKERS=\"$${UVICORN_WORKERS:-}\"
+      if [ -z \"$$WORKERS\" ]; then
+        WORKERS=$$(nproc)
+        [ \"$$WORKERS\" -gt 4 ] && WORKERS=4
+        echo \"[backend] UVICORN_WORKERS not set - auto-sizing to $$WORKERS worker(s) (min(nproc,4); set UVICORN_WORKERS to override)\"
+      else
+        echo \"[backend] UVICORN_WORKERS=$$WORKERS (explicit)\"
+      fi
+      echo \"[backend] DB pool per worker: DB_POOL_SIZE=$$DB_POOL_SIZE DB_MAX_OVERFLOW=$$DB_MAX_OVERFLOW - see docs/mystic_auth/deployment/environment.md#7-scaling-and-load-capacity\"
+      exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log --workers \"$$WORKERS\""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bugsink-seed:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully   # don't serve traffic on an unmigrated schema
+    volumes:
+      # Read-only: only bugsink-seed writes here.
+      - bugsink_dsn:/shared/bugsink-dsn:ro
+      # Read-only, only geoipupdate writes here. Safe to mount even when the
+      # geoip profile is off: session_geolocation.py falls back to "Unknown"
+      # if GEOIP_DB_PATH points at nothing.
+      - geoip_data:/usr/share/GeoIP:ro
+    ports:
+      # Non-default port so this can run alongside dev's backend (8000:8000).
+      - "127.0.0.1:${BACKEND_HOST_PORT}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+          # PIDs cgroup limit - caps fork-bomb-style resource exhaustion that
+          # cpus/memory above don't bound (can't live in
+          # the shared x-container-hardening anchor - see its own comment).
+          pids: 128
+
+  frontend:
+    <<: *container_hardening
+    read_only: true
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=1777
+      - /var/cache/nginx:uid=101,gid=101,mode=0755
+      - /var/run:uid=101,gid=101,mode=0755
+    # Distinct image name (derived from COMPOSE_PROJECT_NAME) so building
+    # this doesn't overwrite prod's, dev's, or the other local-prod
+    # variants' frontend images, or another mystic-auth fork's.
+    image: ${COMPOSE_PROJECT_NAME}-frontend
+    # This tag is never published, so without this Compose would try (and
+    # fail) to pull it before building, on every run.
+    pull_policy: build
+    build:
+      context: ../../..
+      dockerfile: docker/mystic_auth/dockerfiles/frontend.Dockerfile
+      target: production                            # nginx + static build, not the Vite dev server
+      # VITE_* vars are baked in at build time from env/mystic_auth/.env.local-prod-tailscale.
+      # VITE_SENTRY_DSN must be the public Bugsink URL, set manually since
+      # bugsink-seed can't infer it. APP_NAME/SUPPORT_EMAIL/BRAND_COLOR are
+      # aliased from the backend vars instead of duplicated.
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_APP_NAME: ${APP_NAME}
+        VITE_APP_LOGO_URL: ${VITE_APP_LOGO_URL}
+        VITE_APP_FAVICON_URL: ${VITE_APP_FAVICON_URL}
+        VITE_SUPPORT_EMAIL: ${SUPPORT_EMAIL}
+        VITE_BRAND_COLOR: ${BRAND_COLOR}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN}
+        VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT}
+    # Pinned address for TRUSTED_PROXY_IPS: nginx.frontend.conf proxies API
+    # prefixes to the backend, so this is the hop the backend needs to trust.
+    networks:
+      default:
+        ipv4_address: ${FRONTEND_STATIC_IP}
+      # Pinned here (not just on `default` above): backend never joins
+      # the `default` network, so FRONTEND_STATIC_IP is not an address
+      # backend can ever see as a TCP peer - TRUSTED_PROXY_IPS needs
+      # frontend's address on the network backend actually shares with
+      # it instead (confirmed live:
+      # without this, get_client_ip() never trusts anything, so every
+      # real caller's IP collapses onto one constant value for
+      # rate-limiting/audit/PBAC purposes).
+      frontend_proxy:
+        ipv4_address: ${FRONTEND_PROXY_STATIC_IP}
+    restart: unless-stopped
+    cap_add: [NET_BIND_SERVICE]
+    ports:
+      # Non-default port so this can run alongside prod's Caddy (80/443).
+      - "127.0.0.1:${FRONTEND_HOST_PORT}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+          # PIDs cgroup limit - caps fork-bomb-style resource exhaustion that
+          # cpus/memory above don't bound (can't live in
+          # the shared x-container-hardening anchor - see its own comment).
+          pids: 32
+
+  # Runs both background jobs (send_email_task, the daily account-purge
+  # cron). Procrastinate's worker runs its own periodic-task scheduler
+  # internally, so no separate scheduler container is needed.
+  procrastinate_worker:
+    <<: *container_hardening
+    read_only: true
+    tmpfs: [/tmp]
+    build:
+      context: ../../..
+      dockerfile: docker/mystic_auth/dockerfiles/backend.Dockerfile
+      target: runtime
+    restart: unless-stopped
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    networks: [postgres_net, valkey_net]
+    env_file:
+      - ../../../env/mystic_auth/.env.local-prod-tailscale
+      - ../../../env/app/.env.local-prod-tailscale
+    command: sh -c "procrastinate --app=mystic_auth.procrastinate_tasks.procrastinate_app.app worker"
+    environment:
+      EMAIL_ENABLED: ${EMAIL_ENABLED:?EMAIL_ENABLED must be set explicitly}
+      # The `procrastinate` console-script doesn't add the working directory
+      # to sys.path like uvicorn does, so without this the app fails to load
+      # and the container restart-loops.
+      PYTHONPATH: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully
+    # This container serves no HTTP, so `procrastinate healthchecks` checks
+    # the DB connection and that the procrastinate_jobs table exists instead.
+    healthcheck:
+      test: ["CMD", "procrastinate", "--app=mystic_auth.procrastinate_tasks.procrastinate_app.app", "healthchecks"]
+      interval: 30s
+      # 8s leaves real margin: the command (new Python process start + a DB
+      # round trip) measured 3.5-4.2s in practice on a dev machine, and a
+      # prod-shaped container under its own resource limits has less
+      # headroom, not more -- 5s was already too tight (see dev.yml for the
+      # original 3s timeout, which failed outright every single run).
+      timeout: 8s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+          # PIDs cgroup limit - caps fork-bomb-style resource exhaustion that
+          # cpus/memory above don't bound (can't live in
+          # the shared x-container-hardening anchor - see its own comment).
+          pids: 64
+
+  # One-shot migration runner. No restart policy because restarting it
+  # would just re-apply an already-applied migration in a loop.
+  alembic:
+    <<: *container_hardening
+    read_only: true
+    tmpfs: [/tmp]
+    build:
+      context: ../../..
+      dockerfile: docker/mystic_auth/dockerfiles/backend.Dockerfile
+      target: runtime
+    env_file:
+      - ../../../env/mystic_auth/.env.local-prod-tailscale
+      - ../../../env/app/.env.local-prod-tailscale
+    networks: [postgres_net]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    command: alembic upgrade head
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Optional: keeps backend's GeoLite2-City.mmdb current using MaxMind's own
+  # updater. Off by default, matching geolocation itself. Start with
+  # `--profile geoip` after setting GEOIPUPDATE_ACCOUNT_ID/LICENSE_KEY and
+  # GEOIP_DB_PATH. See docs/mystic_auth/geolocation/overview.md.
+  geoipupdate:
+    <<: *container_hardening
+    read_only: true
+    tmpfs: [/tmp]
+    image: ghcr.io/maxmind/geoipupdate@sha256:51e70dd6f16cd3e4d845ac02d09940b10772a75b9d741427d235a78570923c1d
+    restart: unless-stopped
+    # app_egress_net: see backend's own networks: comment above - the
+    # updater needs a real route to updates.maxmind.com. It also no longer
+    # joins postgres_net/valkey_net at all: it never needed Postgres/Valkey,
+    # only this egress network plus the shared geoip_data volume mount
+    # (confirmed live it could otherwise
+    # reach both databases it has no reason to touch).
+    networks: [app_egress_net]
+    profiles: ["geoip"]
+    dns: [1.1.1.1, 8.8.8.8]
+    environment:
+      GEOIPUPDATE_ACCOUNT_ID: ${GEOIPUPDATE_ACCOUNT_ID:-}
+      GEOIPUPDATE_LICENSE_KEY: ${GEOIPUPDATE_LICENSE_KEY:-}
+      GEOIPUPDATE_EDITION_IDS: GeoLite2-City
+      GEOIPUPDATE_DATABASE_DIRECTORY: /usr/share/GeoIP
+      GEOIPUPDATE_FREQUENCY: "72"
+    volumes:
+      - geoip_data:/usr/share/GeoIP
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /usr/share/GeoIP/GeoLite2-City.mmdb"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+          # PIDs cgroup limit - caps fork-bomb-style resource exhaustion that
+          # cpus/memory above don't bound (can't live in
+          # the shared x-container-hardening anchor - see its own comment).
+          pids: 16
+
+  # Scheduled Postgres custom-format dumps to ./backups, on by default (unlike geoipupdate
+  # above). Dumps both POSTGRES_DB (the app) and bugsink (error monitoring),
+  # since they're separate databases on the same server. See
+  # docker-compose.prod.yml's identical db_backup service and
+  # docs/mystic_auth/deployment/migrations-and-backups.md: dumps are encrypted
+  # and off-host upload is required. Applies here too, since tailscale above can
+  # make this a real internet-facing deployment, not just a local test.
+  db_backup:
+    <<: *container_hardening
+    build:
+      context: ../../..
+      dockerfile: docker/mystic_auth/dockerfiles/db-backup.Dockerfile
+    restart: unless-stopped
+    # The entrypoint drops to UID/GID 10001 after fixing the bind mount.
+    user: root
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    read_only: true
+    # Disk-backed, not tmpfs: the entrypoint writes the plaintext pg_dump
+    # output to /tmp before encrypting it, and tmpfs is RAM/cgroup-memory
+    # backed - a large database dump landing there could OOM-kill the
+    # backup job against this container's memory limit below. A real
+    # dump on disk has no such ceiling (see the volumes: list below).
+    # postgres_net only (never valkey_net - this backs up Postgres, not
+    # Valkey) while giving the uploader a separate
+    # egress-capable network for B2/rclone.
+    networks: [postgres_net, backup_egress_net]
+    env_file:
+      - ../../../env/mystic_auth/.env.local-prod-tailscale
+      - ../../../env/app/.env.local-prod-tailscale
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY must be set}
+      BACKUP_SENTRY_DSN: ${BACKUP_SENTRY_DSN:-}
+      B2_BUCKET: ${B2_BUCKET:-}
+      RCLONE_CONFIG_B2_TYPE: b2
+      RCLONE_CONFIG_B2_ACCOUNT: ${RCLONE_CONFIG_B2_ACCOUNT:-}
+      RCLONE_CONFIG_B2_KEY: ${RCLONE_CONFIG_B2_KEY:-}
+      # Required: shell command run after each verified encrypted dump, with
+      # DUMP_FILE exported to it, to ship the dump off-host.
+      # Example: rclone copyto "$${DUMP_FILE}" "b2:$${B2_BUCKET}/$$(basename "$${DUMP_FILE}")"
+      BACKUP_UPLOAD_COMMAND: ${BACKUP_UPLOAD_COMMAND:?BACKUP_UPLOAD_COMMAND must be set}
+    volumes:
+      - ../../../backups:/backups
+      - bugsink_dsn:/shared/bugsink-dsn:ro
+      - db_backup_tmp:/tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/usr/local/bin/db-backup-entrypoint"]
+    command: |
+      sh -c '
+      set -e
+      if [ -z "$$BACKUP_SENTRY_DSN" ] && [ -f /shared/bugsink-dsn/backend.env ]; then . /shared/bugsink-dsn/backend.env; fi
+      while true; do
+        TIMESTAMP="$$(date +%Y%m%d-%H%M%S)"
+        UPLOAD_FAILED=0
+        for DB in "$$POSTGRES_DB" bugsink; do
+          DUMP_FILE="/backups/$${DB}-$${TIMESTAMP}.dump.enc"
+          PLAINTEXT_FILE="/tmp/$${DB}-$${TIMESTAMP}.dump"
+          echo "[db_backup] Dumping and encrypting $${DB} to $${DUMP_FILE}"
+          pg_dump -h postgres -U "$$POSTGRES_USER" --format=custom --file="$$PLAINTEXT_FILE" "$$DB" || { rc=$$?; /usr/local/bin/backup-failure-alert "pg_dump failed for $$DB"; exit $$rc; }
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in "$$PLAINTEXT_FILE" -out "$$DUMP_FILE" -pass env:BACKUP_ENCRYPTION_KEY || { rc=$$?; rm -f "$$PLAINTEXT_FILE"; /usr/local/bin/backup-failure-alert "backup encryption failed for $$DB"; exit $$rc; }
+          rm -f "$$PLAINTEXT_FILE"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$$DUMP_FILE" -pass env:BACKUP_ENCRYPTION_KEY | pg_restore --list >/dev/null || { rc=$$?; /usr/local/bin/backup-failure-alert "encrypted backup verification failed for $$DUMP_FILE"; exit $$rc; }
+          /usr/local/bin/backup-hmac tag "$$DUMP_FILE" "$$BACKUP_ENCRYPTION_KEY" || { rc=$$?; /usr/local/bin/backup-failure-alert "HMAC tagging failed for $$DUMP_FILE"; exit $$rc; }
+          echo "[db_backup] Wrote encrypted $${DUMP_FILE} ($$(du -h "$$DUMP_FILE" | cut -f1))"
+          if [ -n "$$BACKUP_UPLOAD_COMMAND" ]; then
+            echo "[db_backup] Running BACKUP_UPLOAD_COMMAND for $${DUMP_FILE}"
+            /usr/local/bin/run-backup-upload "$$DUMP_FILE" || { UPLOAD_FAILED=1; /usr/local/bin/backup-failure-alert "off-host upload failed for $$DUMP_FILE"; }
+          fi
+          find /backups -maxdepth 1 \( -name "$${DB}-*.dump.enc" -o -name "$${DB}-*.dump.enc.hmac" -o -name "$${DB}-*.dump" -o -name "$${DB}-*.sql" \) -mtime "+$${BACKUP_RETENTION_DAYS}" -print -delete
+        done
+        if [ "$$UPLOAD_FAILED" -eq 1 ]; then
+          echo "[db_backup] One or more off-host uploads failed; local dumps retained for the next retry"
+        fi
+        sleep "$$((BACKUP_INTERVAL_HOURS * 3600))"
+      done
+      '
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+          # PIDs cgroup limit - caps fork-bomb-style resource exhaustion that
+          # cpus/memory above don't bound (can't live in
+          # the shared x-container-hardening anchor - see its own comment).
+          pids: 64
+
+  # Self-hosted error monitoring, on by default in this file too.
+  bugsink:
+    <<: *container_hardening
+    read_only: true
+    tmpfs: [/tmp, /app/run]
+    image: bugsink/bugsink:2@sha256:c5e3657451f4ba1ddb145a5118a4347314206cc5ba98f40e5f268c6c0975963e
+    restart: unless-stopped
+    networks: [postgres_net, app_egress_net]
+    env_file:
+      - ../../../env/mystic_auth/.env.local-prod-tailscale
+      - ../../../env/app/.env.local-prod-tailscale
+    environment:
+      SECRET_KEY: ${BUGSINK_SECRET_KEY}
+      CREATE_SUPERUSER: ${BUGSINK_SUPERUSER_EMAIL}:${BUGSINK_SUPERUSER_PASSWORD}
+      PORT: "8000"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/bugsink
+      # Unlike dev, this file assumes a reverse proxy/TLS terminator in front.
+      BEHIND_HTTPS_PROXY: "true"
+      BASE_URL: ${BUGSINK_BASE_URL}
+      # Bugsink (Django) reads its own EMAIL_* names, so this reuses
+      # SMTP_HOST/FROM_EMAIL/GMAIL_APP_PASSWORD rather than a second mail
+      # account. See docs/mystic_auth/error-monitoring/overview.md.
+      EMAIL_HOST: ${SMTP_HOST}
+      EMAIL_PORT: ${SMTP_PORT}
+      EMAIL_HOST_USER: ${FROM_EMAIL}
+      EMAIL_HOST_PASSWORD: ${GMAIL_APP_PASSWORD}
+      EMAIL_USE_TLS: "true"
+      DEFAULT_FROM_EMAIL: ${FROM_EMAIL}
+    # Bound to localhost only: tailscale tunnels the frontend, not Bugsink,
+    # which should not be internet-facing. Reach it via localhost:8211 or an
+    # SSH tunnel. Non-default port so this can run alongside dev's (8010).
+    ports:
+      - "127.0.0.1:8211:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Must stay a YAML list: `monofy`, not a shell, interprets && and |||.
+    command:
+      - monofy
+      - bugsink-show-version
+      - "&&"
+      - bugsink-manage
+      - check
+      - --deploy
+      - --fail-level
+      - WARNING
+      - "&&"
+      - bugsink-manage
+      - migrate
+      - snappea
+      - --database=snappea
+      - "&&"
+      - bugsink-manage
+      - migrate
+      - "&&"
+      - bugsink-manage
+      - prestart
+      - "&&"
+      - gunicorn
+      - --config
+      - gunicorn.docker.conf.py
+      - --timeout
+      - "60"
+      - --bind=0.0.0.0:$$PORT
+      - --access-logfile
+      - "-"
+      - bugsink.wsgi
+      - "|||"
+      - bugsink-runsnappea
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import requests; requests.get('http://localhost:8000/health/ready').raise_for_status()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+          # PIDs cgroup limit - caps fork-bomb-style resource exhaustion that
+          # cpus/memory above don't bound (can't live in
+          # the shared x-container-hardening anchor - see its own comment).
+          pids: 128
+
+  # One-shot, idempotent Bugsink project seeder. No restart policy.
+  bugsink-seed:
+    <<: *container_hardening
+    read_only: true
+    tmpfs: [/tmp, /app/run]
+    image: bugsink/bugsink:2@sha256:c5e3657451f4ba1ddb145a5118a4347314206cc5ba98f40e5f268c6c0975963e
+    # Root, since Docker creates a fresh named volume root-owned and the
+    # non-root "bugsink" user can't write the DSN file into it otherwise.
+    user: root
+    networks: [postgres_net]
+    env_file:
+      - ../../../env/mystic_auth/.env.local-prod-tailscale
+      - ../../../env/app/.env.local-prod-tailscale
+    environment:
+      SECRET_KEY: ${BUGSINK_SECRET_KEY}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/bugsink
+      BASE_URL: ${BUGSINK_BASE_URL}
+    depends_on:
+      bugsink:
+        condition: service_healthy
+    volumes:
+      - bugsink_dsn:/shared/bugsink-dsn
+    command: |
+      sh -c "bugsink-manage shell -c \"
+      import os
+      from django.contrib.auth import get_user_model
+      from teams.models import Team, TeamMembership, TeamRole
+      from projects.models import Project, ProjectMembership, ProjectRole
+
+      User = get_user_model()
+      user = User.objects.get(username=os.environ['BUGSINK_SUPERUSER_EMAIL'])
+
+      team, _ = Team.objects.get_or_create(name=os.environ['APP_NAME'])
+      TeamMembership.objects.get_or_create(team=team, user=user, defaults={'role': TeamRole.ADMIN, 'accepted': True})
+      project, _ = Project.objects.get_or_create(team=team, name=os.environ['APP_NAME'])
+      ProjectMembership.objects.get_or_create(project=project, user=user, defaults={'role': ProjectRole.ADMIN, 'accepted': True})
+
+      key = project.sentry_key.hex
+      os.makedirs('/shared/bugsink-dsn', exist_ok=True)
+      with open('/shared/bugsink-dsn/backend.env', 'w') as f:
+          f.write('export SENTRY_DSN=http://' + key + '@bugsink:8000/' + str(project.id) + chr(10))
+      print('Seeded Bugsink project ' + str(project.id) + ', key ' + key)
+      \""
+
+volumes:
+  postgres_data:
+  # Shared between bugsink-seed (writer) and backend (reader). The frontend
+  # doesn't read it since VITE_SENTRY_DSN is a build arg.
+  bugsink_dsn:
+  # Shared between geoipupdate (writer) and backend (reader), persists so
+  # backend isn't left without a database while geoipupdate re-downloads.
+  geoip_data:
+  # db_backup's own scratch /tmp under read_only: true - see that
+  # service's comment for why this is disk-backed rather than tmpfs.
+  db_backup_tmp:
+  # Tailscale's node identity/keys, so restarts don't re-register as a new node.
+  tailscale_state:
+
+networks:
+  # Known subnet so frontend/tailscale can pin their TRUSTED_PROXY_IPS
+  # addresses. Set in env/mystic_auth/.env.local-prod-tailscale - change it if another
+  # mystic-auth fork's stack on this machine uses the same subnet. See
+  # docs/mystic_auth/docker/compose-modes.md.
+  default:
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET}
+  postgres_net:
+    internal: true
+  valkey_net:
+    internal: true
+  frontend_proxy:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${FRONTEND_PROXY_SUBNET}
+  backup_egress_net: {}
+  # Non-internal on purpose: backend needs this for Google OAuth token/
+  # userinfo calls and outbound SMTP, geoipupdate needs it for MaxMind -
+  # none of that is reachable from postgres_net/valkey_net/frontend_proxy alone
+  # (both internal:true). Scope stays as narrow as Docker Compose's own
+  # networking model allows (a dedicated network only the services that
+  # need egress join); an egress allowlist/proxy restricting it to
+  # exactly those hosts is a further hardening step, not yet built.
+  app_egress_net: {}

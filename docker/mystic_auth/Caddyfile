@@ -1,0 +1,32 @@
+# Caddy auto-provisions and renews a Let's Encrypt certificate for whatever
+# domain is in the site address below, purely from PUBLIC_DOMAIN pointing at
+# this host's IP in DNS: no manual certbot/ACME setup. Requires a real
+# domain (not "localhost" or a bare IP) reachable on 80/443 from the internet.
+{$PUBLIC_DOMAIN} {
+	tls {$ACME_EMAIL}
+
+	# HSTS itself comes from the backend (security_headers_middleware.py,
+	# gated on ENVIRONMENT=production so it also covers the local-prod-*
+	# tunnels, which have no Caddy in front). Don't set it here too - the
+	# frontend's static pages proxy through here to that same backend
+	# response path, so adding it again just duplicates the header.
+
+	# frontend's nginx already same-origin-proxies /auth, /audit, /users,
+	# /authorization, /health to the backend (docker/nginx.frontend.conf),
+	# so Caddy only ever needs to know about one upstream.
+	reverse_proxy frontend:80
+}
+
+# Optional: uncomment and set BUGSINK_PUBLIC_DOMAIN in .env to expose the
+# Bugsink UI and give the frontend's VITE_SENTRY_DSN a real public route for
+# browser-side error reports. Leave commented if Bugsink stays internal-only
+# (the backend already reaches it over the Docker network either way).
+#
+# {$BUGSINK_PUBLIC_DOMAIN} {
+# 	reverse_proxy bugsink:8000
+# }
+
+# Your own site blocks (docker/app/caddy/*.caddy) - see that folder's own
+# README. Zero matches is a no-op, not an error, so this is safe even
+# when you haven't added any.
+import /etc/caddy/app/*.caddy

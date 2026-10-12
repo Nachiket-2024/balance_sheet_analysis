@@ -1,15 +1,18 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Authentication-only dependency (no permission required) : used by
-# /audit-log/me, where a user inspects their own decisions regardless of
-# whether they hold policies:read
+# Authentication-only dependency (no permission required), used by
+# /audit-log/me so a user can inspect their own decisions regardless of
+# whether they hold policies:read.
 from ...auth.current_user.current_user_dependency import get_current_user
 from ...authorization.dependencies.policy_route_dependencies import READ_DEPENDENCY
-from ...authorization.repositories.audit_log_repository import audit_log_repository
-from ...authorization.schemas.audit_log_schema import AuditLogEntryRead
+from ...authorization.repositories.authorization_audit_log_repository import authorization_audit_log_repository
+from ...authorization.schemas.authorization_audit_log_schema import AuthorizationAuditLogEntryRead
+from ...core.search_query import SEARCH_QUERY_MAX_LENGTH
 from ...database.connection import database
-from ...user_crud.user_crud_collector import user_crud
+from ...user.user_crud_collector import user_crud
 from ..get_or_404.get_or_404 import get_or_404
 
 router = APIRouter(prefix="/authorization", tags=["Authorization"])
@@ -22,34 +25,42 @@ _SORT_BY_DESCRIPTION = (
 _ACTION_DESCRIPTION = "Exact match on action (see authorization/permissions.py's Permission values)"
 _RESOURCE_TYPE_DESCRIPTION = "Exact match on resource_type"
 _ALLOWED_DESCRIPTION = "Exact match on allowed (true = Allowed, false = Denied)"
+_FROM_DESCRIPTION = "Only entries at or after this timestamp (created_at, inclusive)"
+_TO_DESCRIPTION = "Only entries at or before this timestamp (created_at, inclusive)"
 
 
-@router.get("/audit-log", response_model=list[AuditLogEntryRead])
+@router.get("/audit-log", response_model=list[AuthorizationAuditLogEntryRead])
 async def list_audit_log(
     response: Response,
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
-    search: str | None = Query(default=None, description="Case-insensitive substring match on user_email"),
+    search: str | None = Query(
+        default=None, max_length=SEARCH_QUERY_MAX_LENGTH, description="Case-insensitive substring match on user_email"
+    ),
     action: str | None = Query(default=None, description=_ACTION_DESCRIPTION),
     resource_type: str | None = Query(default=None, description=_RESOURCE_TYPE_DESCRIPTION),
     allowed: bool | None = Query(default=None, description=_ALLOWED_DESCRIPTION),
     sort_by: str | None = Query(default=None, description=_SORT_BY_DESCRIPTION),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    from_: datetime | None = Query(default=None, alias="from", description=_FROM_DESCRIPTION),
+    to: datetime | None = Query(default=None, description=_TO_DESCRIPTION),
     current_user: dict = READ_DEPENDENCY,
     db: AsyncSession = Depends(database.get_session),
 ):
     """Authorization decisions across every user, newest first by default.
-    Every real authorize()/require() call anywhere in the app writes one of
-    these rows automatically (see AuthorizationService._log_decision) :
+    Every real authorize()/require() call in the app writes one of these
+    rows automatically (see authorization_audit_logger.log_decision);
     nothing needs to opt in."""
     # X-Total-Count (see list_all_users' identical pattern) lets the
     # frontend render numbered pages without a separate round trip. Computed
     # from the same filters so the page count always matches what's
     # actually being paged through.
     response.headers["X-Total-Count"] = str(
-        await audit_log_repository.count(db, search=search, action=action, resource_type=resource_type, allowed=allowed)
+        await authorization_audit_log_repository.count(
+            db, search=search, action=action, resource_type=resource_type, allowed=allowed, from_=from_, to=to
+        )
     )
-    return await audit_log_repository.get_all(
+    return await authorization_audit_log_repository.get_all(
         db,
         limit=limit,
         offset=offset,
@@ -59,10 +70,12 @@ async def list_audit_log(
         allowed=allowed,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        from_=from_,
+        to=to,
     )
 
 
-@router.get("/audit-log/me", response_model=list[AuditLogEntryRead])
+@router.get("/audit-log/me", response_model=list[AuthorizationAuditLogEntryRead])
 async def list_my_audit_log(
     response: Response,
     limit: int = Query(default=100, ge=1, le=1000),
@@ -72,23 +85,24 @@ async def list_my_audit_log(
     allowed: bool | None = Query(default=None, description=_ALLOWED_DESCRIPTION),
     sort_by: str | None = Query(default=None, description=_SORT_BY_DESCRIPTION),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    from_: datetime | None = Query(default=None, alias="from", description=_FROM_DESCRIPTION),
+    to: datetime | None = Query(default=None, description=_TO_DESCRIPTION),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(database.get_session),
 ):
     """
     The caller's own authorization decisions, newest first by default. No
-    policies:read (or any other) permission required, since a user
-    inspecting their own authorization history is not a privileged
-    operation. Scoped server-side to current_user's email : the caller
-    cannot request another user's entries through this endpoint (see
-    list_audit_log_for_user for that, which does require policies:read).
+    policies:read (or any other) permission required, since inspecting
+    one's own history isn't a privileged operation. Scoped server-side to
+    current_user's email; the caller cannot request another user's entries
+    here (see list_audit_log_for_user, which requires policies:read).
     """
     response.headers["X-Total-Count"] = str(
-        await audit_log_repository.count_for_user(
-            current_user["email"], db, action=action, resource_type=resource_type, allowed=allowed
+        await authorization_audit_log_repository.count_for_user(
+            current_user["email"], db, action=action, resource_type=resource_type, allowed=allowed, from_=from_, to=to
         )
     )
-    return await audit_log_repository.get_for_user(
+    return await authorization_audit_log_repository.get_for_user(
         current_user["email"],
         db,
         limit=limit,
@@ -98,10 +112,12 @@ async def list_my_audit_log(
         allowed=allowed,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        from_=from_,
+        to=to,
     )
 
 
-@router.get("/audit-log/users/{user_email}", response_model=list[AuditLogEntryRead])
+@router.get("/audit-log/users/{user_email}", response_model=list[AuthorizationAuditLogEntryRead])
 async def list_audit_log_for_user(
     user_email: str,
     response: Response,
@@ -112,6 +128,8 @@ async def list_audit_log_for_user(
     allowed: bool | None = Query(default=None, description=_ALLOWED_DESCRIPTION),
     sort_by: str | None = Query(default=None, description=_SORT_BY_DESCRIPTION),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    from_: datetime | None = Query(default=None, alias="from", description=_FROM_DESCRIPTION),
+    to: datetime | None = Query(default=None, description=_TO_DESCRIPTION),
     current_user: dict = READ_DEPENDENCY,
     db: AsyncSession = Depends(database.get_session),
 ):
@@ -120,11 +138,11 @@ async def list_audit_log_for_user(
     await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
 
     response.headers["X-Total-Count"] = str(
-        await audit_log_repository.count_for_user(
-            user_email, db, action=action, resource_type=resource_type, allowed=allowed
+        await authorization_audit_log_repository.count_for_user(
+            user_email, db, action=action, resource_type=resource_type, allowed=allowed, from_=from_, to=to
         )
     )
-    return await audit_log_repository.get_for_user(
+    return await authorization_audit_log_repository.get_for_user(
         user_email,
         db,
         limit=limit,
@@ -134,4 +152,6 @@ async def list_audit_log_for_user(
         allowed=allowed,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        from_=from_,
+        to=to,
     )

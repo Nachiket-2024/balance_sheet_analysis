@@ -1,55 +1,107 @@
 # Architecture: The `app/` vs `mystic_auth/` Split, in Practice
+---
+The app owns financial data and product workflows. MysticAuth supplies the
+shared authentication, authorization, session, audit, and UI foundations. The
+ownership boundary is described in
+[`template-usage/ownership-split.md`](../../mystic_auth/template-usage/ownership-split.md).
+---
 
-```
+## Backend
+
+---
+
+```text
 backend/
-  mystic_auth/        <- template internals, never edited (auth, PBAC engine, audit log, users)
+  mystic_auth/             upstream template internals
   app/
-    main.py           <- FastAPI app: mounts mystic_auth's routers, then this app's own
-    sdk.py            <- template's own re-export surface (unedited, as shipped)
-    app_sdk.py         <- THIS app's re-export surface: mystic_auth internals this app
-                          additionally needs (policy_repository, Base, rate_limiter_service)
-    access/            permissions.py (action vocabulary) + scope.py (the company-hierarchy
-                        scoping logic, see ../access-control/overview.md)
-    companies/          Company model/schema/crud (no routes, see api/ below)
-    balance_sheets/      BalanceSheet model/schema/crud, yfinance import logic
-    llm/                grounded LLM chat (schema/service/config)
-    api/                routes ONLY, mirroring mystic_auth/api/'s own layout:
-      company_routes/company_routes.py
-      balance_sheet_routes/balance_sheet_routes.py
-      llm_routes/llm_routes.py
-    seed/               seed_base_policies.py: runs automatically, baseline unconditioned
-                        role policies (see ../access-control/baseline-policies.md);
-                        seed_demo_data.py: opt-in, disposable demo companies/users/scoped-policies
-  alembic/              ONE shared migration history for mystic_auth's + this app's tables
-                        (see env.py: both sets of models import into the same target_metadata)
-
-frontend/
-  src/mystic_auth/     <- template internals, never edited (login, PBAC hooks, layout shell)
-    api/                mystic_auth's own axios clients (axiosInstance.ts, users_api.ts, ...)
-  src/app/
-    sdk.ts             <- template's own re-export surface (unedited, as shipped)
-    app_sdk.ts          this app's own re-export surface: currently just DashboardPage,
-                        the one piece sdk.ts doesn't already cover (see sdk-and-extension-points.md)
-    access/             permissions.ts, mirrors backend/app/access/permissions.py's action
-                        strings; deliberately its own folder, not mystic_auth/authorization/
-                        (see conventions.md)
-    api/                axios clients ONLY, mirroring mystic_auth/api/'s own layout:
-      company_api.ts, balance_sheet_api.ts, llm_api.ts (no components/hooks here)
-    companies/          list/detail pages + react-query hooks (companyQueries.ts)
-    balance-sheets/      chart + table + import/delete UI + react-query hooks
-    llm/                chat widget
-    translations/        this app's own i18n namespaces (companies, balance_sheets, llm,
-                        errors), registered into mystic_auth's shared i18next instance
-                        (see translations.md)
-    App.tsx             THIS app's routing: mounts mystic_auth's auth pages/layout plus
-                        this app's own routes, and renders mystic_auth's own DashboardPage
-                        directly at "/dashboard" (see sdk-and-extension-points.md)
+    main.py                mounts shared and app routers; starts app workers
+    sdk.py                 upstream public re-export surface; do not edit
+    app_sdk.py             app-owned bridge for MysticAuth exports absent from sdk.py
+    access/                app PBAC action names and company scope helpers
+    api/                   HTTP routes, grouped by feature
+      company_routes/      company CRUD and yfinance lookup/search
+      balance_sheet_routes/ balance-sheet import, read, export, and delete
+      analysis_routes/     trends, comparison, benchmarks, settings, rates, alerts
+      financial_statement_routes/ annual/quarterly statements and analysis
+      llm_routes/          grounded chat, feedback, provider status, usage, operations
+      review_routes/       saved review snapshots, comments, assignments, sign-offs
+    companies/             company model, schemas, and CRUD
+    balance_sheets/        balance-sheet models, analysis, alerts, settings, currencies
+    financial_statements/  statement models, curated fields, and deterministic analysis
+    reviews/                saved review models and schemas
+    llm/                    provider configuration, prompt service, and usage models
+    procrastinate_tasks/    scheduled financial refresh and alert delivery tasks
+    core/                   app-owned settings
+    seed/                   baseline app policies and optional demo dataset
+  alembic/                  shared migration history for both code trees
 ```
 
-See [Features](../features.md) for the LLM chat and yfinance-import implementation notes, and [Syncing with upstream](../syncing.md) for how `mystic_auth/` itself gets updated.
+`backend/alembic/env.py` imports both model sets into one metadata collection.
+Migrations from MysticAuth and the app therefore share one linear history.
+---
+
+## Frontend
+
+---
+
+```text
+frontend/src/
+  mystic_auth/              upstream auth flows, PBAC, shared layout and UI
+  app/
+    App.tsx                 shared route composition and app navigation
+    sdk.ts                  upstream public re-export surface; do not edit
+    app_sdk.ts              app-owned bridge for missing public SDK exports
+    access/                 app permission strings used by route and UI checks
+    api/                    app Axios clients only
+    companies/              company list, detail, comparison, and query hooks
+    balance-sheets/         balance-sheet charts, analysis, and query hooks
+    financial-statements/   annual and quarterly statement views and query hooks
+    reviews/                 review snapshots, comments, and status actions
+    llm/                     company chat and LLM operations page
+    landing_page/            public product overview and its translations
+    legal/                   app terms and privacy pages
+    status_pages/            app-specific not-authorized and not-found pages
+    translations/            app namespaces registered with shared i18next
+```
+
+Feature components and clients use the MysticAuth public SDK for capabilities
+it exports. `app_sdk.ts` centralizes only capabilities that are not on that
+public surface. See [SDK and Extension Points](sdk-and-extension-points.md).
+---
+
+## Runtime flow
+
+---
+
+```mermaid
+%%{init: {"themeVariables": {"lineColor": "#334155"}} }%%
+flowchart LR
+    Browser[App pages] --> AppAPI[App FastAPI routes]
+    AppAPI --> Auth[MysticAuth session and PBAC]
+    AppAPI --> DB[(PostgreSQL)]
+    AppAPI --> Finance[yfinance]
+    AppAPI --> Provider[Configured LLM provider]
+    Worker[Procrastinate tasks] --> DB
+    Worker --> Delivery[Email and optional webhook]
+    classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef blocked fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    classDef decision fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
+    class Browser,AppAPI,Auth,DB,Worker,Delivery success
+```
+
+All company-scoped routes authorize against the server-side company/group
+scope. Provider imports and LLM calls are initiated by backend services; the
+browser does not receive provider credentials. Scheduled refreshes and alert
+delivery run through the app's Procrastinate tasks.
+---
 
 ## See also
 
-- [Conventions](conventions.md): why routes/API clients/access code are split the way they are
-- [SDK and Extension Points](sdk-and-extension-points.md): the `sdk`/`app_sdk` split, and how the sidebar/dashboard extend mystic_auth's shared chrome without editing it
-- [Translations](translations.md): how this app's UI text and error codes are translated into mystic_auth's four supported languages without editing any upstream-owned file
+---
+
+- [Conventions](conventions.md)
+- [SDK and Extension Points](sdk-and-extension-points.md)
+- [Translations](translations.md)
+- [Features](../features.md)
+- [Application flows](../flows/README.md)
+- [Syncing with upstream](../syncing.md)

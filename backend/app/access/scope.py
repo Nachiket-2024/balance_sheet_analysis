@@ -14,7 +14,7 @@ of exactly two condition shapes:
     (absent/empty conditions)                            # unrestricted (e.g. admin)
 
 `group_root_id` is a denormalized column on Company (see company_model.py):
-the top-most ancestor's id, so "every company in Reliance's group" is a flat
+the top-most ancestor's id, so "every company in Microsoft's group" is a flat
 equality on one column instead of a recursive parent_company_id walk.
 
 Every resource we ever pass to authorization_service.authorize()/.require()

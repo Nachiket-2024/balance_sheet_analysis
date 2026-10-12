@@ -1,37 +1,29 @@
 import asyncio
 import traceback
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import jwt
+from sqlalchemy import text
 
 from ...core.settings import settings
+from ...database.connection import database
 from ...logging.logging_config import get_logger
-from ...redis.client import redis_client
+from ...valkey.client import valkey_client
+from .token_version_store import TokenVersionUnavailableError, token_version_store
 
 logger = get_logger(__name__)
 
-# Redis key for a user's account-wide token version: every access/refresh
-# token embeds the version that was current when it was minted (see
-# create_access_token/create_refresh_token), and is rejected the moment
-# that number no longer matches. Bumping this one integer (bump_account_version)
-# is what "logout everywhere" actually is - no per-token bookkeeping, no
-# iterating anything: every token on the account, minted before the bump,
-# stops matching in one atomic INCR. Never expires: it has to keep meaning
-# the same thing for as long as the account exists, since a token minted
-# long after the last bump must still match it correctly.
-ACCOUNT_VERSION_KEY = "account_ver:{email}"
 
-# Redis key for one login's version, scoped to its chain_id (see
-# create_refresh_token's own docstring for what a chain is). Bumping this
-# (bump_chain_version) ends exactly that one session - logout, a targeted
-# Manage Sessions revoke, or reuse-detection containing a compromised
-# chain - without touching any other session on the account. TTL'd to the
-# refresh-token lifetime on bump: once that elapses, nothing could still be
-# validly using this chain_id anyway (a fresh login never reuses an old
-# chain_id), so the key can safely disappear instead of accumulating one
-# per revoked session forever.
-CHAIN_VERSION_KEY = "chain_ver:{email}:{chain_id}"
+@dataclass(frozen=True)
+class RefreshRotationClaim:
+    claimed: bool
+    consumed_at: datetime | None
+    account_ver: int | None
+    chain_ver: int | None
+    client_ip: str | None
+    legacy_valkey_marker: bool = False
 
 
 class JWTService:
@@ -39,22 +31,30 @@ class JWTService:
     Creates, verifies, and revokes access/refresh JWTs.
 
     Revocation is version-based, not identity-based: a token is valid only
-    if its own embedded account_ver and chain_ver still match Redis's
-    current values (see ACCOUNT_VERSION_KEY/CHAIN_VERSION_KEY above).
+    if its own embedded account_ver and chain_ver still match the durable
+    revocation store's current values (Valkey is only a cache; see
+    ACCOUNT_VERSION_KEY/CHAIN_VERSION_KEY above).
     Rotation replay protection (a refresh token must only ever be redeemed
     once) is a separate, narrower concern - see claim_jti_for_rotation -
     solved by a short-lived per-jti marker, since versioning alone can't
     tell "already used once" from "still current."
     """
 
-    async def create_access_token(self, email: str, chain_id: str) -> str:
-        now = datetime.now(UTC)
+    async def create_access_token(
+        self,
+        email: str,
+        chain_id: str,
+        *,
+        issued_at: datetime | None = None,
+        account_ver: int | None = None,
+        chain_ver: int | None = None,
+    ) -> str:
+        now = issued_at or datetime.now(UTC)
         expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         jti = uuid.uuid4().hex
 
-        account_ver, chain_ver = await asyncio.gather(
-            self.get_account_version(email), self.get_chain_version(email, chain_id)
-        )
+        if account_ver is None or chain_ver is None:
+            account_ver, chain_ver = await self.get_token_versions(email, chain_id)
 
         # "iat" is a float (now.timestamp()), not the datetime object
         # itself: PyJWT truncates a datetime-valued exp/iat/nbf claim to
@@ -72,11 +72,21 @@ class JWTService:
             "chain_ver": chain_ver,
             "iat": now.timestamp(),
             "exp": expire,
+            "iss": settings.JWT_ISSUER,
+            "aud": settings.JWT_AUDIENCE,
         }
 
         return await asyncio.to_thread(jwt.encode, payload, settings.SECRET_KEY, settings.JWT_ALGORITHM)
 
-    async def create_refresh_token(self, email: str, chain_id: str) -> str:
+    async def create_refresh_token(
+        self,
+        email: str,
+        chain_id: str,
+        *,
+        issued_at: datetime | None = None,
+        account_ver: int | None = None,
+        chain_ver: int | None = None,
+    ) -> str:
         """
         chain_id identifies one continuous login, unchanged across every
         rotation of it: a fresh login mints a new random one (see
@@ -86,15 +96,14 @@ class JWTService:
         targeted revoke (logout, Manage Sessions, reuse-detection) end
         exactly this one session via bump_chain_version, without touching
         any other session on the account - see
-        docs/mystic_auth/authentication/session-management.md.
+        docs/mystic_auth/authentication/session-management/README.md.
         """
-        now = datetime.now(UTC)
+        now = issued_at or datetime.now(UTC)
         expire = now + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
         jti = uuid.uuid4().hex
 
-        account_ver, chain_ver = await asyncio.gather(
-            self.get_account_version(email), self.get_chain_version(email, chain_id)
-        )
+        if account_ver is None or chain_ver is None:
+            account_ver, chain_ver = await self.get_token_versions(email, chain_id)
 
         payload = {
             "email": email,
@@ -105,6 +114,8 @@ class JWTService:
             "chain_ver": chain_ver,
             "iat": now.timestamp(),
             "exp": expire,
+            "iss": settings.JWT_ISSUER,
+            "aud": settings.JWT_AUDIENCE,
         }
 
         return await asyncio.to_thread(jwt.encode, payload, settings.SECRET_KEY, settings.JWT_ALGORITHM)
@@ -114,14 +125,14 @@ class JWTService:
         verify-account endpoint only: every protected route requires
         expected_type="access" via verify_token, so a verification token is
         rejected everywhere else in the app even if it leaks (e.g. via an
-        email log or forward). Single-use is enforced by its own Redis key
+        email log or forward). Single-use is enforced by its own Valkey key
         (account_verification_service's "verify:{token}"), not by anything
         in this class - it carries no account_ver/chain_ver/jti of its own.
 
-        expires_minutes must match the caller's own single-use Redis key TTL
+        expires_minutes must match the caller's own single-use Valkey key TTL
         and the expiry stated in the verification email. Previously this
         was hardcoded to ACCESS_TOKEN_EXPIRE_MINUTES (15min default) while
-        account_verification_service set the Redis key TTL and emailed
+        account_verification_service set the Valkey key TTL and emailed
         wording using RESET_TOKEN_EXPIRE_MINUTES (60min default), so a user
         clicking the link between 15-60 minutes in got a confusing
         invalid/expired error despite the email promising it should still
@@ -131,7 +142,14 @@ class JWTService:
         )
         jti = uuid.uuid4().hex
 
-        payload = {"email": email, "type": "verify", "jti": jti, "exp": expire}
+        payload = {
+            "email": email,
+            "type": "verify",
+            "jti": jti,
+            "exp": expire,
+            "iss": settings.JWT_ISSUER,
+            "aud": settings.JWT_AUDIENCE,
+        }
 
         return await asyncio.to_thread(jwt.encode, payload, settings.SECRET_KEY, settings.JWT_ALGORITHM)
 
@@ -143,16 +161,25 @@ class JWTService:
         password reset tokens).
         """
         try:
-            # The algorithm allowlist is passed as a single-element list, not a
-            # bare string: PyJWT's `algorithms` parameter accepts a bare string
-            # as a technically-valid Sequence[str] (Python strings are
-            # sequences of characters), which would make its internal
-            # membership check an accidental substring match instead of an
-            # exact one. A list is the only form PyJWT's own docs endorse for
-            # this parameter.
+            # `algorithms` must be a list, not a bare string: PyJWT treats a
+            # string as a Sequence[str] too, turning its membership check
+            # into an accidental substring match.
+            #
+            # verify_aud=False: PyJWT auto-rejects any payload with an "aud"
+            # claim present at all, which would break tokens minted before
+            # that claim existed. has_valid_issuer_and_audience() below does
+            # the real iss/aud check instead, with "absent is fine,
+            # present-and-wrong is not" semantics.
             payload = await asyncio.to_thread(
-                jwt.decode, token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+                jwt.decode,
+                token,
+                settings.SECRET_KEY,
+                algorithms=[settings.JWT_ALGORITHM],
+                options={"verify_aud": False},
             )
+
+            if not self.has_valid_issuer_and_audience(payload):
+                return None
 
             if await self.is_token_revoked_by_jti(payload.get("jti")):
                 return None
@@ -185,20 +212,75 @@ class JWTService:
         skipping the revocation check performed by verify_token.
 
         Exists for reuse-detection: when a refresh token is presented that
-        Redis already shows as revoked, we still need to know which user it
-        belonged to in order to revoke their other active sessions. verify_token
+        Valkey already shows as revoked, we still need to know which user it
+        belonged to so we can revoke their other active sessions. verify_token
         can't be used for that because it would correctly refuse to return a
         payload for a revoked token.
         """
         try:
+            # verify_aud disabled here too: this method's contract is
+            # "signature and expiry only" (see docstring above), and an
+            # unconditioned jwt.decode auto-rejects on the mere presence of
+            # an "aud" claim - see verify_token's own comment on the same
+            # options= kwarg for why.
             return await asyncio.to_thread(
-                jwt.decode, token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+                jwt.decode,
+                token,
+                settings.SECRET_KEY,
+                algorithms=[settings.JWT_ALGORITHM],
+                options={"verify_aud": False},
             )
 
         except jwt.PyJWTError:
             return None
 
-    async def claim_jti_for_rotation(self, jti: str, exp: int | float | None, email: str | None = None) -> bool:
+    async def is_benign_duplicate_rotation(self, jti: str, client_ip: str | None) -> bool:
+        """Recognize a same-IP retry during the short rotation grace window.
+
+        The retry is rejected without minting another token pair or revoking
+        the chain created by the successful first request.
+        """
+        grace = settings.REFRESH_TOKEN_REUSE_GRACE_SECONDS
+        if grace <= 0:
+            return False
+        try:
+            async with database.async_session() as session:
+                result = await session.execute(
+                    text(
+                        "SELECT consumed_at, client_ip FROM consumed_refresh_tokens "
+                        "WHERE jti = :jti"
+                    ),
+                    {"jti": jti},
+                )
+                row = result.first()
+            if row is None:
+                # A short compatibility window for claim markers created by
+                # the previous release during a rolling deployment. Those
+                # legacy markers cannot reproduce their random child pair.
+                marker = await valkey_client.get(f"revoked:{jti}")
+                if isinstance(marker, bytes):
+                    marker = marker.decode()
+                if not isinstance(marker, str) or "|" not in marker:
+                    return False
+                claimed_at, claimed_ip = marker.split("|", 1)
+                age = datetime.now(UTC).timestamp() - float(claimed_at)
+                return 0 <= age <= grace and claimed_ip == (client_ip or "")
+            consumed_at, claimed_ip = row
+            age = (datetime.now(UTC) - consumed_at).total_seconds()
+            return 0 <= age <= grace and claimed_ip == client_ip
+        except Exception as error:
+            logger.error("Failed to read durable refresh rotation for jti %s:\n%s", jti, traceback.format_exc())
+            raise TokenVersionUnavailableError("durable refresh rotation store unavailable") from error
+
+    async def claim_jti_for_rotation(
+        self,
+        jti: str,
+        exp: int | float | None,
+        email: str | None = None,
+        client_ip: str | None = None,
+        account_ver: int = 0,
+        chain_ver: int = 0,
+    ) -> RefreshRotationClaim:
         """
         Atomically marks jti as redeemed, only if it wasn't already -
         refresh tokens are single-use, so this is what actually stops the
@@ -208,29 +290,70 @@ class JWTService:
         it: a stolen-but-still-current-version token could otherwise be
         used to mint an unbounded number of new token pairs. Returns True
         only for the call that actually claimed it (safe to proceed with
-        rotation), False if it was already claimed.
+        rotation). A retry receives the existing claim and is rejected by
+        the refresh service; it cannot mint a second child pair.
 
-        SET...NX makes the check-and-claim one atomic Redis operation:
-        a separate is_token_revoked_by_jti-then-mark pair would leave a
-        real gap where two concurrent requests presenting the identical
-        refresh token could both observe "not yet claimed" and both
-        proceed to mint a fresh token pair from one token. `email` is
-        currently unused here (retained for interface symmetry with
-        callers that pass it) - the jti-registry cleanup this used to
-        also perform no longer exists now that revocation is version-based.
+        A Postgres unique key makes the check-and-claim atomic and survives
+        Valkey flushes/restarts. Rows are retained only until the token's
+        expiry and removed by the scheduled session cleanup task. `email` is
+        retained for interface compatibility; it is not persisted here.
         """
         try:
-            ttl = 1
-            if exp is not None:
-                ttl = max(1, int(exp - datetime.now(UTC).timestamp()))
+            if exp is None:
+                raise ValueError("refresh token is missing expiry")
+            # Honor markers written by the previous Valkey-only implementation
+            # during rolling upgrades. New claims are written to Postgres.
+            try:
+                if await valkey_client.exists(f"revoked:{jti}") == 1:
+                    return RefreshRotationClaim(False, None, None, None, client_ip, True)
+            except Exception:
+                # The durable PostgreSQL claim below is authoritative. A
+                # missing cache during a deployment must not block refresh.
+                logger.warning("Could not read legacy Valkey refresh marker for jti %s", jti)
+            expiry = datetime.fromtimestamp(float(exp), tz=UTC)
+            async with database.async_session() as session:
+                result = await session.execute(
+                    text(
+                        "INSERT INTO consumed_refresh_tokens "
+                        "(jti, consumed_at, expires_at, client_ip, account_ver, chain_ver) "
+                        "VALUES (:jti, now(), :expires_at, :client_ip, :account_ver, :chain_ver) "
+                        "ON CONFLICT (jti) DO NOTHING "
+                        "RETURNING consumed_at, client_ip, account_ver, chain_ver"
+                    ),
+                    {
+                        "jti": jti,
+                        "expires_at": expiry,
+                        "client_ip": client_ip,
+                        "account_ver": account_ver,
+                        "chain_ver": chain_ver,
+                    },
+                )
+                row = result.first()
+                claimed = row is not None
+                if row is None:
+                    result = await session.execute(
+                        text(
+                            "SELECT consumed_at, client_ip, account_ver, chain_ver "
+                            "FROM consumed_refresh_tokens WHERE jti = :jti"
+                        ),
+                        {"jti": jti},
+                    )
+                    row = result.first()
+                if row is None:
+                    raise RuntimeError("refresh token claim disappeared during transaction")
+                await session.commit()
+                consumed_at, stored_ip, stored_account_ver, stored_chain_ver = row
+                return RefreshRotationClaim(
+                    claimed=claimed,
+                    consumed_at=consumed_at,
+                    account_ver=int(stored_account_ver),
+                    chain_ver=int(stored_chain_ver),
+                    client_ip=stored_ip,
+                )
 
-            claimed = await redis_client.set(f"revoked:{jti}", "true", nx=True, ex=ttl)
-
-            return bool(claimed)
-
-        except Exception:
-            logger.warning("Failed to claim jti %s for rotation:\n%s", jti, traceback.format_exc())
-            return False
+        except Exception as error:
+            logger.error("Failed to claim durable refresh jti %s:\n%s", jti, traceback.format_exc())
+            raise TokenVersionUnavailableError("durable refresh rotation store unavailable") from error
 
     async def is_token_revoked_by_jti(self, jti: str | None) -> bool:
         """Returns False (not just when unrevoked) when no jti was given:
@@ -239,59 +362,42 @@ class JWTService:
         if not jti:
             return False
 
-        return await redis_client.exists(f"revoked:{jti}") == 1
+        return await valkey_client.exists(f"revoked:{jti}") == 1
 
-    async def get_account_version(self, email: str) -> int:
-        """Current account-wide version, 0 if it has never been bumped
-        (i.e. this account has never had a whole-account revoke)."""
-        try:
-            raw = await redis_client.get(ACCOUNT_VERSION_KEY.format(email=email))
-            return int(raw) if raw is not None else 0
-        except Exception:
-            logger.warning("Failed to read account version for %s:\n%s", email, traceback.format_exc())
-            return 0
+    def has_valid_issuer_and_audience(self, payload: dict) -> bool:
+        """False (reject) only when "iss"/"aud" is present and wrong; True
+        (including for a token minted before this feature shipped, carrying
+        neither claim) whenever there's nothing to compare against - same
+        "nothing to check against, so don't reject" reasoning as
+        is_current_version's account_ver/chain_ver checks and
+        is_token_revoked_by_jti's jti-less early return.
 
-    async def get_chain_version(self, email: str, chain_id: str) -> int:
-        """Current version for one chain, 0 if it has never been bumped
-        (i.e. this specific session has never been individually revoked)."""
-        try:
-            raw = await redis_client.get(CHAIN_VERSION_KEY.format(email=email, chain_id=chain_id))
-            return int(raw) if raw is not None else 0
-        except Exception:
-            logger.warning(
-                "Failed to read chain version for %s/%s:\n%s", email, chain_id, traceback.format_exc()
-            )
-            return 0
+        Checked outside jwt.decode's own audience=/issuer= kwargs
+        (rather than passed to it) deliberately: those raise/reject the
+        instant the claim is *missing*, which would be a hard break for
+        any token minted before JWT_ISSUER/JWT_AUDIENCE existed, instead of
+        the graceful, additive rollout every other claim in this class gets.
+        """
+        iss = payload.get("iss")
+        if iss is not None and iss != settings.JWT_ISSUER:
+            return False
 
-    async def bump_account_version(self, email: str) -> None:
-        """The whole-account revoke: logout-all, password change, account
-        deactivation/purge, and reuse-detection on a token with no chain
-        claim of its own (unknown lineage, so the maximally-safe response).
-        Every token on the account, minted before this call, stops
-        matching on its very next use."""
-        try:
-            await redis_client.incr(ACCOUNT_VERSION_KEY.format(email=email))
-        except Exception:
-            logger.warning("Failed to bump account version for %s:\n%s", email, traceback.format_exc())
+        aud = payload.get("aud")
+        return aud is None or aud == settings.JWT_AUDIENCE
 
-    async def bump_chain_version(self, email: str, chain_id: str) -> None:
-        """The single-session revoke: logout (this device only), a
-        targeted Manage Sessions "End session", and reuse-detection scoped
-        to the compromised chain specifically. Every token sharing this
-        chain_id, minted before this call, stops matching on its next use;
-        every other chain on the account is completely unaffected."""
-        try:
-            key = CHAIN_VERSION_KEY.format(email=email, chain_id=chain_id)
-            await redis_client.incr(key)
-            await redis_client.expire(key, settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60)
-        except Exception:
-            logger.warning(
-                "Failed to bump chain version for %s/%s:\n%s", email, chain_id, traceback.format_exc()
-            )
+    # Account/chain version reads and bumps live in token_version_store.py
+    # (Postgres-backed revocation bookkeeping), re-exported here as bound
+    # methods so every existing `jwt_service.get_account_version(...)`-style
+    # call site keeps working unchanged.
+    get_account_version = token_version_store.get_account_version
+    get_chain_version = token_version_store.get_chain_version
+    get_token_versions = token_version_store.get_versions
+    bump_account_version = token_version_store.bump_account_version
+    bump_chain_version = token_version_store.bump_chain_version
 
     async def is_current_version(self, payload: dict) -> bool:
         """False (revoked) if either the token's embedded account_ver or
-        chain_ver has fallen behind Redis's current value. True (including
+        chain_ver has fallen behind the durable store's current value. True (including
         for a token minted before this feature shipped, carrying neither
         claim) whenever there's nothing to compare - same "nothing to check
         against, so don't reject" reasoning as the jti-less early return in

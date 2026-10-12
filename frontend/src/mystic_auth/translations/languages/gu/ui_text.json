@@ -5,29 +5,51 @@
     "edit": "સંપાદિત કરો",
     "create": "બનાવો",
     "close": "બંધ કરો",
+    "closeDialog": "સંવાદ બંધ કરો",
     "confirm": "પુષ્ટિ કરો",
     "back": "પાછળ",
+    "previous": "પાછલું",
+    "next": "આગલું",
+    "noMatches": "કોઈ મેળ નથી",
     "loading": "લોડ થઈ રહ્યું છે...",
+    "retry": "ફરી પ્રયાસ કરો",
     "saving": "સાચવી રહ્યાં છીએ...",
     "yes": "હા",
     "no": "ના",
+    "showPassword": "પાસવર્ડ બતાવો",
+    "hidePassword": "પાસવર્ડ છુપાવો",
     "active": "સક્રિય",
     "inactive": "નિષ્ક્રિય",
     "enabled": "સક્ષમ",
     "disabled": "અક્ષમ",
     "failedToLoadData": "ડેટા લોડ કરવામાં નિષ્ફળ",
+    "notAuthorizedToView": "આ જોવાની પરવાનગી તમારી પાસે નથી.",
     "noDataAvailable": "કોઈ ડેટા ઉપલબ્ધ નથી",
     "errorBoundary": {
         "title": "કંઈક ખોટું થયું",
-        "description": "એક અનપેક્ષિત ભૂલ આવી. પેજ ફરીથી લોડ કરવાથી સામાન્ય રીતે આ ઠીક થાય છે.",
+        "description": "એક અનપેક્ષિત ભૂલ આવી. પૃષ્ઠ ફરીથી લોડ કરવાથી સામાન્ય રીતે આ ઠીક થાય છે.",
         "reload": "ફરીથી લોડ કરો"
     },
     "filterLabel": "ફિલ્ટર: {{label}}",
+    "selectedCount": "{{count}} પસંદ કરેલ",
+    "bulkUsersSelected": "{{count}} વપરાશકર્તાઓ પસંદ કર્યા",
+    "bulkOperation": "સામૂહિક ક્રિયા",
+    "clearSelection": "પસંદગી સાફ કરો",
+    "selectAllRows": "બધી પંક્તિઓ પસંદ કરો",
+    "selectRow": "પંક્તિ પસંદ કરો",
     "pagination": {
-        "previousPage": "પાછલું પેજ",
+        "previousPage": "પાછલું પૃષ્ઠ",
         "prev": "પાછળ",
-        "nextPage": "આગલું પેજ",
+        "nextPage": "આગલું પૃષ્ઠ",
         "next": "આગળ",
-        "page": "પેજ {{page}}"
+        "page": "પૃષ્ઠ {{page}}"
+    },
+    "offlineBanner": {
+        "offline": "તમે ઓફલાઇન છો. કનેક્શન પુનઃસ્થાપિત ન થાય ત્યાં સુધી કેટલીક સુવિધાઓ કામ ન કરી શકે.",
+        "backOnline": "તમે ફરીથી ઓનલાઇન છો."
+    },
+    "expandCollapseAll": {
+        "expandAll": "બધું વિસ્તૃત કરો",
+        "collapseAll": "બધું સંકુચિત કરો"
     }
 }

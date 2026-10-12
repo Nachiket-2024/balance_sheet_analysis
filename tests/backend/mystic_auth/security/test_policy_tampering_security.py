@@ -1,15 +1,13 @@
-# tests/backend/mystic_auth/security/test_policy_tampering_security.py
-#
-# Real-DB proof of the two "System policy protection" guarantees
-# : baseline policies can never be deleted/renamed via the
-# management API, and the last remaining system_superuser assignment can
-# never be revoked : even by a genuine system_superuser holder. Unit
-# tests already cover this with mocks; these hit the real API + real DB.
+# Checks the system policy protection guarantees against the real API and
+# DB: baseline policies can't be deleted or renamed, and the last
+# system_superuser assignment can't be revoked, even by a system_superuser
+# holder. (Unit tests already cover this with mocks.)
 import pytest
+
 from backend.mystic_auth.authorization.policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
     SYSTEM_SUPERUSER_POLICY_NAME,
-    USER_ADMINISTRATION_POLICY_NAME,
+    USER_MANAGEMENT_POLICY_NAME,
 )
 from backend.mystic_auth.authorization.repositories.policy_repository import (
     policy_repository,
@@ -24,7 +22,7 @@ async def test_baseline_policies_cannot_be_deleted_even_by_system_superuser(clie
     system_email = unique_email("system")
     await create_system_user(client, created_emails, system_email)
 
-    for policy_name in (SELF_SERVICE_POLICY_NAME, USER_ADMINISTRATION_POLICY_NAME, SYSTEM_SUPERUSER_POLICY_NAME):
+    for policy_name in (SELF_SERVICE_POLICY_NAME, USER_MANAGEMENT_POLICY_NAME, SYSTEM_SUPERUSER_POLICY_NAME):
         resp = await client.delete(f"/authorization/policies/{policy_name}")
         assert resp.status_code == 403, f"{policy_name} should be undeletable"
 

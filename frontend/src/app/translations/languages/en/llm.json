@@ -2,5 +2,20 @@
     "widgetTitle": "Ask about this company's performance",
     "unableToReach": "Unable to reach the LLM, please try again.",
     "questionPlaceholder": "e.g. How has total debt changed over the last few years?",
-    "ask": "Ask"
+    "ask": "Ask",
+    "helpful": "Helpful",
+    "notHelpful": "Not helpful",
+    "operationsNavLabel": "LLM operations",
+    "operationsTitle": "LLM provider operations",
+    "operationsDescription": "Recent health and latency telemetry for the configured provider.",
+    "operationsLoading": "Loading provider operations…",
+    "operationsUnavailable": "Provider operations are unavailable.",
+    "provider": "Provider",
+    "probeSuccessRate": "Probe success rate",
+    "probeCount": "{{count}} probes in the last 24 hours",
+    "averageLatency": "Average latency",
+    "failedProbes": "{{count}} failed probes",
+    "lastChecked": "Last checked",
+    "noRecentError": "No recent error",
+    "notAvailable": "Not available"
 }

@@ -8,31 +8,21 @@ from ...auth.security.client_ip import get_client_ip
 def build_authorization_context(request: Request) -> dict:
     """
     Builds the `context` dict every real authorization check evaluates
-    conditions against (see conditions/network_condition.py,
-    conditions/time_condition.py, conditions/date_range_condition.py,
-    conditions/security_context_condition.py for what reads each key).
-    Centralized here so IP/time semantics are defined exactly once. Every
-    authorization check uses the same trusted server-side context builder.
+    conditions against. Centralized here so IP/time semantics are defined
+    exactly once, trusted server-side, for every check.
 
-    `ip_address` is resolved via auth/security/client_ip.py: the literal TCP peer
-    (request.client.host) by default, or the real client behind
-    X-Forwarded-For only if that peer is itself a configured trusted proxy
-    (TRUSTED_PROXY_IPS). Never a header/query/body value trusted
-    unconditionally, which a caller could set to whatever they like.
+    `ip_address` comes from auth/security/client_ip.py: the TCP peer by
+    default, or the X-Forwarded-For client only if the peer is a
+    configured trusted proxy. Never a caller-supplied header trusted
+    outright.
 
-    `current_time` always comes from this backend's own clock (UTC, ISO
-    8601), never anything the caller supplies. The one documented
-    exception is the authorization-check *inspection* endpoint
-    (api/pbac_routes/authorization_check_routes.py's check_user_authorization), which
-    deliberately accepts a caller-supplied hypothetical context to answer
-    "what would happen if": that endpoint never calls this builder, and
-    never represents a real access decision.
+    `current_time` is always this backend's own clock (UTC), never
+    caller-supplied. The one exception is the authorization-check
+    inspection endpoint, which accepts a hypothetical context to answer
+    "what would happen if" and bypasses this builder entirely.
 
-    `security_context` starts empty: this app does not implement MFA/
-    device-trust infrastructure yet, so there is nothing
-    trustworthy to populate it with. It exists as a stable, reserved key
-    so a future trust-signal layer has exactly one place to feed its
-    output into, without changing this function's callers.
+    `security_context` starts empty (no MFA/device-trust signals exist
+    yet); it's a reserved key for a future trust-signal layer to fill in.
     """
     return {
         "ip_address": get_client_ip(request),

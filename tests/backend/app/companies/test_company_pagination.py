@@ -11,16 +11,23 @@ import uuid
 
 import pytest
 import pytest_asyncio
+
 from backend.app.access.permissions import COMPANY_READ
 from backend.app.companies.company_crud import create_company
 from backend.app.companies.company_model import Company
 from backend.app.companies.company_schema import CompanyCreate
-from backend.mystic_auth.auth.verify_account.account_verification_service import account_verification_service
-from backend.mystic_auth.authorization.policies.default_policies import SELF_SERVICE_POLICY_NAME
-from backend.mystic_auth.authorization.repositories.policy_repository import policy_repository
+from backend.mystic_auth.auth.verify_account.account_verification_service import (
+    account_verification_service,
+)
+from backend.mystic_auth.authorization.policies.default_policies import (
+    SELF_SERVICE_POLICY_NAME,
+)
+from backend.mystic_auth.authorization.repositories.policy_repository import (
+    policy_repository,
+)
 from backend.mystic_auth.database.connection import database
-from backend.mystic_auth.redis.client import redis_client
-from backend.mystic_auth.user_crud.user_crud_collector import user_crud
+from backend.mystic_auth.user.user_crud_collector import user_crud
+from backend.mystic_auth.valkey.client import valkey_client
 
 PASSWORD = "StrongPass123!"
 
@@ -35,7 +42,7 @@ async def _create_verified_user_with_policy(client, created_emails, email, actio
     created_emails.append(email)
 
     token = await account_verification_service.create_verification_token(email)
-    await redis_client.set(f"verify:{token}", "1", ex=600)
+    await valkey_client.set(f"verify:{token}", "1", ex=600)
     verify_resp = await client.post("/auth/verify-account", json={"token": token})
     assert verify_resp.status_code == 200
 
@@ -92,21 +99,21 @@ async def _cleanup_test_policies():
 @pytest.mark.asyncio
 async def test_list_companies_paginates_and_reports_total_count(client, created_emails, created_company_ids):
     async with database.async_session() as session:
-        reliance = await create_company(
-            CompanyCreate(name="Reliance Industries", ticker=_unique("RELIANCE")), session
+        microsoft = await create_company(
+            CompanyCreate(name="Microsoft Corporation", ticker=_unique("MSFT")), session
         )
-        jio = await create_company(
-            CompanyCreate(name="Jio Platforms", ticker=_unique("JIO"), parent_company_id=reliance.id), session
+        github = await create_company(
+            CompanyCreate(name="GitHub, Inc.", ticker=_unique("GITHUB"), parent_company_id=microsoft.id), session
         )
-        retail = await create_company(
-            CompanyCreate(name="Reliance Retail Ventures", ticker=_unique("RRVL"), parent_company_id=reliance.id),
+        linkedin = await create_company(
+            CompanyCreate(name="LinkedIn Corporation", ticker=_unique("LINKEDIN"), parent_company_id=microsoft.id),
             session,
         )
-    created_company_ids.extend([reliance.id, jio.id, retail.id])
+    created_company_ids.extend([microsoft.id, github.id, linkedin.id])
 
     exec_email = _unique("groupexec") + "@example.com"
     await _create_verified_user_with_policy(
-        client, created_emails, exec_email, [COMPANY_READ], "group_root_id", reliance.id
+        client, created_emails, exec_email, [COMPANY_READ], "group_root_id", microsoft.id
     )
 
     page1 = await client.get("/companies/", params={"limit": 2, "offset": 0, "sort_by": "name", "sort_dir": "asc"})
@@ -120,76 +127,76 @@ async def test_list_companies_paginates_and_reports_total_count(client, created_
     assert len(page2.json()) == 1
 
     all_ids_across_pages = {c["id"] for c in page1.json()} | {c["id"] for c in page2.json()}
-    assert all_ids_across_pages == {reliance.id, jio.id, retail.id}
+    assert all_ids_across_pages == {microsoft.id, github.id, linkedin.id}
 
 
 @pytest.mark.asyncio
 async def test_list_companies_includes_parent_name(client, created_emails, created_company_ids):
     async with database.async_session() as session:
-        reliance = await create_company(
-            CompanyCreate(name="Reliance Industries", ticker=_unique("RELIANCE")), session
+        microsoft = await create_company(
+            CompanyCreate(name="Microsoft Corporation", ticker=_unique("MSFT")), session
         )
-        jio = await create_company(
-            CompanyCreate(name="Jio Platforms", ticker=_unique("JIO"), parent_company_id=reliance.id), session
+        github = await create_company(
+            CompanyCreate(name="GitHub, Inc.", ticker=_unique("GITHUB"), parent_company_id=microsoft.id), session
         )
-    created_company_ids.extend([reliance.id, jio.id])
+    created_company_ids.extend([microsoft.id, github.id])
 
     exec_email = _unique("groupexec") + "@example.com"
     await _create_verified_user_with_policy(
-        client, created_emails, exec_email, [COMPANY_READ], "group_root_id", reliance.id
+        client, created_emails, exec_email, [COMPANY_READ], "group_root_id", microsoft.id
     )
 
     resp = await client.get("/companies/")
     assert resp.status_code == 200
     by_id = {c["id"]: c for c in resp.json()}
-    assert by_id[reliance.id]["parent_name"] is None
-    assert by_id[jio.id]["parent_name"] == "Reliance Industries"
+    assert by_id[microsoft.id]["parent_name"] is None
+    assert by_id[github.id]["parent_name"] == "Microsoft Corporation"
 
 
 @pytest.mark.asyncio
 async def test_list_companies_hierarchy_filter(client, created_emails, created_company_ids):
     async with database.async_session() as session:
-        reliance = await create_company(
-            CompanyCreate(name="Reliance Industries", ticker=_unique("RELIANCE")), session
+        microsoft = await create_company(
+            CompanyCreate(name="Microsoft Corporation", ticker=_unique("MSFT")), session
         )
-        jio = await create_company(
-            CompanyCreate(name="Jio Platforms", ticker=_unique("JIO"), parent_company_id=reliance.id), session
+        github = await create_company(
+            CompanyCreate(name="GitHub, Inc.", ticker=_unique("GITHUB"), parent_company_id=microsoft.id), session
         )
-    created_company_ids.extend([reliance.id, jio.id])
+    created_company_ids.extend([microsoft.id, github.id])
 
     exec_email = _unique("groupexec") + "@example.com"
     await _create_verified_user_with_policy(
-        client, created_emails, exec_email, [COMPANY_READ], "group_root_id", reliance.id
+        client, created_emails, exec_email, [COMPANY_READ], "group_root_id", microsoft.id
     )
 
     roots = await client.get("/companies/", params={"hierarchy": "root"})
     assert roots.status_code == 200
-    assert {c["id"] for c in roots.json()} == {reliance.id}
+    assert {c["id"] for c in roots.json()} == {microsoft.id}
 
     subsidiaries = await client.get("/companies/", params={"hierarchy": "subsidiary"})
     assert subsidiaries.status_code == 200
-    assert {c["id"] for c in subsidiaries.json()} == {jio.id}
+    assert {c["id"] for c in subsidiaries.json()} == {github.id}
 
 
 @pytest.mark.asyncio
 async def test_company_stats_scoped_to_caller(client, created_emails, created_company_ids):
     async with database.async_session() as session:
-        reliance = await create_company(
-            CompanyCreate(name="Reliance Industries", ticker=_unique("RELIANCE")), session
+        microsoft = await create_company(
+            CompanyCreate(name="Microsoft Corporation", ticker=_unique("MSFT")), session
         )
-        jio = await create_company(
-            CompanyCreate(name="Jio Platforms", ticker=_unique("JIO"), parent_company_id=reliance.id), session
+        github = await create_company(
+            CompanyCreate(name="GitHub, Inc.", ticker=_unique("GITHUB"), parent_company_id=microsoft.id), session
         )
-        retail = await create_company(
-            CompanyCreate(name="Reliance Retail Ventures", ticker=_unique("RRVL"), parent_company_id=reliance.id),
+        linkedin = await create_company(
+            CompanyCreate(name="LinkedIn Corporation", ticker=_unique("LINKEDIN"), parent_company_id=microsoft.id),
             session,
         )
         unrelated = await create_company(CompanyCreate(name="Unrelated Co", ticker=_unique("UNREL")), session)
-    created_company_ids.extend([reliance.id, jio.id, retail.id, unrelated.id])
+    created_company_ids.extend([microsoft.id, github.id, linkedin.id, unrelated.id])
 
     exec_email = _unique("groupexec") + "@example.com"
     await _create_verified_user_with_policy(
-        client, created_emails, exec_email, [COMPANY_READ], "group_root_id", reliance.id
+        client, created_emails, exec_email, [COMPANY_READ], "group_root_id", microsoft.id
     )
 
     resp = await client.get("/companies/stats")

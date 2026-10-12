@@ -1,15 +1,14 @@
-# tests/backend/mystic_auth/unit/test_password_service_unit.py
-#
-# password_service.py had no dedicated unit coverage despite backing every
-# password-based auth flow (signup, reset, timing-attack mitigation). These
-# tests pin down hashing/verification round-trips, the strength policy, and
-# the fixed dummy hash used to keep login timing constant for nonexistent
-# accounts (see login_service.py).
+# Unit coverage for password_service.py, which backs every password-based
+# auth flow (signup, reset, timing-attack mitigation): hashing/
+# verification round-trips, the strength policy, and the fixed dummy hash
+# used to keep login timing constant for nonexistent accounts (see
+# login_service.py).
 import asyncio
 import time
 
 import jwt as pyjwt
 import pytest
+
 from backend.mystic_auth.auth.password_logic.password_service import password_service
 from backend.mystic_auth.core.settings import settings
 
@@ -17,11 +16,11 @@ from backend.mystic_auth.core.settings import settings
 
 @pytest.mark.asyncio
 async def test_hash_password_offloads_to_a_thread_instead_of_blocking_the_loop():
-    # Regression guard: hash_password must offload Argon2 (slow, CPU-bound)
-    # via asyncio.to_thread instead of running it inline. If it ran inline,
-    # it would monopolize the event loop and the cheap ticker coroutine
-    # couldn't get a turn until the hash finished, so both would appear to
-    # finish together instead of the ticker finishing well before the hash.
+    # Regression guard: hash_password must offload Argon2 (slow,
+    # CPU-bound) via asyncio.to_thread instead of running it inline. If
+    # it ran inline, it would monopolize the event loop and the cheap
+    # ticker coroutine couldn't get a turn until the hash finished, so
+    # both would finish together instead of the ticker finishing first.
     ticker_done_at = None
     hash_done_at = None
     start = time.perf_counter()
@@ -94,11 +93,12 @@ async def test_validate_password_strength_accepts_mixed_case_and_digit():
 
 
 # ---------------------------- create_reset_token / verify_reset_token ----------------------------
-# Regression guards for the missing "type" claim: previously a reset token's
-# JWT payload carried only email + exp, so any other validly-signed JWT with
-# an "email" claim (e.g. a stolen but still-valid access/refresh token, which
-# shares the same SECRET_KEY) would pass verify_reset_token's checks : the
-# Redis single-use record was the only real gate against token-type confusion.
+# Regression guards for the missing "type" claim: previously a reset
+# token's JWT payload carried only email + exp, so any other
+# validly-signed JWT with an "email" claim (e.g. a stolen but
+# still-valid access/refresh token, which shares the same SECRET_KEY)
+# would pass verify_reset_token's checks. The Valkey single-use record was
+# the only real gate against token-type confusion.
 
 @pytest.mark.asyncio
 async def test_reset_token_round_trips_through_create_and_verify():

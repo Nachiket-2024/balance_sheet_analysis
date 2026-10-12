@@ -5,13 +5,16 @@
 # Company row to satisfy the company_id FK).
 import uuid
 
+import pandas as pd
 import pytest
 import pytest_asyncio
+
 from backend.app.balance_sheets.balance_sheet_crud import (
     YFinanceFetchError,
     _fetch_balance_sheet_row_sync,
     get_balance_sheet,
     import_balance_sheet,
+    list_balance_sheets_for_company_years,
 )
 from backend.app.balance_sheets.balance_sheet_model import BalanceSheet
 from backend.app.companies.company_crud import create_company
@@ -56,6 +59,34 @@ def test_fetch_wraps_yfinance_failures_as_yfinance_fetch_error(mocker):
 
     with pytest.raises(YFinanceFetchError, match="Failed to fetch balance sheet"):
         _fetch_balance_sheet_row_sync("AAPL", 2023)
+
+
+def test_fetch_returns_sanitized_requested_year(mocker):
+    stock = mocker.Mock()
+    stock.balance_sheet = pd.DataFrame(
+        {pd.Timestamp("2023-12-31"): [123.0, 45.0]},
+        index=["Total Assets", "Total Debt"],
+    )
+    mocker.patch(f"{MODULE}.yf.Ticker", return_value=stock)
+
+    result = _fetch_balance_sheet_row_sync("AAPL", 2023)
+
+    assert result["total_assets"] == 123.0
+    assert result["total_debt"] == 45.0
+
+
+def test_fetch_returns_none_for_empty_or_unrequested_year(mocker):
+    empty_stock = mocker.Mock()
+    empty_stock.balance_sheet = pd.DataFrame()
+    mocker.patch(f"{MODULE}.yf.Ticker", return_value=empty_stock)
+    assert _fetch_balance_sheet_row_sync("AAPL", 2023) is None
+
+    dated_stock = mocker.Mock()
+    dated_stock.balance_sheet = pd.DataFrame(
+        {pd.Timestamp("2023-12-31"): [123.0]}, index=["Total Assets"]
+    )
+    mocker.patch(f"{MODULE}.yf.Ticker", return_value=dated_stock)
+    assert _fetch_balance_sheet_row_sync("AAPL", 2022) is None
 
 
 @pytest.mark.asyncio
@@ -146,4 +177,22 @@ async def test_import_race_condition_is_translated_to_value_error(company, mocke
                 BalanceSheet.company_id == company.id, BalanceSheet.year == 2025
             )
         )
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_list_balance_sheets_can_filter_years(company):
+    async with database.async_session() as session:
+        session.add_all(
+            [
+                BalanceSheet(company_id=company.id, year=2022, total_assets=1),
+                BalanceSheet(company_id=company.id, year=2023, total_assets=2),
+            ]
+        )
+        await session.commit()
+
+    async with database.async_session() as session:
+        rows = await list_balance_sheets_for_company_years(company.id, [2023], session)
+        assert [item.year for item in rows] == [2023]
+        await session.execute(BalanceSheet.__table__.delete().where(BalanceSheet.company_id == company.id))
         await session.commit()

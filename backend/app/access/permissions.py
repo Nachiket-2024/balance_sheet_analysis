@@ -1,6 +1,6 @@
 """
 Action vocabulary for this app's own PBAC-protected resources (companies,
-balance sheets, LLM chat): the domain-specific counterpart to
+financial data, reviews, and LLM operations): the domain-specific counterpart to
 mystic_auth.authorization.permissions.Permission.
 
 Per mystic-auth's template-usage.md: "Actions don't need to be predefined
@@ -29,6 +29,7 @@ BALANCE_SHEET_READ = "balance_sheet:read"
 BALANCE_SHEET_IMPORT = "balance_sheet:import"
 BALANCE_SHEET_DELETE = "balance_sheet:delete"
 
-# LLM chat, gated per-company, same scoping as the underlying data, so a
-# user can only ask about a company they can already see.
+# LLM chat is gated per company with the same scope as its source data.
 LLM_CHAT = "llm:chat"
+# Provider usage and operations views are gated separately from company chat.
+LLM_USAGE_READ_ALL = "llm:usage_read_all"

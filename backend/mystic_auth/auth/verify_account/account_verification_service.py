@@ -4,9 +4,9 @@ from ...auth.token_logic.jwt_service import jwt_service
 from ...core.settings import settings
 from ...emails.email_template_service import render_transactional_email
 from ...logging.logging_config import get_logger
-from ...redis.client import redis_client
-from ...taskiq_tasks.email_tasks import send_email_task
-from ...user_crud.user_crud_collector import user_crud
+from ...procrastinate_tasks.email_tasks import send_email_task
+from ...user.user_crud_collector import user_crud
+from ...valkey.client import valkey_client
 
 logger = get_logger(__name__)
 
@@ -24,14 +24,16 @@ class AccountVerificationService:
                 email, expires_minutes
             )
 
-            # Stored in Redis to enforce single-use.
-            await redis_client.set(
+            # Stored in Valkey to enforce single-use.
+            await valkey_client.set(
                 f"verify:{verification_token}",
                 "1",
                 ex=expires_minutes * 60
             )
 
-            verify_url = f"{settings.FRONTEND_BASE_URL}/verify-account?token={verification_token}"
+            # Keep the one-time token client-side: URL fragments are not sent
+            # to the server or included in Referer headers.
+            verify_url = f"{settings.FRONTEND_BASE_URL}/verify-account#token={verification_token}"
 
             email_subject = "Verify Your Email Address"
             email_body = render_transactional_email(
@@ -50,7 +52,7 @@ class AccountVerificationService:
                 ignore_note="If you didn't create an account with us, you can safely ignore this email.",
             )
 
-            await send_email_task.kiq(
+            await send_email_task.defer_async(
                 to_email=email,
                 subject=email_subject,
                 body=email_body
@@ -90,12 +92,12 @@ class AccountVerificationService:
     ) -> str:
         # type="verify": this token is only valid for email confirmation,
         # not for accessing any protected routes. expires_minutes must be
-        # forwarded so the JWT's own exp claim matches the Redis single-use
+        # forwarded so the JWT's own exp claim matches the Valkey single-use
         # key's TTL and the expiry stated in the verification email above.
         return await jwt_service.create_verification_token(email=email, expires_minutes=expires_minutes)
 
     @staticmethod
-    async def verify_token(token: str) -> dict | None:
+    async def verify_token(token: str, *, consume: bool = True) -> dict | None:
         try:
             # expected_type="verify" stops this token from ever being usable
             # against any other endpoint (which all require expected_type="access"
@@ -111,9 +113,7 @@ class AccountVerificationService:
             # both pass the GET before either runs the DELETE, both treating a
             # single-use token as valid. password_reset_service.py already
             # fixed this same class of bug the same way.
-            exists = await redis_client.getdel(f"verify:{token}")
-            if not exists:
-                logger.warning("Verification token not found or already used")
+            if consume and not await account_verification_service.consume_token(token):
                 return None
 
             return payload
@@ -121,6 +121,19 @@ class AccountVerificationService:
         except Exception:
             logger.error("Error verifying account verification token:\n%s", traceback.format_exc())
             return None
+
+    @staticmethod
+    async def consume_token(token: str) -> bool:
+        """Atomically redeem a previously inspected verification token."""
+        try:
+            exists = await valkey_client.getdel(f"verify:{token}")
+            if not exists:
+                logger.warning("Verification token not found or already used")
+                return False
+            return True
+        except Exception:
+            logger.error("Error consuming verification token:\n%s", traceback.format_exc())
+            return False
 
 
 account_verification_service = AccountVerificationService()

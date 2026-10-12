@@ -4,6 +4,7 @@
 # mirroring test_company_ticker_lookup_unit.py's pattern: mock yfinance
 # rather than hit the network.
 import pytest
+
 from backend.app.companies.company_crud import (
     TickerLookupError,
     _search_company_tickers_sync,
@@ -15,15 +16,15 @@ MODULE = "backend.app.companies.company_crud"
 
 def test_search_maps_quotes_to_results(mocker):
     mocker.patch(f"{MODULE}.yf.Search").return_value.quotes = [
-        {"symbol": "RELIANCE.NS", "longname": "Reliance Industries Limited", "exchDisp": "NSE"},
-        {"symbol": "RS", "shortname": "Reliance, Inc.", "exchange": "NYQ"},
+        {"symbol": "MSFT", "longname": "Microsoft Corporation", "exchDisp": "NMS"},
+        {"symbol": "GITHUB.DEMO", "shortname": "GitHub, Inc.", "exchange": "DEMO"},
     ]
 
     results = _search_company_tickers_sync("REL")
 
     assert results == [
-        {"ticker": "RELIANCE.NS", "name": "Reliance Industries Limited", "exchange": "NSE"},
-        {"ticker": "RS", "name": "Reliance, Inc.", "exchange": "NYQ"},
+        {"ticker": "MSFT", "name": "Microsoft Corporation", "exchange": "NMS"},
+        {"ticker": "GITHUB.DEMO", "name": "GitHub, Inc.", "exchange": "DEMO"},
     ]
 
 
@@ -48,6 +49,6 @@ def test_search_wraps_yfinance_failures_as_ticker_lookup_error(mocker):
 
 @pytest.mark.asyncio
 async def test_async_wrapper_delegates_to_thread(mocker):
-    mocker.patch(f"{MODULE}._search_company_tickers_sync", return_value=[{"ticker": "RS", "name": "Reliance, Inc.", "exchange": "NYQ"}])
+    mocker.patch(f"{MODULE}._search_company_tickers_sync", return_value=[{"ticker": "GITHUB.DEMO", "name": "GitHub, Inc.", "exchange": "DEMO"}])
 
-    assert await search_company_tickers("REL") == [{"ticker": "RS", "name": "Reliance, Inc.", "exchange": "NYQ"}]
+    assert await search_company_tickers("GIT") == [{"ticker": "GITHUB.DEMO", "name": "GitHub, Inc.", "exchange": "DEMO"}]

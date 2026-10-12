@@ -1,21 +1,22 @@
 # tests/backend/mystic_auth/unit/test_correlation_id_middleware_unit.py
 #
-# Unit coverage for CorrelationIdMiddleware : every response must carry an
+# Unit coverage for CorrelationIdMiddleware: every response must carry an
 # X-Request-ID header, either echoing an upstream-supplied one or generating
-# a fresh UUID4, and the contextvar it sets must be visible to code running
-# further down the middleware/route stack (which is how logging_config.py's
-# RequestIdFilter tags every log line for the request).
+# a fresh UUID4. The contextvar it sets must also be visible further down
+# the middleware/route stack, which is how logging_config.py's
+# RequestIdFilter tags every log line for the request.
 import uuid
+
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
+from starlette.testclient import TestClient
 
 from backend.mystic_auth.logging.correlation_id_middleware import (
     REQUEST_ID_HEADER,
     CorrelationIdMiddleware,
     request_id_ctx_var,
 )
-from starlette.applications import Starlette
-from starlette.responses import PlainTextResponse
-from starlette.routing import Route
-from starlette.testclient import TestClient
 
 
 def _build_app():

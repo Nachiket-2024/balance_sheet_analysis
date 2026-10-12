@@ -4,14 +4,37 @@
     "switchToLightMode": "લાઇટ મોડ પર સ્વિચ કરો",
     "switchToDarkMode": "ડાર્ક મોડ પર સ્વિચ કરો",
     "language": "ભાષા",
-    "tagline": "સુરક્ષિત ઍક્સેસ, કેન્દ્રિય રીતે સંચાલિત",
-    "allRightsReserved": "સર્વાધિકાર સુરક્ષિત.",
+    "fontSize": {
+        "label": "ફોન્ટ કદ",
+        "trigger": "કદ",
+        "small": "નાનું",
+        "medium": "મધ્યમ",
+        "large": "મોટું"
+    },
     "mainNavigation": "મુખ્ય નેવિગેશન",
+    "commandPalette": {
+        "placeholder": "પૃષ્ઠો, નીતિઓ અને વપરાશકર્તાઓ શોધો...",
+        "noResults": "કોઈ મેળ ખાતું પરિણામ મળ્યું નથી",
+        "pagesGroup": "પૃષ્ઠો",
+        "featuresGroup": "સુવિધાઓ",
+        "matchesGroup": "મેળ ખાતું લખાણ",
+        "policiesGroup": "નીતિઓ",
+        "usersGroup": "વપરાશકર્તાઓ",
+        "trigger": "શોધો...",
+        "triggerLabel": "શોધ ખોલો (Ctrl+K)"
+    },
     "nav": {
         "dashboard": "ડેશબોર્ડ",
         "users": "વપરાશકર્તાઓ",
         "policies": "નીતિઓ",
+        "permissions": "પરવાનગીઓ",
+        "rateLimits": "દર મર્યાદાઓ",
         "auditLog": "ઓડિટ લોગ",
         "accountSettings": "ખાતાની સેટિંગ્સ"
+    },
+    "footer": {
+        "privacyPolicy": "ગોપનીયતા નીતિ",
+        "termsOfService": "સેવાની શરતો",
+        "help": "સહાય અને સપોર્ટ"
     }
 }

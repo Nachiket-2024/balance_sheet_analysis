@@ -8,17 +8,28 @@ import uuid
 
 import pytest
 import pytest_asyncio
-from backend.app.access.permissions import BALANCE_SHEET_DELETE, BALANCE_SHEET_IMPORT, BALANCE_SHEET_READ
+
+from backend.app.access.permissions import (
+    BALANCE_SHEET_DELETE,
+    BALANCE_SHEET_IMPORT,
+    BALANCE_SHEET_READ,
+)
 from backend.app.balance_sheets.balance_sheet_model import BalanceSheet
 from backend.app.companies.company_crud import create_company
 from backend.app.companies.company_model import Company
 from backend.app.companies.company_schema import CompanyCreate
-from backend.mystic_auth.auth.verify_account.account_verification_service import account_verification_service
-from backend.mystic_auth.authorization.policies.default_policies import SELF_SERVICE_POLICY_NAME
-from backend.mystic_auth.authorization.repositories.policy_repository import policy_repository
+from backend.mystic_auth.auth.verify_account.account_verification_service import (
+    account_verification_service,
+)
+from backend.mystic_auth.authorization.policies.default_policies import (
+    SELF_SERVICE_POLICY_NAME,
+)
+from backend.mystic_auth.authorization.repositories.policy_repository import (
+    policy_repository,
+)
 from backend.mystic_auth.database.connection import database
-from backend.mystic_auth.redis.client import redis_client
-from backend.mystic_auth.user_crud.user_crud_collector import user_crud
+from backend.mystic_auth.user.user_crud_collector import user_crud
+from backend.mystic_auth.valkey.client import valkey_client
 
 PASSWORD = "StrongPass123!"
 
@@ -33,7 +44,7 @@ async def _create_verified_user_with_policy(client, created_emails, email, actio
     created_emails.append(email)
 
     token = await account_verification_service.create_verification_token(email)
-    await redis_client.set(f"verify:{token}", "1", ex=600)
+    await valkey_client.set(f"verify:{token}", "1", ex=600)
     verify_resp = await client.post("/auth/verify-account", json={"token": token})
     assert verify_resp.status_code == 200
 
@@ -168,6 +179,60 @@ async def test_reader_can_get_a_single_fiscal_year(client, created_emails, creat
 
     missing_resp = await client.get(f"/balance-sheets/{company.id}/1999")
     assert missing_resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_reader_can_access_analysis_only_for_their_company(client, created_emails, created_company_ids):
+    async with database.async_session() as session:
+        mine = await create_company(CompanyCreate(name="Analysis Mine", ticker=_unique("ANM")), session)
+        other = await create_company(CompanyCreate(name="Analysis Other", ticker=_unique("ANO")), session)
+        session.add(BalanceSheet(company_id=mine.id, year=2022, total_assets=100.0, current_assets=50.0, current_liabilities=40.0))
+        session.add(BalanceSheet(company_id=mine.id, year=2023, total_assets=110.0, current_assets=55.0, current_liabilities=45.0))
+        session.add(BalanceSheet(company_id=other.id, year=2023, total_assets=999.0))
+        await session.commit()
+    created_company_ids.extend([mine.id, other.id])
+
+    email = _unique("analysis-reader") + "@example.com"
+    await _create_verified_user_with_policy(client, created_emails, email, [BALANCE_SHEET_READ], "company_id", mine.id)
+
+    allowed = await client.get(f"/balance-sheet-analysis/company/{mine.id}")
+    assert allowed.status_code == 200
+    assert allowed.json()["fiscal_years"] == [2022, 2023]
+    assert allowed.json()["trends"]["total_assets"][1]["yoy_change_pct"] == pytest.approx(10.0)
+
+    forbidden = await client.get(f"/balance-sheet-analysis/company/{other.id}")
+    assert forbidden.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_analysis_respects_ceo_group_executive_and_analyst_scopes(client, created_emails, created_company_ids):
+    async with database.async_session() as session:
+        root = await create_company(CompanyCreate(name="Analysis Group", ticker=_unique("AGR")), session)
+        ceo_company = await create_company(CompanyCreate(name="Analysis CEO Co", ticker=_unique("ACE"), parent_company_id=root.id), session)
+        sibling = await create_company(CompanyCreate(name="Analysis Sibling Co", ticker=_unique("ASI"), parent_company_id=root.id), session)
+        outside = await create_company(CompanyCreate(name="Analysis Outside Co", ticker=_unique("AOU")), session)
+        for company in (root, ceo_company, sibling, outside):
+            session.add(BalanceSheet(company_id=company.id, year=2022, total_assets=100.0 + company.id))
+            session.add(BalanceSheet(company_id=company.id, year=2023, total_assets=110.0 + company.id))
+        await session.commit()
+    created_company_ids.extend([root.id, ceo_company.id, sibling.id, outside.id])
+
+    await _create_verified_user_with_policy(
+        client, created_emails, _unique("analysis-ceo") + "@example.com", [BALANCE_SHEET_READ], "company_id", ceo_company.id
+    )
+    assert (await client.get(f"/balance-sheet-analysis/company/{ceo_company.id}")).status_code == 200
+    assert (await client.get(f"/balance-sheet-analysis/company/{sibling.id}")).status_code == 403
+
+    await _create_verified_user_with_policy(
+        client, created_emails, _unique("analysis-exec") + "@example.com", [BALANCE_SHEET_READ], "group_root_id", root.id
+    )
+    assert (await client.get(f"/balance-sheet-analysis/company/{sibling.id}")).status_code == 200
+    assert (await client.get(f"/balance-sheet-analysis/company/{outside.id}")).status_code == 403
+
+    await _create_verified_user_with_policy(
+        client, created_emails, _unique("analysis-analyst") + "@example.com", [BALANCE_SHEET_READ, BALANCE_SHEET_IMPORT], "group_root_id", root.id
+    )
+    assert (await client.get(f"/balance-sheet-analysis/company/{ceo_company.id}")).status_code == 200
 
 
 @pytest.mark.asyncio

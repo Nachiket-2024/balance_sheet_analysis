@@ -6,13 +6,8 @@ MAX_BATCH_SIZE = 50
 
 
 class BatchAuthorizationCheckItem(BaseModel):
-    """
-    One entry in a batch-check request : the same shape a single
-    authorize() call takes. min_length=1 on action/resource_type (not just
-    max_length) rejects the empty-string form of a malformed check up
-    front, consistent with AuthorizationCheckRequest's own fields (see
-    policy_schema.py).
-    """
+    """One entry in a batch-check request: same shape a single authorize()
+    call takes. min_length=1 rejects empty-string fields up front."""
 
     action: str = Field(..., min_length=1, max_length=200)
     resource_type: str = Field(..., min_length=1, max_length=100)
@@ -20,22 +15,16 @@ class BatchAuthorizationCheckItem(BaseModel):
 
 
 class BatchAuthorizationCheckRequest(BaseModel):
-    """
-    Request body for POST /authorization/batch-check. `checks` is bounded
-    on both ends: min_length=1 rejects an empty batch outright,
-    max_length=MAX_BATCH_SIZE enforces the maximum batch size.
-    """
+    """Request body for POST /authorization/batch-check. `checks` is
+    bounded on both ends: rejects an empty batch and caps the max size."""
 
     checks: list[BatchAuthorizationCheckItem] = Field(..., min_length=1, max_length=MAX_BATCH_SIZE)
 
 
 class BatchAuthorizationCheckResult(BaseModel):
-    """
-    One check's outcome. Deliberately minimal : unlike the single-check
-    inspection endpoint (AuthorizationCheckResponse), this never includes
-    policy names or condition details, only enough to drive a UI decision,
-    to avoid leaking which policies matched/rejected a check.
-    """
+    """One check's outcome. Deliberately minimal: unlike the single-check
+    inspection endpoint, never includes policy names or condition details,
+    to avoid leaking which policies matched/rejected."""
 
     action: str
     resource_type: str

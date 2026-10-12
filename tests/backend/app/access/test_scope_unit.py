@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+
 from backend.app.access.scope import get_company_scope
 
 MODULE = "backend.app.access.scope"

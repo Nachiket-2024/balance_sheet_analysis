@@ -1,29 +1,25 @@
-# tests/backend/mystic_auth/integration/authorization_test_accounts.py
-#
-# Shared account/policy helpers for the PBAC policy-management integration
-# test files (test_policy_crud_integration.py,
-# test_policy_action_separation_integration.py,
-# test_policy_assignment_integration.py,
-# test_authorization_check_integration.py): all four need the same
-# verified-user/system-user setup and a disposable, uniquely-named policy
-# to test against without colliding with the baseline seeded policies.
+# Shared account/policy helpers for the PBAC policy-management integration tests
+# (policy CRUD, action separation, assignment, authorization check): a verified
+# user/system user setup plus a disposable, uniquely-named policy so tests don't
+# collide with the baseline seeded policies.
 import uuid
 
 import pytest_asyncio
+
 from backend.mystic_auth.auth.verify_account.account_verification_service import (
     account_verification_service,
 )
 from backend.mystic_auth.authorization.policies.default_policies import (
     SELF_SERVICE_POLICY_NAME,
     SYSTEM_SUPERUSER_POLICY_NAME,
-    USER_ADMINISTRATION_POLICY_NAME,
+    USER_MANAGEMENT_POLICY_NAME,
 )
 from backend.mystic_auth.authorization.repositories.policy_repository import (
     policy_repository,
 )
 from backend.mystic_auth.database.connection import database
-from backend.mystic_auth.redis.client import redis_client
-from backend.mystic_auth.user_crud.user_crud_collector import user_crud
+from backend.mystic_auth.user.user_crud_collector import user_crud
+from backend.mystic_auth.valkey.client import valkey_client
 
 PASSWORD = "StrongPass123!"
 
@@ -44,7 +40,7 @@ async def create_verified_user(client, created_emails, email, policy_names):
     created_emails.append(email)
 
     token = await account_verification_service.create_verification_token(email)
-    await redis_client.set(f"verify:{token}", "1", ex=600)
+    await valkey_client.set(f"verify:{token}", "1", ex=600)
     verify_resp = await client.post("/auth/verify-account", json={"token": token})
     assert verify_resp.status_code == 200
 
@@ -53,7 +49,11 @@ async def create_verified_user(client, created_emails, email, policy_names):
         for policy_name in policy_names:
             policy = await policy_repository.get_by_name(policy_name, session)
             await policy_repository.assign_policy_to_user(
-                user_id=user.id, policy_id=policy.id, db=session, assigned_by="test"
+                user_id=user.id,
+                policy_id=policy.id,
+                db=session,
+                assigned_by="test",
+                user_email=email,
             )
 
     login_resp = await client.post("/auth/login", json={"email": email, "password": PASSWORD})
@@ -64,16 +64,14 @@ async def create_verified_user(client, created_emails, email, policy_names):
 async def create_system_user(client, created_emails, email):
     return await create_verified_user(
         client, created_emails, email,
-        [SELF_SERVICE_POLICY_NAME, USER_ADMINISTRATION_POLICY_NAME, SYSTEM_SUPERUSER_POLICY_NAME],
+        [SELF_SERVICE_POLICY_NAME, USER_MANAGEMENT_POLICY_NAME, SYSTEM_SUPERUSER_POLICY_NAME],
     )
 
 
 async def create_user_with_custom_policy_actions(client, created_emails, email, actions):
-    """Creates a user holding a single, freshly-created policy granting
-    exactly `actions` on resource_type="policies", used to prove the
-    fine-grained policies:read/create/update/delete/assign/revoke actions
-    are each independently enforced, rather than all-or-nothing like the
-    old coarse policies:manage."""
+    """Creates a user with a fresh policy granting only `actions` on
+    resource_type="policies", to prove each fine-grained action
+    (read/create/update/delete/assign/revoke) is enforced independently."""
     policy_name = unique_policy_name()
     async with database.async_session() as session:
         await policy_repository.create(

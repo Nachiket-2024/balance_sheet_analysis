@@ -12,7 +12,7 @@ function seed(permissions?: string[]) {
     useAuthStore.getState().setAuthenticated(true);
     useAuthStore.getState().setProfile({
       name: 'Test User', email: 'test@example.com', role: 'user', permissions, has_password: true,
-      created_at: '2026-01-15T00:00:00Z', active_sessions: 1,
+      created_at: '2026-01-15T00:00:00Z', active_sessions: 1, brand_color: null,
     });
   }
 }
@@ -42,6 +42,18 @@ describe('useCan', () => {
   it('handles an empty permissions array gracefully', () => {
     seed([]);
     const { result } = renderHook(() => useCan('users:update'));
+    expect(result.current).toBe(false);
+  });
+
+  it('accepts an array action meaning "any of": true once one listed action is held', () => {
+    seed(['policies:create']);
+    const { result } = renderHook(() => useCan(['policies:read', 'policies:create']));
+    expect(result.current).toBe(true);
+  });
+
+  it('accepts an array action that returns false when none of the listed actions are held', () => {
+    seed(['users:read_own']);
+    const { result } = renderHook(() => useCan(['policies:read', 'policies:create']));
     expect(result.current).toBe(false);
   });
 

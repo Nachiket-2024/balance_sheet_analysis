@@ -6,6 +6,7 @@
 from unittest.mock import AsyncMock
 
 import pytest
+
 from backend.mystic_auth.emails.email_sender import SMTPEmailSender
 
 MODULE = "backend.mystic_auth.emails.email_sender"

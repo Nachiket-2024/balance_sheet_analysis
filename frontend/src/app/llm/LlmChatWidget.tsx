@@ -1,11 +1,9 @@
 import React, { useState } from "react";
-import { Box, Button, Stack, Text, Textarea } from "@chakra-ui/react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { Card, FormAlert } from "../sdk";
-import { BRAND_SOLID_HOVER_PROPS, SEARCH_INPUT_PROPS } from "../app_sdk";
-import { chatApi } from "../api/llm_api";
+import { Button, Card, FormAlert, Textarea } from "../sdk";
+import { chatApi, submitChatFeedbackApi } from "../api/llm_api";
 
 interface LlmChatWidgetProps {
     companyId: number;
@@ -14,11 +12,12 @@ interface LlmChatWidgetProps {
 interface Exchange {
     question: string;
     answer: string;
+    feedback?: boolean;
 }
 
 /**
- * "ChatGPT for balance-sheet analysts" (problem statement 1a): a grounded
- * Q&A box scoped to one company. The backend (llm_routes.py) injects that
+ * A grounded Q&A box scoped to one company (problem statement 1a). The
+ * backend (llm_routes.py) injects that
  * company's real balance-sheet figures into the LLM prompt and re-checks
  * PBAC per request, so this widget never needs to duplicate access logic
  * client-side; it only renders whatever the backend agrees to answer.
@@ -43,52 +42,50 @@ const LlmChatWidget: React.FC<LlmChatWidgetProps> = ({ companyId }) => {
     };
 
     return (
-        <Card p={5}>
-            <Text fontWeight="semibold" mb={3}>
+        <Card className="p-5">
+            <h2 className="mb-3 text-lg font-semibold">
                 {t("widgetTitle")}
-            </Text>
+            </h2>
 
             {history.length > 0 && (
-                <Stack gap={3} mb={4} maxH="320px" overflowY="auto">
+                <div className="mb-4 flex max-h-80 flex-col gap-3 overflow-y-auto">
                     {history.map((exchange, i) => (
-                        <Box key={i}>
-                            <Text fontWeight="medium" color="fg.default">
+                        <div key={i}>
+                            <p className="font-medium">
                                 {exchange.question}
-                            </Text>
-                            <Text color="fg.muted" mt={1} whiteSpace="pre-wrap">
+                            </p>
+                            <p className="mt-1 whitespace-pre-wrap text-fg-muted">
                                 {exchange.answer}
-                            </Text>
-                        </Box>
+                            </p>
+                            <div className="mt-2 flex gap-2 text-xs"><Button size="sm" variant="outline" disabled={exchange.feedback !== undefined} onClick={() => { submitChatFeedbackApi(companyId, true); setHistory((prev) => prev.map((item, index) => index === i ? { ...item, feedback: true } : item)); }}>{t("helpful")}</Button><Button size="sm" variant="outline" disabled={exchange.feedback !== undefined} onClick={() => { submitChatFeedbackApi(companyId, false); setHistory((prev) => prev.map((item, index) => index === i ? { ...item, feedback: false } : item)); }}>{t("notHelpful")}</Button></div>
+                        </div>
                     ))}
-                </Stack>
+                </div>
             )}
 
             {mutation.isError && (
-                <Box mb={3}>
+                <div className="mb-3">
                     <FormAlert status="error">{t("unableToReach")}</FormAlert>
-                </Box>
+                </div>
             )}
 
             <form onSubmit={handleSubmit}>
-                <Stack gap={2}>
+                <div className="flex flex-col gap-2">
                     <Textarea
                         value={question}
                         onChange={(e) => setQuestion(e.target.value)}
-                        fontSize="md"
                         placeholder={t("questionPlaceholder")}
                         rows={2}
-                        {...SEARCH_INPUT_PROPS}
                     />
                     <Button
                         type="submit"
-                        colorPalette="brand"
-                        alignSelf="flex-start"
+                        variant="brand"
+                        className="self-start"
                         loading={mutation.isPending}
-                        {...BRAND_SOLID_HOVER_PROPS}
                     >
                         {t("ask")}
                     </Button>
-                </Stack>
+                </div>
             </form>
         </Card>
     );

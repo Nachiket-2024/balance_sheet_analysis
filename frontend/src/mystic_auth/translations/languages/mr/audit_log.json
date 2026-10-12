@@ -7,7 +7,29 @@
         "authorizationDecisions": "प्राधिकरण निर्णय",
         "securityEvents": "सुरक्षा घटना",
         "myActivity": "माझी क्रियाकलाप",
-        "allUsers": "सर्व वापरकर्ते"
+        "allUsers": "सर्व वापरकर्ते",
+        "allUsersLocked": "{{permission}} परवानगी आवश्यक आहे"
+    },
+    "shared": {
+        "timeRange": {
+            "label": "कालमर्यादा",
+            "ariaLabel": "कालमर्यादा",
+            "preset_7": "मागील 7 दिवस",
+            "preset_14": "मागील 14 दिवस",
+            "preset_30": "मागील 30 दिवस",
+            "preset_90": "मागील 90 दिवस",
+            "from": "पासून",
+            "to": "पर्यंत",
+            "applyCustomRange": "सानुकूल श्रेणी लागू करा",
+            "resetAriaLabel": "कालमर्यादा रीसेट करा",
+            "rangeText": "{{from}} - {{to}}"
+        },
+        "clearFilters": "फिल्टर साफ करा",
+        "clearFiltersCount": "फिल्टर साफ करा ({{count}})",
+        "searchDisabledMine": "माझ्या क्रियाकलापात फक्त तुमच्या स्वतःच्या घटना दिसतात",
+        "showLast90Days": "मागील 90 दिवस दाखवा",
+        "copyLinkToView": "या दृश्याची लिंक कॉपी करा",
+        "copyLinkTooltip": "हे दृश्य पुन्हा उघडणारी लिंक कॉपी करा"
     },
     "authorization": {
         "results": {
@@ -20,18 +42,44 @@
             "filterByResourceType": "संसाधन प्रकारानुसार फिल्टर करा",
             "allResources": "सर्व संसाधने",
             "filterByResult": "निकालानुसार फिल्टर करा",
-            "allResults": "सर्व निकाल"
+            "allResults": "सर्व निकाल",
+            "allActionsForResource": "सर्व {{resource}} क्रिया",
+            "searchActions": "क्रिया शोधा..."
         },
         "columns": {
             "when": "केव्हा",
             "user": "वापरकर्ता",
             "action": "कृती",
             "resource": "संसाधन",
-            "result": "निकाल"
+            "result": "निकाल",
+            "noResourceIdReason": "एकाच रेकॉर्डशी जोडलेले नाही"
         },
         "searchPlaceholder": "वापरकर्ता ईमेलने शोधा...",
+        "resultsCount_one": "{{count}} निकाल",
+        "resultsCount_other": "{{count}} निकाल",
         "emptyFiltered": "या फिल्टरशी कोणताही प्राधिकरण निर्णय जुळत नाही",
-        "emptySearch": "या शोधाशी कोणताही प्राधिकरण निर्णय जुळत नाही"
+        "forbidden": "तुमची परवानगी बदलली आहे, त्यामुळे हे ऑडिट दृश्य आता उपलब्ध नाही. माझ्या क्रियाकलापावर परत जा किंवा पृष्ठ रिफ्रेश करा.",
+        "emptySearch": "या शोधाशी कोणताही प्राधिकरण निर्णय जुळत नाही",
+        "emptyRange": "मागील {{days}} दिवसांत कोणताही प्राधिकरण निर्णय नाही",
+        "drawer": {
+            "title": "प्राधिकरण निर्णय",
+            "position": "{{total}} पैकी {{index}}",
+            "decision": "निर्णय",
+            "auditRecord": "ऑडिट नोंद",
+            "eventId": "इव्हेंट ID",
+            "policies": "धोरणे",
+            "noPoliciesConsidered": "या क्रियेसाठी कोणतेही धोरण विचारात घेतले नाही",
+            "failedConditions": "अयशस्वी अटी",
+            "noPolicyCovered": "कोणत्याही धोरणाने ही क्रिया कव्हर केली नाही",
+            "requestContext": "विनंती संदर्भ",
+            "noContext": "कोणताही विनंती संदर्भ नोंदवलेला नाही",
+            "expandAll": "सर्व विस्तृत करा",
+            "collapseAll": "सर्व संकुचित करा",
+            "copy": "कॉपी करा",
+            "copied": "कॉपी झाले",
+            "onlyThisUser": "फक्त हा वापरकर्ता",
+            "onlyThisAction": "फक्त ही क्रिया"
+        }
     },
     "security": {
         "results": {
@@ -44,7 +92,40 @@
             "filterByIpPlaceholder": "IP नुसार फिल्टर करा...",
             "filterByIpAddress": "IP पत्त्यानुसार फिल्टर करा",
             "filterByResult": "निकालानुसार फिल्टर करा",
-            "allResults": "सर्व निकाल"
+            "allResults": "सर्व निकाल",
+            "resultsCount_one": "{{count}} निकाल",
+            "resultsCount_other": "{{count}} निकाल",
+            "searchEvents": "इव्हेंट्स शोधा...",
+            "eventGroups": {
+                "signIn": "साइन-इन",
+                "sessions": "सत्रे",
+                "account": "खाते",
+                "password": "पासवर्ड",
+                "accessChanges": "प्रवेश बदल"
+            },
+            "eventLabels": {
+                "login": "साइन इन केले",
+                "oauth2_login_success": "साइन इन केले (OAuth2)",
+                "refresh_token_reuse_detected": "रिफ्रेश टोकन पुनर्वापर आढळला",
+                "logout": "साइन आउट केले",
+                "logout_all": "सर्वत्र साइन आउट केले",
+                "session_revoked": "सत्र रद्द केले",
+                "signup": "साइन अप केले",
+                "account_verification_requested": "पडताळणी ईमेल विनंती केली",
+                "account_verified": "खाते सत्यापित",
+                "account_locked": "खाते लॉक केले",
+                "account_deleted": "खाते हटवले",
+                "account_purged": "खाते कायमचे हटवले",
+                "account_reactivated": "खाते पुन्हा सक्रिय केले",
+                "password_reset_requested": "पासवर्ड रीसेट विनंती केली",
+                "password_reset_confirmed": "पासवर्ड रीसेट पुष्टी केली",
+                "policy_assigned": "धोरण नियुक्त केले",
+                "policy_revoked": "धोरण रद्द केले",
+                "policy_action_revoked": "धोरण क्रिया रद्द केली",
+                "permission_granted": "परवानगी दिली",
+                "permission_revoked": "परवानगी रद्द केली",
+                "user_role_changed": "भूमिका बदलली"
+            }
         },
         "columns": {
             "when": "केव्हा",
@@ -53,17 +134,80 @@
             "event": "घटना",
             "ip": "IP",
             "unknownIp": "अज्ञात",
-            "result": "निकाल"
+            "result": "निकाल",
+            "details": "तपशील",
+            "noDetails": "-",
+            "unknownUserReason": "कोणतेही खाते लिंक केलेले नाही: सत्र टोकन आधीच कालबाह्य झाले होते",
+            "unknownIpReason": "या विनंतीसाठी IP नोंदवले गेले नाही"
         },
         "searchPlaceholder": "वापरकर्ता ईमेलने शोधा...",
+        "resultsCount_one": "{{count}} निकाल",
+        "resultsCount_other": "{{count}} निकाल",
         "emptyFiltered": "या फिल्टरशी कोणतीही सुरक्षा घटना जुळत नाही",
         "emptySearch": "या शोधाशी कोणतीही सुरक्षा घटना जुळत नाही",
-        "loginActivity": "लॉगिन क्रियाकलाप",
+        "emptyRange": "मागील {{days}} दिवसांत कोणतीही सुरक्षा घटना नाही",
+        "chartToggle": {
+            "allAttempts": "सर्व प्रयत्न",
+            "failedOnly": "फक्त अयशस्वी",
+            "barsShowAriaLabel": "बार दाखवतात",
+            "chartView": "चार्ट",
+            "tableView": "तक्ता",
+            "viewAriaLabel": "दृश्य"
+        },
+        "chartTable": {
+            "date": "तारीख",
+            "success": "यशस्वी",
+            "failed": "अयशस्वी",
+            "failureRate": "अपयश दर"
+        },
+        "signInActivity": "साइन-इन क्रियाकलाप",
+        "signInActivityDescription": "हा चार्ट फक्त प्रमाणीकरण प्रयत्न दाखवतो. इतर सुरक्षा घटना खाली सूचीबद्ध आहेत.",
+        "forbidden": "तुमची परवानगी बदलली आहे, त्यामुळे हे सुरक्षा दृश्य आता उपलब्ध नाही. माझ्या क्रियाकलापावर परत जा किंवा पृष्ठ रिफ्रेश करा.",
         "failedToLoadTrend": "लॉगिन ट्रेंड लोड करण्यात अयशस्वी",
         "successCount": "यशस्वी ({{count}})",
         "failedCount": "अयशस्वी ({{count}})",
-        "chartAriaLabel": "मागील {{days}} दिवसांतील दैनंदिन लॉगिन प्रयत्न: {{success}} यशस्वी, {{failure}} अयशस्वी",
+        "chartAriaLabel": "{{from}} ते {{to}} दरम्यानचे दैनंदिन साइन-इन प्रयत्न: {{success}} यशस्वी, {{failure}} अयशस्वी",
         "successLabel": "यशस्वी:",
-        "failedLabel": "अयशस्वी:"
+        "failedLabel": "अयशस्वी:",
+        "trendRange": "{{from}} ते {{to}}",
+        "emptyTrend": "या कालावधीत साइन-इन प्रयत्न नाहीत",
+        "details": {
+            "policyAssigned": "\"{{policyName}}\" {{actor}} यांनी नियुक्त केले",
+            "policyRevoked": "\"{{policyName}}\" {{actor}} यांनी रद्द केले",
+            "policyActionRevoked": "\"{{policyName}}\" मधून {{action}} {{actor}} यांनी रद्द केले",
+            "permissionGranted": "{{resourceType}} वर {{action}}, {{actor}} यांनी दिले",
+            "permissionRevoked": "{{resourceType}} वर {{action}}, {{actor}} यांनी रद्द केले",
+            "roleChanged": "भूमिका {{oldRole}} वरून {{newRole}} मध्ये {{actor}} यांनी बदलली"
+        },
+        "kpi": {
+            "attempts": "प्रयत्न",
+            "failed": "अयशस्वी",
+            "failureRate": "अपयश दर",
+            "mostFailures": "सर्वाधिक अपयश ({{count}})"
+        },
+        "drawer": {
+            "title": "सुरक्षा इव्हेंट",
+            "event": "इव्हेंट",
+            "client": "क्लायंट",
+            "userAgent": "यूजर एजंट",
+            "noUserAgent": "कोणताही यूजर एजंट नोंदवलेला नाही",
+            "request": "विनंती",
+            "requestId": "विनंती ID",
+            "noRequestId": "कोणतीही विनंती ID नोंदवलेली नाही",
+            "eventId": "इव्हेंट ID",
+            "accessChange": "प्रवेश बदल",
+            "targetUser": "लक्ष्य वापरकर्ता",
+            "actor": "कर्ता",
+            "policy": "धोरण",
+            "action": "क्रिया",
+            "resourceType": "संसाधन प्रकार",
+            "oldRole": "जुनी भूमिका",
+            "newRole": "नवी भूमिका",
+            "metadata": "मेटाडेटा",
+            "noMetadata": "या इव्हेंटसाठी कोणताही मेटाडेटा नोंदवलेला नाही",
+            "onlyThisUser": "फक्त हा वापरकर्ता",
+            "onlyThisIp": "फक्त हा IP",
+            "onlyThisEvent": "फक्त हा इव्हेंट"
+        }
     }
 }

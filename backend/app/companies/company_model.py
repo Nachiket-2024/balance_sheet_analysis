@@ -9,10 +9,10 @@ from ..app_sdk import Base
 
 class Company(Base):
     """
-    A company or business vertical (e.g. "Reliance Industries", with
-    "Jio Platforms"/"Reliance Retail Ventures" as children). Self-referential
+    A company or business vertical (e.g. "Microsoft Corporation", with
+    "GitHub, Inc."/"LinkedIn Corporation" as illustrative children). Self-referential
     via parent_company_id, which alone models the problem statement's
-    "Reliance has multiple verticals" hierarchy, so there is no separate
+    "Microsoft has multiple verticals" hierarchy, so there is no separate
     Vertical concept (the old repo's unused Vertical model was dropped; a
     vertical is just an ordinary child Company row).
 
@@ -29,7 +29,7 @@ class Company(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
     name: Mapped[str] = mapped_column(String, index=True)
-    # The public-market ticker (e.g. "RELIANCE.NS"), a real FK target for
+    # The public-market ticker (e.g. "MSFT"), a real FK target for
     # BalanceSheet.company_id below, replacing the old repo's unenforced
     # `ticker == Company.name` string join.
     ticker: Mapped[str] = mapped_column(String, unique=True, index=True)

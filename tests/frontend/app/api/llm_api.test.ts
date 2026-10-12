@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import api from '@/api/axiosInstance';
-import { chatApi } from '@app/api/llm_api';
+import { chatApi, getLlmProviderOperationsApi, submitChatFeedbackApi } from '@app/api/llm_api';
 
 const mock = new MockAdapter(api);
 
@@ -41,5 +41,19 @@ describe('chatApi', () => {
     const response = await chatApi(payload);
 
     expect(response.status).toBe(200);
+  });
+});
+
+describe('LLM operations APIs', () => {
+  it('submits scoped feedback', async () => {
+    mock.onPost('/llm/feedback', { helpful: true }, { params: { company_id: 5 } }).reply(204);
+    const response = await submitChatFeedbackApi(5, true);
+    expect(response.status).toBe(204);
+  });
+
+  it('loads provider operations telemetry', async () => {
+    mock.onGet('/llm/operations/admin').reply(200, { provider: 'groq', probes: 2 });
+    const response = await getLlmProviderOperationsApi();
+    expect(response.data).toMatchObject({ provider: 'groq', probes: 2 });
   });
 });

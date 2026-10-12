@@ -23,8 +23,8 @@ describe('errorMonitoring', () => {
 
       initErrorMonitoring();
 
-      // .not.toHaveBeenCalled() doesn't type-check here : see
-      // docs/mystic_auth/testing/overview.md's ".not chaining" note.
+      // .not.toHaveBeenCalled() doesn't type-check here; see the ".not
+      // chaining" note in docs/mystic_auth/testing/overview.md.
       expect(sentryInit).toHaveBeenCalledTimes(0);
     });
 

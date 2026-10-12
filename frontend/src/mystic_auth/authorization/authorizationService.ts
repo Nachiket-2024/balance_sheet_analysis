@@ -54,8 +54,7 @@ export interface AuditLogEntry {
     created_at: string;
 }
 
-// This app has no separate single-check endpoint; batch-check with one item IS the
-// single-check call: single and batch authorization must produce identical decisions.
+// No separate single-check endpoint: batch-check with one item is the single-check call.
 export const checkPermission = async (
     action: string,
     resourceType: string,
@@ -67,9 +66,8 @@ export const checkPermission = async (
     return res.data.results[0];
 };
 
-// checks: 1-50 items per request (see backend's MAX_BATCH_SIZE). Rejects on any HTTP error
-// (e.g. an empty or oversized batch, which the backend rejects with 422), same "let the
-// caller handle it" contract as checkPermission.
+// checks: 1-50 items per request (see backend's MAX_BATCH_SIZE). Rejects on any HTTP error,
+// same as checkPermission.
 export const checkBatch = async (checks: AuthorizationCheck[]): Promise<AuthorizationCheckResult[]> => {
     const res = await api.post("/authorization/batch-check", {
         checks: checks.map((check) => ({

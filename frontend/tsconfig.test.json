@@ -7,7 +7,8 @@
   "extends": "./tsconfig.app.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
-    "types": ["vitest/globals"],
+    "types": ["node", "vitest/globals"],
+    "skipLibCheck": true,
     "paths": {
       "@/*": ["./src/mystic_auth/*"],
       "@app/*": ["./src/app/*"],

@@ -3,9 +3,9 @@ import type { SupportedLanguage } from "./translations";
 /**
  * Short month names per supported language (index 0 = January), used
  * wherever a date renders as "dd Mon yyyy" rather than via toLocaleDateString
- * (which can't be told to keep day-before-month while still swapping the
- * month name itself per language). Keyed the same way numerals.ts's
- * DIGIT_MAPS is: one entry per SupportedLanguage.
+ * (which can't keep day-before-month while swapping the month name per
+ * language). Keyed the same way as numerals.ts's DIGIT_MAPS: one entry per
+ * SupportedLanguage.
  */
 const MONTH_NAMES_SHORT: Record<SupportedLanguage, readonly string[]> = {
     en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],

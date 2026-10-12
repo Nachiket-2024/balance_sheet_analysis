@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...audit_log.audit_log_service import (
     ACCOUNT_DELETED,
-    ACCOUNT_PURGED,
     ACCOUNT_REACTIVATED,
     log_security_event,
 )
@@ -12,8 +11,9 @@ from ...audit_log.audit_log_service import (
 # uses, reused here so a soft-deleted/purged account's existing refresh tokens
 # can't be used to mint a fresh access token even though
 # refresh_token_service.refresh_tokens() itself doesn't check the database
-# (it's Redis/JWT-only by design, see its own docstring).
+# (it's Valkey/JWT-only by design, see its own docstring).
 from ...auth.refresh_token_logic.refresh_token_service import refresh_token_service
+from ...auth.token_logic.token_version_store import TokenVersionUnavailableError
 from ...authorization.dependencies.authorization_dependency import require_authorization
 
 # PBAC action vocabulary and policy-based authorization. Replaces the removed
@@ -22,23 +22,26 @@ from ...authorization.permissions import Permission
 from ...core.errors import AppError
 from ...database.connection import database
 from ...emails.email_normalization import normalize_email
-from ...user_crud.user_crud_collector import user_crud
+from ...logging.logging_config import get_logger
+from ...user.user_crud_collector import user_crud
+from ...user.user_model import UserRole
+from ...user.user_schema import UserRead
 
 # UserRole is only used for target-account guards such as protecting the
 # reserved system account from generic endpoints. It is resource metadata, not
 # caller authorization; PBAC policies still decide access.
-from ...user_table.user_model import UserRole
-from ...user_table.user_schema import UserRead
+from ...user_lifecycle.account_lifecycle_events import build_account_lifecycle_event
+from ...user_lifecycle.user_purge_service import AccountNoLongerEligibleForPurgeError, purge_user_account
 from ..get_or_404.get_or_404 import get_or_404
 
 # Account state transitions (delete/purge/reactivate) on another user's
-# account. Split out of the former user_management_routes.py alongside
-# user_management_query_routes.py (read-only views) and
-# user_management_update_routes.py (field updates), mirroring
-# api/pbac_routes/'s existing split-by-operation-type precedent.
-# main.py registers this router after self-service routes so /{user_email}
-# cannot shadow /users/me or /users/stats.
+# account, split out from user_management_query_routes.py (read-only views)
+# and user_management_update_routes.py (field updates). main.py registers
+# this router after self-service routes so /{user_email} cannot shadow
+# /users/me or /users/stats.
 router = APIRouter(prefix="/users", tags=["Users"])
+
+logger = get_logger(__name__)
 
 _RESOURCE_TYPE = "users"
 
@@ -47,7 +50,7 @@ _RESOURCE_TYPE = "users"
 async def delete_any_user(
     user_email: str,
     request: Request,
-    current_user: dict = Depends(require_authorization(Permission.USERS_DELETE_ANY.value, _RESOURCE_TYPE)),
+    current_user: dict = Depends(require_authorization(Permission.USERS_DEACTIVATE_ANY.value, _RESOURCE_TYPE)),
     db: AsyncSession = Depends(database.get_session)
 ):
     """
@@ -68,7 +71,7 @@ async def delete_any_user(
 
     # The frontend disables this action against the caller's own row, but
     # that's UI-only: without a server-side check here, anyone holding
-    # users:delete_any could soft-delete themselves, revoking their own
+    # users:deactivate_any could soft-delete themselves, revoking their own
     # sessions immediately and, for a sole admin, with no other admin left
     # to reactivate the account.
     if user_email == current_user["email"]:
@@ -78,16 +81,29 @@ async def delete_any_user(
             detail="Cannot delete your own account through this endpoint"
         )
 
-    await user_crud.soft_delete(db_obj=user, db=db)
+    lifecycle_event = build_account_lifecycle_event(
+        "soft_deleted", user, actor=current_user["email"], source="admin"
+    )
+    await user_crud.soft_delete(db_obj=user, db=db, lifecycle_event=lifecycle_event)
 
-    # is_active=False already blocks login and blocks using an existing access
-    # token (current_user_handler.py re-queries the DB on every request), but
-    # refresh_token_service.refresh_tokens() itself is Redis/JWT-only and
-    # doesn't check the database, so without this a still-valid refresh token
-    # could keep minting fresh (if useless) access tokens until it expires on
-    # its own. Also marks every Manage Sessions row revoked (see
-    # revoke_all_tokens_for_user's own implementation).
-    revoked_count = await refresh_token_service.revoke_all_tokens_for_user(user_email, db)
+    # is_active=False already blocks login, but refresh_tokens() is
+    # Valkey/JWT-only and doesn't check the database, so a still-valid
+    # refresh token could keep minting access tokens without this.
+    #
+    # The soft-delete above already succeeded, so a failed revoke here must
+    # not turn a successful deletion into an error response: log critical
+    # and record it honestly in the audit trail instead.
+    try:
+        revoked_count = await refresh_token_service.revoke_all_tokens_for_user(user_email, db)
+        sessions_revoked_confirmed = True
+    except TokenVersionUnavailableError:
+        revoked_count = 0
+        sessions_revoked_confirmed = False
+        logger.critical(
+            "User %s was deleted by %s, but session revocation could not be confirmed "
+            "(Valkey unavailable) - existing sessions may remain valid until Valkey recovers",
+            user_email, current_user["email"],
+        )
 
     await log_security_event(
         ACCOUNT_DELETED,
@@ -95,9 +111,12 @@ async def delete_any_user(
         user_email=user_email,
         success=True,
         request=request,
-        metadata={"deleted_by": current_user["email"], "sessions_revoked": revoked_count},
+        metadata={
+            "deleted_by": current_user["email"],
+            "sessions_revoked": revoked_count,
+            "sessions_revoked_confirmed": sessions_revoked_confirmed,
+        },
     )
-
     return {"detail": f"User {user_email} deleted successfully"}
 
 
@@ -105,15 +124,16 @@ async def delete_any_user(
 async def purge_user(
     user_email: str,
     request: Request,
-    current_user: dict = Depends(require_authorization(Permission.USERS_PURGE.value, _RESOURCE_TYPE)),
+    current_user: dict = Depends(require_authorization(Permission.USERS_DELETE_ANY.value, _RESOURCE_TYPE)),
     db: AsyncSession = Depends(database.get_session)
 ):
     """
-    Deliberately a separate, more sensitive action from users:delete_any (see
+    Deliberately a separate, more sensitive action from users:deactivate_any (see
     permissions.py) since this is irreversible and cascades: policy
     assignments are removed via users.id -> policy_model.py's ON DELETE
-    CASCADE, while audit log rows reference user_email as a snapshot string
-    (not a foreign key), so audit history survives even a purge.
+    CASCADE. Historical audit rows are anonymized before the purge event is
+    written, then survive as non-identifying snapshot history rather than as
+    a foreign-key dependency on the deleted user.
     """
     user_email = normalize_email(user_email)
     user = await get_or_404(user_crud.get_by_email(user_email, db), "User not found", code="USER_NOT_FOUND")
@@ -134,27 +154,27 @@ async def purge_user(
             detail="Cannot purge your own account through this endpoint"
         )
 
-    # The row is about to disappear, so sessions must be revoked before
-    # deletion. revoke_all_tokens_for_user also marks every Manage Sessions
-    # row revoked, which is redundant work here specifically (users.id's ON
-    # DELETE CASCADE removes those rows a moment later anyway, unlike
-    # delete_any_user's soft-delete case, where the rows survive) but
-    # harmless, and keeping one call site rather than a purge-specific
-    # variant is worth that one extra write.
-    revoked_count = await refresh_token_service.revoke_all_tokens_for_user(user_email, db)
-
-    # Recorded before the row is deleted, since the event itself is what makes
-    # this irreversible action reviewable after the fact.
-    await log_security_event(
-        ACCOUNT_PURGED,
-        db,
-        user_email=user_email,
-        success=True,
-        request=request,
-        metadata={"purged_by": current_user["email"], "sessions_revoked": revoked_count},
-    )
-
-    await user_crud.delete(db_obj=user, db=db)
+    # Shared with the scheduled grace-period purge job so both use the same
+    # revoke -> anonymize-history -> audit -> delete sequence.
+    #
+    # Unlike the reversible soft-delete paths, this revokes BEFORE the
+    # irreversible hard delete: a TokenVersionUnavailableError here
+    # propagates and the row is never deleted, so an unconfirmed revoke
+    # blocks the purge rather than risking a purge with live sessions.
+    try:
+        await purge_user_account(user, db, purged_by=current_user["email"], request=request)
+    except TokenVersionUnavailableError as exc:
+        raise AppError(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="SESSION_REVOCATION_UNAVAILABLE",
+            detail="Could not confirm existing sessions were revoked; purge was not performed. Please try again shortly",
+        ) from exc
+    except AccountNoLongerEligibleForPurgeError as exc:
+        raise AppError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="USER_NOT_DELETED",
+            detail="User was reactivated and is no longer eligible for purge",
+        ) from exc
     return {"detail": f"User {user_email} permanently removed"}
 
 
@@ -179,7 +199,10 @@ async def reactivate_user(
 
     # Policy assignments were never touched by soft delete, so access returns
     # exactly as it was, so no re-granting needed.
-    restored_user = await user_crud.reactivate(db_obj=user, db=db)
+    lifecycle_event = build_account_lifecycle_event(
+        "reactivated", user, actor=current_user["email"], source="admin"
+    )
+    restored_user = await user_crud.reactivate(db_obj=user, db=db, lifecycle_event=lifecycle_event)
 
     await log_security_event(
         ACCOUNT_REACTIVATED,
@@ -189,5 +212,4 @@ async def reactivate_user(
         request=request,
         metadata={"reactivated_by": current_user["email"]},
     )
-
     return restored_user

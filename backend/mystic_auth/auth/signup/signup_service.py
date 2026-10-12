@@ -1,18 +1,19 @@
 import traceback
 
+from sqlalchemy.exc import IntegrityError
+
 from ...authorization.policies.default_policies import SELF_SERVICE_POLICY_NAME
 
 # PBAC: new users get their access via an explicit default policy assignment,
-# never via their (metadata-only) role: see the role-as-metadata invariant. New
-# users must receive access through default policy assignment, not default roles."
+# never via their (metadata-only) role: see the role-as-metadata invariant.
 from ...authorization.repositories.policy_repository import policy_repository
 from ...logging.logging_config import get_logger
-from ...user_crud.user_crud_collector import user_crud
+from ...user.user_crud_collector import user_crud
 
 # Default role assigned to all new users, metadata only (display/grouping); it
 # grants no access. See the PBAC policy assignment below for what actually
 # authorizes a new account.
-from ...user_table.user_model import UserRole
+from ...user.user_model import UserRole
 from ..password_logic.password_service import password_service
 
 logger = get_logger(__name__)
@@ -22,28 +23,34 @@ class SignupService:
     """Hashes the password, checks for duplicates, and creates the user with default access."""
 
     @staticmethod
-    # `db` is deliberately unannotated (matches login_service.login and
-    # oauth2_service.login_or_create_user): every real caller supplies a
-    # genuine AsyncSession via Depends(database.get_session), but unit tests
-    # call this directly with db=None while mocking every db-touching
-    # collaborator (user_crud, policy_repository) below it: an `AsyncSession`
-    # annotation would be accurate for production but wrong for that test
-    # pattern, and `AsyncSession | None` pushes the same mismatch onto every
-    # collaborator's own (correctly non-optional) signature instead.
+    # `db` is deliberately unannotated: real callers pass an AsyncSession,
+    # but unit tests call this with db=None while mocking the db-touching
+    # collaborators, so neither `AsyncSession` nor `AsyncSession | None`
+    # fits both cases cleanly.
     async def signup(name: str, email: str, password: str, db) -> bool:
         try:
             existing_user = await user_crud.get_by_email(email, db)
 
-            # Hashed unconditionally, even when the email is already registered,
-            # so both branches take the same expensive Argon2 hash time.
-            # Returning early on the existing-email path without hashing would
-            # let an attacker distinguish registered vs. unregistered emails
-            # purely by response latency, even though the response body/status
-            # is already identical (see signup_handler.handle_signup).
+            # Hashed unconditionally so both branches take the same Argon2
+            # time; skipping it on the existing-email path would let an
+            # attacker distinguish emails by response latency alone.
             hashed_password = await password_service.hash_password(password)
 
             if existing_user:
                 logger.info("Signup attempt with existing email: %s", email)
+                return False
+
+            # The baseline policy is the actual source of a new account's
+            # access. Do not create an account that cannot receive it: a
+            # role value is display metadata only and must never become a
+            # fallback authorization path.
+            self_service_policy = await policy_repository.get_by_name(SELF_SERVICE_POLICY_NAME, db)
+            if not self_service_policy:
+                logger.error(
+                    "Default policy '%s' is missing; refusing to create signup account %s",
+                    SELF_SERVICE_POLICY_NAME,
+                    email,
+                )
                 return False
 
             user_data = {
@@ -55,24 +62,43 @@ class SignupService:
                 "is_active": True,
             }
 
-            new_user = await user_crud.create(user_data, db)
+            try:
+                new_user = await user_crud.create(user_data, db)
+            except IntegrityError:
+                # Benign create race: another concurrent signup for the same
+                # email won between our existing_user check above and this
+                # insert. The unique constraint on users.email is what
+                # actually prevents the duplicate, not the check-then-act
+                # above (which is inherently racy). Not an unexpected
+                # failure, so it's logged at info, not error/traceback.
+                await db.rollback()
+                logger.info("Signup lost a create race for %s, treating as already-registered", email)
+                return False
 
             # Assign the baseline self-service policy: the actual source of
             # this account's access, per PBAC.
-            self_service_policy = await policy_repository.get_by_name(SELF_SERVICE_POLICY_NAME, db)
-            if self_service_policy:
+            try:
                 await policy_repository.assign_policy_to_user(
                     user_id=new_user.id, policy_id=self_service_policy.id, db=db, assigned_by="system"
                 )
-            else:
-                # Should never happen once the seeding migration has run.
-                # logged loudly rather than failing signup outright, since a
-                # missing baseline policy is an operational/migration issue, not
-                # something this particular signup request caused.
+            except Exception:
+                # The CRUD helpers commit independently, so use a
+                # compensating delete if assignment fails after the user row
+                # has committed. This keeps an account with no baseline PBAC
+                # access from surviving a partial signup.
                 logger.error(
-                    "Default policy '%s' not found, new user %s created with no assigned policies",
+                    "Default policy '%s' could not be assigned; rolling back signup account %s",
                     SELF_SERVICE_POLICY_NAME, email,
                 )
+                try:
+                    await user_crud.delete(new_user, db)
+                except Exception:
+                    logger.critical(
+                        "Signup rollback failed for %s after default policy assignment failed",
+                        email,
+                        exc_info=True,
+                    )
+                return False
 
             return True
 

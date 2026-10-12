@@ -43,30 +43,39 @@ class PasswordResetConfirmHandler:
             # reasoning as refresh_token_handler's separate "refresh:lockout:ip:" key.
             email_lock_key = f"password_reset_confirm_lock:email:{email}"
 
-            success = await self.password_reset_service.reset_password(token, new_password, db)
-
-            await log_security_event(
-                PASSWORD_RESET_CONFIRMED, db, user_email=email, success=success, request=request
-            )
-
-            status = 200 if success else 400
-            content = (
-                {"message": "Password has been reset successfully"}
-                if success
-                else {"error": "Invalid token or password", "code": "INVALID_RESET_TOKEN_OR_PASSWORD"}
-            )
-
-            allowed = await self.login_protection_service.check_and_record_action(
-                email_lock_key, success=(status == 200)
-            )
-
-            if not allowed:
+            # Check the lock before redeeming the single-use token or changing
+            # the password. The success path below must never return 429 after
+            # the password has already been changed.
+            if not await self.login_protection_service.begin_protected_action(email_lock_key):
                 return JSONResponse(
                     {"error": "Too many failed attempts, temporarily locked", "code": "ACCOUNT_LOCKED"},
                     status_code=429,
                 )
 
-            return JSONResponse(content, status_code=status)
+            try:
+                success, sessions_revoked = await self.password_reset_service.reset_password(token, new_password, db)
+
+                await log_security_event(
+                    PASSWORD_RESET_CONFIRMED, db, user_email=email, success=success, request=request
+                )
+
+                if success:
+                    content = {"message": "Password has been reset successfully", "sessions_revoked": sessions_revoked}
+                    await self.login_protection_service.finish_protected_action(email_lock_key, success=True)
+                    return JSONResponse(content, status_code=200)
+
+                content = {"error": "Invalid token or password", "code": "INVALID_RESET_TOKEN_OR_PASSWORD"}
+                await self.login_protection_service.finish_protected_action(email_lock_key, success=False)
+                if await self.login_protection_service.is_locked(email_lock_key):
+                    return JSONResponse(
+                        {"error": "Too many failed attempts, temporarily locked", "code": "ACCOUNT_LOCKED"},
+                        status_code=429,
+                    )
+                return JSONResponse(content, status_code=400)
+            finally:
+                # Release the reservation after an unexpected exception
+                # without clearing a failure counter that was not completed.
+                await self.login_protection_service.release_protected_action(email_lock_key)
 
         except Exception:
             logger.error("Error during password reset confirm logic:\n%s", traceback.format_exc())

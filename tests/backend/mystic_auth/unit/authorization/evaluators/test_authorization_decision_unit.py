@@ -1,14 +1,13 @@
-# tests/backend/mystic_auth/unit/authorization/evaluators/test_authorization_decision_unit.py
-#
-# Focused coverage for authorization decision explainability
-# named test list: allowed-because-matched, denied-because-no-match,
-# denied-because-condition-failed, denied-because-invalid-context,
-# multiple-policies-one-grants-one-fails, plus the security requirement
-# that require()'s user-facing error stays generic (never leaks which
-# policies were evaluated/rejected).
+# Coverage for authorization decision explainability: allowed-because-matched,
+# denied-because-no-match, denied-because-condition-failed,
+# denied-because-invalid-context, multiple-policies-one-grants-one-fails, plus
+# the requirement that require()'s user-facing error stays generic (never
+# leaks which policies were evaluated/rejected).
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import HTTPException
+
 from backend.mystic_auth.authorization.evaluators.policy_evaluator import (
     PolicyEvaluationEngine,
 )
@@ -16,9 +15,9 @@ from backend.mystic_auth.authorization.models.policy_model import Policy
 from backend.mystic_auth.authorization.services.authorization_service import (
     authorization_service,
 )
-from fastapi import HTTPException
 
 MODULE = "backend.mystic_auth.authorization.services.authorization_service"
+AUDIT_MODULE = "backend.mystic_auth.authorization.services.authorization_audit_logger"
 
 
 def _policy(actions, resource_type="users", conditions=None, name=None):
@@ -29,11 +28,11 @@ def _policy(actions, resource_type="users", conditions=None, name=None):
 
 def test_allowed_because_a_policy_matched():
     decision = PolicyEvaluationEngine.evaluate_detailed(
-        [_policy(["users:list_all"], name="user_administration")],
+        [_policy(["users:list_all"], name="user_management")],
         "users:list_all", "users", "admin@example.com",
     )
     assert decision.allowed is True
-    assert decision.matched_policies == ["user_administration"]
+    assert decision.matched_policies == ["user_management"]
     assert decision.denial_reason is None
 
 
@@ -116,16 +115,21 @@ def test_multiple_policies_one_grants_and_one_fails():
 
 @pytest.mark.asyncio
 async def test_require_raises_a_generic_error_never_leaking_policy_details(mocker):
-    """'Never expose sensitive policy details to unauthorized
-    users. User-facing errors should remain generic.' require() must
-    surface only a generic 403, regardless of how much detail
+    """require() must surface only a generic 403, regardless of how much detail
     AuthorizationDecision carries internally."""
     mocker.patch(
         f"{MODULE}.policy_repository.get_active_policies_for_user",
         new_callable=AsyncMock,
         return_value=[_policy(["users:read_own"], name="self_service")],
     )
-    mocker.patch(f"{MODULE}.audit_log_repository.create_entry", new_callable=AsyncMock)
+    # _get_effective_policies also fetches direct grants; stub "the user holds none"
+    # since this test only cares about the policy-driven denial.
+    mocker.patch(
+        f"{MODULE}.user_permission_repository.get_active_permissions_for_user",
+        new_callable=AsyncMock,
+        return_value=[],
+    )
+    mocker.patch(f"{AUDIT_MODULE}.log_authorization_decision_task.defer_async", new_callable=AsyncMock)
 
     with pytest.raises(HTTPException) as exc_info:
         await authorization_service.require("user@example.com", "users:list_all", "users", db=None)

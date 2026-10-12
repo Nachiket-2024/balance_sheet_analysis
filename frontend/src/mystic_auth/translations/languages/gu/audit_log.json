@@ -1,13 +1,35 @@
 {
     "page": {
         "title": "ઓડિટ લોગ",
-        "description": "ઓથોરાઇઝેશન નિર્ણયો અને સુરક્ષા ઘટનાઓ."
+        "description": "અધિકૃતતા નિર્ણયો અને સુરક્ષા ઘટનાઓ."
     },
     "tabs": {
-        "authorizationDecisions": "ઓથોરાઇઝેશન નિર્ણયો",
+        "authorizationDecisions": "અધિકૃતતા નિર્ણયો",
         "securityEvents": "સુરક્ષા ઘટનાઓ",
         "myActivity": "મારી પ્રવૃત્તિ",
-        "allUsers": "બધા વપરાશકર્તાઓ"
+        "allUsers": "બધા વપરાશકર્તાઓ",
+        "allUsersLocked": "{{permission}} પરવાનગી જરૂરી છે"
+    },
+    "shared": {
+        "timeRange": {
+            "label": "સમય શ્રેણી",
+            "ariaLabel": "સમય શ્રેણી",
+            "preset_7": "છેલ્લા 7 દિવસ",
+            "preset_14": "છેલ્લા 14 દિવસ",
+            "preset_30": "છેલ્લા 30 દિવસ",
+            "preset_90": "છેલ્લા 90 દિવસ",
+            "from": "થી",
+            "to": "સુધી",
+            "applyCustomRange": "કસ્ટમ શ્રેણી લાગુ કરો",
+            "resetAriaLabel": "સમય શ્રેણી રીસેટ કરો",
+            "rangeText": "{{from}} - {{to}}"
+        },
+        "clearFilters": "ફિલ્ટર્સ સાફ કરો",
+        "clearFiltersCount": "ફિલ્ટર્સ સાફ કરો ({{count}})",
+        "searchDisabledMine": "મારી પ્રવૃત્તિમાં ફક્ત તમારી પોતાની ઘટનાઓ દેખાય છે",
+        "showLast90Days": "છેલ્લા 90 દિવસ બતાવો",
+        "copyLinkToView": "આ દૃશ્યની લિંક કૉપી કરો",
+        "copyLinkTooltip": "આ દૃશ્ય ફરી ખોલતી લિંક કૉપી કરો"
     },
     "authorization": {
         "results": {
@@ -20,18 +42,44 @@
             "filterByResourceType": "સંસાધન પ્રકાર દ્વારા ફિલ્ટર કરો",
             "allResources": "બધા સંસાધનો",
             "filterByResult": "પરિણામ દ્વારા ફિલ્ટર કરો",
-            "allResults": "બધા પરિણામો"
+            "allResults": "બધા પરિણામો",
+            "allActionsForResource": "બધી {{resource}} ક્રિયાઓ",
+            "searchActions": "ક્રિયાઓ શોધો..."
         },
         "columns": {
             "when": "ક્યારે",
             "user": "વપરાશકર્તા",
             "action": "ક્રિયા",
             "resource": "સંસાધન",
-            "result": "પરિણામ"
+            "result": "પરિણામ",
+            "noResourceIdReason": "એક જ રેકોર્ડ સાથે જોડાયેલ નથી"
         },
         "searchPlaceholder": "વપરાશકર્તા ઈમેલ દ્વારા શોધો...",
-        "emptyFiltered": "આ ફિલ્ટર્સ સાથે કોઈ ઓથોરાઇઝેશન નિર્ણય મેળ ખાતો નથી",
-        "emptySearch": "તે શોધ સાથે કોઈ ઓથોરાઇઝેશન નિર્ણય મેળ ખાતો નથી"
+        "resultsCount_one": "{{count}} પરિણામ",
+        "resultsCount_other": "{{count}} પરિણામ",
+        "emptyFiltered": "આ ફિલ્ટર્સ સાથે કોઈ અધિકૃતતા નિર્ણય મેળ ખાતો નથી",
+        "forbidden": "તમારી પરવાનગી બદલાઈ હોવાથી આ ઓડિટ દૃશ્ય હવે ઉપલબ્ધ નથી. મારી પ્રવૃત્તિ પર પાછા જાઓ અથવા પૃષ્ઠ તાજું કરો.",
+        "emptySearch": "તે શોધ સાથે કોઈ અધિકૃતતા નિર્ણય મેળ ખાતો નથી",
+        "emptyRange": "છેલ્લા {{days}} દિવસમાં કોઈ અધિકૃતતા નિર્ણય નથી",
+        "drawer": {
+            "title": "અધિકૃતતા નિર્ણય",
+            "position": "{{total}} માંથી {{index}}",
+            "decision": "નિર્ણય",
+            "auditRecord": "ઑડિટ રેકોર્ડ",
+            "eventId": "ઇવેન્ટ ID",
+            "policies": "પોલિસીઓ",
+            "noPoliciesConsidered": "આ ક્રિયા માટે કોઈ પોલિસી ધ્યાનમાં લેવાઈ નથી",
+            "failedConditions": "નિષ્ફળ શરતો",
+            "noPolicyCovered": "કોઈ પોલિસીએ આ ક્રિયાને આવરી લીધી નથી",
+            "requestContext": "વિનંતી સંદર્ભ",
+            "noContext": "કોઈ વિનંતી સંદર્ભ નોંધાયેલ નથી",
+            "expandAll": "બધું વિસ્તૃત કરો",
+            "collapseAll": "બધું સંકુચિત કરો",
+            "copy": "કૉપિ કરો",
+            "copied": "કૉપિ થયું",
+            "onlyThisUser": "ફક્ત આ વપરાશકર્તા",
+            "onlyThisAction": "ફક્ત આ ક્રિયા"
+        }
     },
     "security": {
         "results": {
@@ -44,7 +92,40 @@
             "filterByIpPlaceholder": "IP દ્વારા ફિલ્ટર કરો...",
             "filterByIpAddress": "IP સરનામા દ્વારા ફિલ્ટર કરો",
             "filterByResult": "પરિણામ દ્વારા ફિલ્ટર કરો",
-            "allResults": "બધા પરિણામો"
+            "allResults": "બધા પરિણામો",
+            "resultsCount_one": "{{count}} પરિણામ",
+            "resultsCount_other": "{{count}} પરિણામ",
+            "searchEvents": "ઇવેન્ટ્સ શોધો...",
+            "eventGroups": {
+                "signIn": "સાઇન-ઇન",
+                "sessions": "સેશન્સ",
+                "account": "ખાતું",
+                "password": "પાસવર્ડ",
+                "accessChanges": "ઍક્સેસ ફેરફારો"
+            },
+            "eventLabels": {
+                "login": "સાઇન ઇન કર્યું",
+                "oauth2_login_success": "સાઇન ઇન કર્યું (OAuth2)",
+                "refresh_token_reuse_detected": "રિફ્રેશ ટોકન પુનઃઉપયોગ મળ્યો",
+                "logout": "સાઇન આઉટ કર્યું",
+                "logout_all": "બધે સાઇન આઉટ કર્યું",
+                "session_revoked": "સેશન રદ કરાયું",
+                "signup": "સાઇન અપ કર્યું",
+                "account_verification_requested": "વેરિફિકેશન ઇમેઇલ વિનંતી કરાઈ",
+                "account_verified": "ખાતું ચકાસાયેલું",
+                "account_locked": "ખાતું લોક કરાયું",
+                "account_deleted": "ખાતું ડિલીટ કરાયું",
+                "account_purged": "ખાતું કાયમી ડિલીટ કરાયું",
+                "account_reactivated": "ખાતું ફરી સક્રિય કરાયું",
+                "password_reset_requested": "પાસવર્ડ રીસેટ વિનંતી કરાઈ",
+                "password_reset_confirmed": "પાસવર્ડ રીસેટ પુષ્ટિ થઈ",
+                "policy_assigned": "પોલિસી સોંપવામાં આવી",
+                "policy_revoked": "પોલિસી રદ કરાઈ",
+                "policy_action_revoked": "પોલિસી ક્રિયા રદ કરાઈ",
+                "permission_granted": "પરવાનગી આપવામાં આવી",
+                "permission_revoked": "પરવાનગી રદ કરાઈ",
+                "user_role_changed": "ભૂમિકા બદલાઈ"
+            }
         },
         "columns": {
             "when": "ક્યારે",
@@ -53,17 +134,80 @@
             "event": "ઘટના",
             "ip": "IP",
             "unknownIp": "અજ્ઞાત",
-            "result": "પરિણામ"
+            "result": "પરિણામ",
+            "details": "વિગતો",
+            "noDetails": "-",
+            "unknownUserReason": "કોઈ ખાતું લિંક નથી: સેશન ટોકન પહેલેથી જ સમાપ્ત થઈ ગયું હતું",
+            "unknownIpReason": "આ વિનંતી માટે IP નોંધાયેલ ન હતું"
         },
         "searchPlaceholder": "વપરાશકર્તા ઈમેલ દ્વારા શોધો...",
+        "resultsCount_one": "{{count}} પરિણામ",
+        "resultsCount_other": "{{count}} પરિણામ",
         "emptyFiltered": "આ ફિલ્ટર્સ સાથે કોઈ સુરક્ષા ઘટના મેળ ખાતી નથી",
         "emptySearch": "તે શોધ સાથે કોઈ સુરક્ષા ઘટના મેળ ખાતી નથી",
-        "loginActivity": "લોગિન પ્રવૃત્તિ",
+        "emptyRange": "છેલ્લા {{days}} દિવસમાં કોઈ સુરક્ષા ઘટના નથી",
+        "chartToggle": {
+            "allAttempts": "બધા પ્રયાસો",
+            "failedOnly": "ફક્ત નિષ્ફળ",
+            "barsShowAriaLabel": "બાર બતાવે છે",
+            "chartView": "ચાર્ટ",
+            "tableView": "કોષ્ટક",
+            "viewAriaLabel": "દૃશ્ય"
+        },
+        "chartTable": {
+            "date": "તારીખ",
+            "success": "સફળ",
+            "failed": "નિષ્ફળ",
+            "failureRate": "નિષ્ફળતા દર"
+        },
+        "signInActivity": "સાઇન-ઇન પ્રવૃત્તિ",
+        "signInActivityDescription": "આ ચાર્ટ ફક્ત પ્રમાણીકરણ પ્રયાસો બતાવે છે. અન્ય સુરક્ષા ઘટનાઓ નીચે સૂચિબદ્ધ છે.",
+        "forbidden": "તમારી પરવાનગી બદલાઈ હોવાથી આ સુરક્ષા દૃશ્ય હવે ઉપલબ્ધ નથી. મારી પ્રવૃત્તિ પર પાછા જાઓ અથવા પૃષ્ઠ તાજું કરો.",
         "failedToLoadTrend": "લોગિન ટ્રેન્ડ લોડ કરવામાં નિષ્ફળ",
         "successCount": "સફળ ({{count}})",
         "failedCount": "નિષ્ફળ ({{count}})",
-        "chartAriaLabel": "છેલ્લા {{days}} દિવસમાં દૈનિક લોગિન પ્રયાસો: {{success}} સફળ થયા, {{failure}} નિષ્ફળ ગયા",
+        "chartAriaLabel": "{{from}} થી {{to}} સુધીના દૈનિક સાઇન-ઇન પ્રયાસો: {{success}} સફળ, {{failure}} નિષ્ફળ",
         "successLabel": "સફળ:",
-        "failedLabel": "નિષ્ફળ:"
+        "failedLabel": "નિષ્ફળ:",
+        "trendRange": "{{from}} થી {{to}}",
+        "emptyTrend": "આ સમયગાળામાં કોઈ સાઇન-ઇન પ્રયાસો નથી",
+        "details": {
+            "policyAssigned": "\"{{policyName}}\" {{actor}} દ્વારા સોંપવામાં આવી",
+            "policyRevoked": "\"{{policyName}}\" {{actor}} દ્વારા રદ કરવામાં આવી",
+            "policyActionRevoked": "\"{{policyName}}\"માંથી {{action}} {{actor}} દ્વારા રદ કરવામાં આવી",
+            "permissionGranted": "{{resourceType}} પર {{action}}, {{actor}} દ્વારા આપવામાં આવી",
+            "permissionRevoked": "{{resourceType}} પર {{action}}, {{actor}} દ્વારા રદ કરવામાં આવી",
+            "roleChanged": "ભૂમિકા {{oldRole}} થી {{newRole}} માં {{actor}} દ્વારા બદલાઈ"
+        },
+        "kpi": {
+            "attempts": "પ્રયાસો",
+            "failed": "નિષ્ફળ",
+            "failureRate": "નિષ્ફળતા દર",
+            "mostFailures": "સૌથી વધુ નિષ્ફળતાઓ ({{count}})"
+        },
+        "drawer": {
+            "title": "સુરક્ષા ઇવેન્ટ",
+            "event": "ઇવેન્ટ",
+            "client": "ક્લાયન્ટ",
+            "userAgent": "યુઝર એજન્ટ",
+            "noUserAgent": "કોઈ યુઝર એજન્ટ નોંધાયેલ નથી",
+            "request": "વિનંતી",
+            "requestId": "વિનંતી ID",
+            "noRequestId": "કોઈ વિનંતી ID નોંધાયેલ નથી",
+            "eventId": "ઇવેન્ટ ID",
+            "accessChange": "ઍક્સેસ ફેરફાર",
+            "targetUser": "લક્ષ્ય વપરાશકર્તા",
+            "actor": "કર્તા",
+            "policy": "પોલિસી",
+            "action": "ક્રિયા",
+            "resourceType": "સ્રોત પ્રકાર",
+            "oldRole": "જૂની ભૂમિકા",
+            "newRole": "નવી ભૂમિકા",
+            "metadata": "મેટાડેટા",
+            "noMetadata": "આ ઇવેન્ટ માટે કોઈ મેટાડેટા નોંધાયેલ નથી",
+            "onlyThisUser": "ફક્ત આ વપરાશકર્તા",
+            "onlyThisIp": "ફક્ત આ IP",
+            "onlyThisEvent": "ફક્ત આ ઇવેન્ટ"
+        }
     }
 }

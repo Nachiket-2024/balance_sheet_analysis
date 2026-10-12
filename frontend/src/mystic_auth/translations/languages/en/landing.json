@@ -1,0 +1,37 @@
+{
+    "logIn": "Log in",
+    "signUp": "Sign up",
+    "skipToContent": "Skip to main content",
+    "brandHome": "Go to {{appName}} home",
+    "primaryNavigation": "Primary navigation",
+    "footerNavigation": "Footer navigation",
+    "hero": {
+        "title": "Auth & Authorization for your app",
+        "subtitle": "{{appName}} gives your app policy-based access control, audit trails, and session security, so you can spend less time rebuilding auth from scratch.",
+        "getStarted": "Get started"
+    },
+    "highlights": {
+        "heading": "What's included",
+        "authentication": {
+            "title": "Authentication",
+            "description": "Password + Google OAuth2, refresh-token rotation, brute-force lockout."
+        },
+        "authorization": {
+            "title": "PBAC authorization",
+            "description": "Access decided by assigned policies, not a hardcoded role check."
+        },
+        "auditLog": {
+            "title": "Audit logging",
+            "description": "Every session event and access decision recorded, queryable per user."
+        },
+        "selfHosted": {
+            "title": "Self-hosted",
+            "description": "Runs on your own VPS - Postgres, Valkey, and every audit log stay on infrastructure you control."
+        }
+    },
+    "footer": {
+        "privacyPolicy": "Privacy Policy",
+        "termsOfService": "Terms of Service",
+        "support": "Contact support"
+    }
+}

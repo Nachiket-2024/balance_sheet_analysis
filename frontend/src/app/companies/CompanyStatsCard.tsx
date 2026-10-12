@@ -1,8 +1,7 @@
 import React from "react";
-import { SimpleGrid } from "@chakra-ui/react";
+import { Building2, GitBranch, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { Card } from "../sdk";
 import { StatTile } from "../app_sdk";
 import { useCompanyStatsQuery } from "./companyQueries";
 
@@ -13,6 +12,7 @@ interface CompanyStatsCardProps {
     onFilterGroupRoots?: () => void;
     /** Filters the table to companies with a parent (subsidiaries) only. */
     onFilterSubsidiaries?: () => void;
+    activeTile?: "total" | "roots" | "subsidiaries" | null;
 }
 
 /**
@@ -21,7 +21,7 @@ interface CompanyStatsCardProps {
  * dropped because it matches group roots in a healthy hierarchy.
  */
 const CompanyStatsCard: React.FC<CompanyStatsCardProps> = ({
-    onFilterTotal, onFilterGroupRoots, onFilterSubsidiaries,
+    onFilterTotal, onFilterGroupRoots, onFilterSubsidiaries, activeTile,
 }) => {
     const { t } = useTranslation("companies");
     const { data, isLoading, isError } = useCompanyStatsQuery();
@@ -29,29 +29,24 @@ const CompanyStatsCard: React.FC<CompanyStatsCardProps> = ({
     if (isError) return null;
 
     return (
-        <Card
-            p={4}
-            w={{ base: "full", md: "420px" }}
-            h="full"
-            display="flex"
-            flexDirection="column"
-            justifyContent="center"
-        >
-            <SimpleGrid columns={3} gap={4}>
-                <StatTile
-                    label={t("totalCompanies")} value={data?.total} isLoading={isLoading} color="brand.fg"
-                    onClick={onFilterTotal} ariaLabel={t("filterTotalCompaniesAria")}
-                />
-                <StatTile
-                    label={t("groupRoots")} value={data?.group_roots} isLoading={isLoading} color="green.500"
-                    onClick={onFilterGroupRoots} ariaLabel={t("filterGroupRootsAria")}
-                />
-                <StatTile
-                    label={t("subsidiaries")} value={data?.subsidiaries} isLoading={isLoading} color="purple.500"
-                    onClick={onFilterSubsidiaries} ariaLabel={t("filterSubsidiariesAria")}
-                />
-            </SimpleGrid>
-        </Card>
+        <div className="flex flex-wrap items-stretch gap-3">
+            <StatTile
+                icon={<Building2 size={18} aria-hidden="true" />}
+                label={t("totalCompanies")} value={data?.total} isLoading={isLoading} onClick={onFilterTotal}
+                ariaLabel={t("filterTotalCompaniesAria")} pressed={activeTile === "total"}
+            />
+            <StatTile
+                icon={<Network size={18} aria-hidden="true" />}
+                label={t("groupRoots")} value={data?.group_roots} isLoading={isLoading}
+                onClick={onFilterGroupRoots} ariaLabel={t("filterGroupRootsAria")} pressed={activeTile === "roots"}
+            />
+            <StatTile
+                icon={<GitBranch size={18} aria-hidden="true" />}
+                label={t("subsidiaries")} value={data?.subsidiaries} isLoading={isLoading}
+                onClick={onFilterSubsidiaries} ariaLabel={t("filterSubsidiariesAria")}
+                pressed={activeTile === "subsidiaries"}
+            />
+        </div>
     );
 };
 

@@ -1,18 +1,16 @@
-# tests/backend/mystic_auth/unit/api/user_routes/test_user_policies_me_route_unit.py
-#
-# Unit coverage for GET /authorization/users/me/policies : the self-service
-# "my own policy assignments" endpoint, added to support the frontend
-# authorization service's getUserPolicies() (no policies:read required,
-# mirroring GET /authorization/audit-log/me's own self-service rationale).
+# Unit coverage for GET /authorization/users/me/policies: the self-service
+# "my own policy assignments" endpoint. Needs no policies:read, mirroring
+# GET /authorization/audit-log/me.
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from backend.mystic_auth.api.pbac_routes.policy_assignment_routes import (
+
+from backend.mystic_auth.api.pbac_routes.policies.policy_assignment_routes import (
     list_my_policies,
 )
 
-MODULE = "backend.mystic_auth.api.pbac_routes.policy_assignment_routes"
+MODULE = "backend.mystic_auth.api.pbac_routes.policies.policy_assignment_routes"
 
 
 def _make_policy(name="self_service"):
@@ -33,7 +31,7 @@ def _make_policy(name="self_service"):
 @pytest.mark.asyncio
 async def test_list_my_policies_scopes_to_caller_email(mocker):
     current_user = {"email": "caller@example.com", "name": "Caller"}
-    expected_policies = [_make_policy("self_service"), _make_policy("user_administration")]
+    expected_policies = [_make_policy("self_service"), _make_policy("user_management")]
     get_policies_mock = mocker.patch(
         f"{MODULE}.policy_repository.get_policies_for_user", new_callable=AsyncMock, return_value=expected_policies
     )
@@ -42,14 +40,13 @@ async def test_list_my_policies_scopes_to_caller_email(mocker):
 
     get_policies_mock.assert_awaited_once_with("caller@example.com", "fake-db")
     assert result.user_email == "caller@example.com"
-    assert {p.name for p in result.policies} == {"self_service", "user_administration"}
+    assert {p.name for p in result.policies} == {"self_service", "user_management"}
 
 
 @pytest.mark.asyncio
 async def test_list_my_policies_never_accepts_a_different_users_email(mocker):
-    """There is no email parameter at all on this endpoint : it can only
-    ever return the authenticated caller's own policies, never anyone
-    else's, regardless of what a client might try to pass."""
+    """There is no email parameter on this endpoint: it can only ever
+    return the authenticated caller's own policies, never anyone else's."""
     current_user = {"email": "someone@example.com", "name": "Someone"}
     get_policies_mock = mocker.patch(
         f"{MODULE}.policy_repository.get_policies_for_user", new_callable=AsyncMock, return_value=[]

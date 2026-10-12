@@ -4,24 +4,21 @@ import { useAuthorization } from "./useAuthorization";
 import { useCan } from "./useCan";
 
 interface AuthorizedProps {
-    permission: string;
-    // Passed through to useCan; see useAuthorization.ts's `can` for why this doesn't currently
-    // narrow the check: the cached permissions list has no resource-type dimension of its own.
+    /** A single action, or an array meaning "any of" - see useAuthorization's `can`. */
+    permission: string | string[];
+    // Passed through to useCan. Doesn't narrow the check yet: see useAuthorization.ts's `can`.
     resourceType?: string;
     fallback?: ReactNode;
     children: ReactNode;
 }
 
 /**
- * Declarative wrapper for conditionally rendering UI based on a single permission: the
- * component equivalent of `useCan`, for call sites that read more naturally as JSX than as an
- * `if` inside a component body.
+ * Declarative version of `useCan`, for JSX call sites: renders children if the permission is
+ * held, otherwise fallback.
  *
- * While isAuthenticated is still unknown (the initial session check hasn't resolved yet),
- * renders nothing at all, never children, and never `fallback` either, since showing a "you
- * don't have permission" fallback before we've even confirmed the user's identity would itself
- * be a flash of incorrect state, just the opposite kind from prematurely showing protected
- * content.
+ * While isAuthenticated is still unknown (session check hasn't resolved), renders nothing,
+ * not children or fallback, so we never flash a "no permission" message before we know who
+ * the user is.
  */
 export const Authorized: React.FC<AuthorizedProps> = ({
     permission,

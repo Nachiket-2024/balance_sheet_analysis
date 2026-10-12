@@ -1,249 +1,231 @@
-import React, { useState } from "react";
-import { HStack, Input, Stack } from "@chakra-ui/react";
+import React from "react";
+import { Download, Users, UsersRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import PageContainer from "../ui/PageContainer";
-import DataTable from "../ui/DataTable";
-import ConfirmDialog from "../ui/ConfirmDialog";
-import Pagination from "../ui/Pagination";
-import StyledSelect from "../ui/StyledSelect";
-import { SEARCH_INPUT_PROPS } from "../ui/styles/inputStyles";
-import { useDebouncedValue } from "../ui/hooks/useDebouncedValue";
-import { useSortState } from "../ui/hooks/useSortState";
-import { usePageResetOn } from "../ui/hooks/usePageResetOn";
-import { toaster } from "../ui/toaster/toasterInstance";
-import { useAuthStore } from "../store/authStore";
-import { useUsersQuery } from "./userQueries";
-import UserStatsCard from "./UserStatsCard";
-import {
-    useDeleteUserMutation,
-    usePurgeUserMutation,
-    useReactivateUserMutation,
-    useUpdateUserRoleMutation,
-} from "./userMutations";
-import type { ManagedUserRead } from "../api/users_api";
-import UserPoliciesDialog from "./UserPoliciesDialog";
-import UserDetailsDialog from "./UserDetailsDialog";
-import { ROLE_OPTIONS, capitalize, buildUsersColumns } from "./usersColumns";
-
-const PAGE_SIZE = 25;
-const ALL_VALUE = "";
-
-/** "" (a placeholder "All" option) maps to `undefined` (no filter applied). */
-function toBoolFilter(value: string): boolean | undefined {
-    if (value === ALL_VALUE) return undefined;
-    return value === "true";
-}
+import PageContainer from "../ui/navigation/PageContainer";
+import GlossaryHelp from "../ui/display/GlossaryHelp";
+import DataTable from "../ui/DataTable/DataTable";
+import Pagination from "../ui/navigation/Pagination";
+import { Button } from "../ui/buttons/Button";
+import { IfCan } from "../authorization/IfCan";
+import { PERMISSIONS } from "../authorization/permissions";
+import UserStatsCard, { type UserStatTileKey } from "./UserStatsCard";
+import UsersFilterBar, { ALL_VALUE } from "./UsersFilterBar";
+import UsersPageDialogs from "./dialogs/UsersPageDialogs";
+import BulkActionToolbar from "./bulk/BulkActionToolbar";
+import BulkUserAccessDialog from "./bulk/BulkUserAccessDialog";
+import { useUsersPageState } from "./useUsersPageState";
 
 /**
  * UsersPage
  * ----------------------------
  * Management list of every user (backend: GET /users/), with per-row role
- * change, delete, and a "Policies" dialog for assigning/
- * revoking individual policy grants. Route is gated by
- * ProtectedRoute permission="users:list_all"; each destructive/privileged
- * action is additionally gated per-action via IfCan. Name/Email/Role sort
- * server-side (click the header), and Role/Verified/Status filter
- * server-side too - both narrow the whole result set, not just the
- * currently-loaded page, same as the audit_log/ section components (both
- * share ui/hooks/usePageResetOn.ts for the page-reset-on-filter-change logic).
+ * change, delete, and a "Policies" dialog for assigning/revoking individual
+ * policy grants. Route is gated by ProtectedRoute permission="users:list_all";
+ * each destructive/privileged action is additionally gated via IfCan.
+ * Name/Email/Role sort and Role/Verified/Status/Policy/Permission filter
+ * both happen server-side, narrowing the whole result set rather than just
+ * the loaded page (same as audit_log/, sharing its
+ * ui/hooks/usePageResetOn.ts for resetting to page 1 on filter change).
+ * The filter controls live in UsersFilterBar.tsx, every dialog this page
+ * can open lives in UsersPageDialogs.tsx, and the query/mutation/handler
+ * wiring lives in useUsersPageState.ts; this file just composes the three.
  */
 const UsersPage: React.FC = () => {
     const { t } = useTranslation(["users", "ui_text"]);
-    const [search, setSearch] = useState("");
-    // Debounced, not the raw keystroke value: search is now a real request
-    // (server-side, since the table itself is paginated and no longer holds
-    // every user to filter client-side), so typing shouldn't fire one
-    // request per character.
-    const debouncedSearch = useDebouncedValue(search);
+    const {
+        search,
+        setSearch,
+        role,
+        setRole,
+        verified,
+        setVerified,
+        status,
+        setStatus,
+        policy,
+        setPolicy,
+        permission,
+        permissionSource,
+        setPermission,
+        lastLogin,
+        setLastLogin,
+        sort,
+        toggleSort,
+        page,
+        setPage,
+        totalPages,
+        users,
+        isFetching,
+        totalResults,
+        isLoading,
+        isError,
+        columns,
+        deletingUser,
+        setDeletingUser,
+        purgingUser,
+        setPurgingUser,
+        pendingRoleChange,
+        setPendingRoleChange,
+        accessUser,
+        setAccessUser,
+        accessTab,
+        selectedUserIds,
+        handleSelectionChange,
+        selectedUserEmails,
+        selectedCount,
+        selectAllMatching,
+        isSelectingAllMatching,
+        handleSelectAllMatching,
+        clearSelection,
+        clearFilters,
+        bulkDialog,
+        setBulkDialog,
+        rowClickSelects,
+        setRowClickSelects,
+        deleteMutation,
+        purgeMutation,
+        roleMutation,
+        exportMutation,
+        handleExport,
+        handleRoleChangeConfirm,
+        handleDeleteConfirm,
+        handlePurgeConfirm,
+        PAGE_SIZE,
+    } = useUsersPageState();
 
-    // No default sort column: the table's natural order (insertion/id order)
-    // isn't shown as its own column, so nothing should read as "actively
-    // sorted" until a header is actually clicked.
-    const { sort, toggleSort } = useSortState("");
-    const [role, setRole] = useState(ALL_VALUE);
-    const [verified, setVerified] = useState(ALL_VALUE);
-    const [status, setStatus] = useState(ALL_VALUE);
-
-    // A search/filter/sort change that changes the result set makes whatever
-    // page you were on potentially meaningless (e.g. page 3 of an unfiltered
-    // list may not exist at all once filtered) - always back to page 1 for a
-    // fresh query. See usePageResetOn's own docstring for why this is state
-    // derived during render, not an effect.
-    const [page, setPage] = usePageResetOn(`${debouncedSearch}|${sort.key}|${sort.direction}|${role}|${verified}|${status}`);
-
-    const { data, isLoading, isError } = useUsersQuery(page, PAGE_SIZE, {
-        search: debouncedSearch,
-        role: role || undefined,
-        isVerified: toBoolFilter(verified),
-        status: status || undefined,
-        sortBy: sort.key || undefined,
-        sortDir: sort.direction,
-    });
-    const users = data?.users;
-    const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
-    const currentUserEmail = useAuthStore((s) => s.email);
-
-    const [deletingUser, setDeletingUser] = useState<ManagedUserRead | null>(null);
-    const [purgingUser, setPurgingUser] = useState<ManagedUserRead | null>(null);
-    const [pendingRoleChange, setPendingRoleChange] = useState<{ user: ManagedUserRead; role: string } | null>(null);
-    const [policiesUserEmail, setPoliciesUserEmail] = useState<string | null>(null);
-    const [viewingUser, setViewingUser] = useState<ManagedUserRead | null>(null);
-
-    const deleteMutation = useDeleteUserMutation();
-    const purgeMutation = usePurgeUserMutation();
-    const reactivateMutation = useReactivateUserMutation();
-    const roleMutation = useUpdateUserRoleMutation();
-
-    const handleRoleChangeConfirm = () => {
-        if (!pendingRoleChange) return;
-        const { user, role } = pendingRoleChange;
-        roleMutation.mutate(
-            { userEmail: user.email, role },
-            {
-                onSuccess: () => {
-                    toaster.create({ title: t("users:page.roleUpdatedToast"), type: "success" });
-                    setPendingRoleChange(null);
-                },
-                onError: (error) => toaster.create({ title: error.message, type: "error" }),
-            }
-        );
-    };
-
-    const handleDeleteConfirm = () => {
-        if (!deletingUser) return;
-        deleteMutation.mutate(
-            { userEmail: deletingUser.email },
-            {
-                onSuccess: () => {
-                    toaster.create({ title: t("users:page.userDeletedToast"), type: "success" });
-                    setDeletingUser(null);
-                },
-                onError: (error) => toaster.create({ title: error.message, type: "error" }),
-            }
-        );
-    };
-
-    const handlePurgeConfirm = () => {
-        if (!purgingUser) return;
-        purgeMutation.mutate(
-            { userEmail: purgingUser.email },
-            {
-                onSuccess: () => {
-                    toaster.create({ title: t("users:page.userPurgedToast"), type: "success" });
-                    setPurgingUser(null);
-                },
-                onError: (error) => toaster.create({ title: error.message, type: "error" }),
-            }
-        );
-    };
-
-    const handleReactivate = (userEmail: string) => {
-        reactivateMutation.mutate(
-            { userEmail },
-            {
-                onSuccess: () => toaster.create({ title: t("users:page.userReactivatedToast"), type: "success" }),
-                onError: (error) => toaster.create({ title: error.message, type: "error" }),
-            }
-        );
-    };
-
-    const columns = buildUsersColumns({
-        t,
-        currentUserEmail,
-        onRoleChangeRequest: (user, role) => setPendingRoleChange({ user, role }),
-        onView: setViewingUser,
-        onPolicies: setPoliciesUserEmail,
-        onReactivate: handleReactivate,
-        reactivatingEmail: reactivateMutation.isPending ? reactivateMutation.variables?.userEmail : undefined,
-        onPurgeRequest: setPurgingUser,
-        onDeleteRequest: setDeletingUser,
-    });
+    // Drives UserStatsCard's pressed tile: only "on" when the filter state
+    // exactly matches what that tile's own click handler sets below, so a
+    // tile never looks pressed just because its number happens to agree
+    // with an unrelated combination of filters (design/users.html's
+    // `.tile[aria-pressed="true"]`).
+    const activeTile: UserStatTileKey | null = search || role !== ALL_VALUE || policy !== ALL_VALUE
+        || permission !== ALL_VALUE || lastLogin !== ALL_VALUE
+        ? null
+        : verified === "true" && status === ALL_VALUE
+          ? "verified"
+          : verified === "false" && status === ALL_VALUE
+            ? "unverified"
+            : status === "deleted" && verified === ALL_VALUE
+              ? "inactive"
+              : verified === ALL_VALUE && status === ALL_VALUE
+                ? "total"
+                : null;
 
     return (
         <PageContainer
             title={t("users:page.title")}
-            description={t("users:page.description")}
-            actions={
-                <UserStatsCard
-                    onFilterTotal={() => {
-                        setSearch("");
-                        setRole(ALL_VALUE);
-                        setVerified(ALL_VALUE);
-                        setStatus(ALL_VALUE);
-                    }}
-                    onFilterVerified={() => {
-                        setSearch("");
-                        setVerified("true");
-                        setRole(ALL_VALUE);
-                        setStatus(ALL_VALUE);
-                    }}
-                    onFilterUnverified={() => {
-                        setSearch("");
-                        setVerified("false");
-                        setRole(ALL_VALUE);
-                        setStatus(ALL_VALUE);
-                    }}
-                    onFilterInactive={() => {
-                        setSearch("");
-                        setStatus("inactive");
-                        setRole(ALL_VALUE);
-                        setVerified(ALL_VALUE);
-                    }}
+            icon={Users}
+            titleExtra={
+                <GlossaryHelp
+                    ariaLabel={t("users:page.glossaryAriaLabel")}
+                    items={[
+                        { term: t("users:page.glossary.role.term"), definition: t("users:page.glossary.role.definition") },
+                        { term: t("users:page.glossary.verified.term"), definition: t("users:page.glossary.verified.definition") },
+                        { term: t("users:page.glossary.policy.term"), definition: t("users:page.glossary.policy.definition") },
+                        { term: t("users:page.glossary.permission.term"), definition: t("users:page.glossary.permission.definition") },
+                        { term: t("users:page.glossary.deactivated.term"), definition: t("users:page.glossary.deactivated.definition") },
+                    ]}
                 />
             }
+            description={t("users:page.description")}
+            actions={
+                // Top-right of the page header, next to the title
+                // (design/users.html's #exportBtn) - its own dedicated
+                // slot instead of a sibling in the search row, so it can
+                // never get pushed out of view by the filter row wrapping.
+                <IfCan action={PERMISSIONS.USERS_LIST_ALL}>
+                    <Button size="sm" variant="brand-tinted-outline" onClick={handleExport} loading={exportMutation.isPending}>
+                        <Download size={16} />
+                        {t("users:page.exportCsv")}
+                    </Button>
+                </IfCan>
+            }
             headerExtra={
-                <Stack gap={3}>
-                    <Input
-                        placeholder={t("users:page.searchPlaceholder")}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        maxW="sm"
-                        {...SEARCH_INPUT_PROPS}
+                // Stats row above the filter bar, both full width (design/
+                // users.html: "Stat tiles are one short row under the
+                // title, so the filters get the full width instead of
+                // wrapping beside a tall stats card") - rendered here, not
+                // PageContainer's narrow `actions` slot.
+                <div className="flex flex-col gap-4">
+                    <UserStatsCard
+                        activeTile={activeTile}
+                        onFilterTotal={() => {
+                            setSearch("");
+                            setRole(ALL_VALUE);
+                            setVerified(ALL_VALUE);
+                            setStatus(ALL_VALUE);
+                            setPolicy(ALL_VALUE);
+                            setPermission(ALL_VALUE);
+                            setLastLogin(ALL_VALUE);
+                        }}
+                        onFilterVerified={() => {
+                            setSearch("");
+                            setVerified("true");
+                            setRole(ALL_VALUE);
+                            setStatus(ALL_VALUE);
+                            setPolicy(ALL_VALUE);
+                            setPermission(ALL_VALUE);
+                            setLastLogin(ALL_VALUE);
+                        }}
+                        onFilterUnverified={() => {
+                            setSearch("");
+                            setVerified("false");
+                            setRole(ALL_VALUE);
+                            setStatus(ALL_VALUE);
+                            setPolicy(ALL_VALUE);
+                            setPermission(ALL_VALUE);
+                            setLastLogin(ALL_VALUE);
+                        }}
+                        onFilterInactive={() => {
+                            setSearch("");
+                            setStatus("deleted");
+                            setRole(ALL_VALUE);
+                            setVerified(ALL_VALUE);
+                            setPolicy(ALL_VALUE);
+                            setPermission(ALL_VALUE);
+                            setLastLogin(ALL_VALUE);
+                        }}
                     />
-
-                    <HStack gap={3} wrap="wrap">
-                        <StyledSelect
-                            w="140px"
-                            ariaLabel={t("users:page.filterByRole")}
-                            value={role}
-                            onChange={setRole}
-                            textTransform="capitalize"
-                            options={[
-                                { value: ALL_VALUE, label: t("users:page.allRoles") },
-                                ...ROLE_OPTIONS.map((value) => ({ value, label: capitalize(value) })),
-                            ]}
-                        />
-
-                        <StyledSelect
-                            w="150px"
-                            ariaLabel={t("users:page.filterByVerified")}
-                            value={verified}
-                            onChange={setVerified}
-                            options={[
-                                { value: ALL_VALUE, label: t("users:page.allVerification") },
-                                { value: "true", label: t("users:page.verified") },
-                                { value: "false", label: t("users:page.unverified") },
-                            ]}
-                        />
-
-                        <StyledSelect
-                            w="140px"
-                            ariaLabel={t("users:page.filterByStatus")}
-                            value={status}
-                            onChange={setStatus}
-                            options={[
-                                { value: ALL_VALUE, label: t("users:page.allStatuses") },
-                                { value: "active", label: t("ui_text:active") },
-                                { value: "inactive", label: t("ui_text:inactive") },
-                                { value: "deleted", label: t("users:page.deleted") },
-                            ]}
-                        />
-                    </HStack>
-                </Stack>
+                    <UsersFilterBar
+                        search={search}
+                        setSearch={setSearch}
+                        isFetching={isFetching}
+                        totalResults={totalResults}
+                        role={role}
+                        setRole={setRole}
+                        verified={verified}
+                        setVerified={setVerified}
+                        status={status}
+                        setStatus={setStatus}
+                        policy={policy}
+                        setPolicy={setPolicy}
+                        permission={permission}
+                        setPermission={setPermission}
+                        permissionSource={permissionSource}
+                        lastLogin={lastLogin}
+                        setLastLogin={setLastLogin}
+                        onClearFilters={clearFilters}
+                    />
+                </div>
             }
         >
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} mb={4} />
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} className="mb-4" />
+
+            <BulkActionToolbar
+                selectedCount={selectedCount}
+                onBulkAssignPolicy={() => setBulkDialog("policy")}
+                onBulkGrantPermission={() => setBulkDialog("permission")}
+                onBulkSetRole={() => setBulkDialog("role")}
+                onClearSelection={clearSelection}
+                rowClickSelects={rowClickSelects}
+                onToggleRowClickSelects={() => setRowClickSelects((v) => !v)}
+                pageSelectedCount={selectedUserIds.size}
+                pageRowCount={users?.length ?? 0}
+                totalMatching={totalResults ?? 0}
+                selectAllMatching={selectAllMatching}
+                onSelectAllMatching={handleSelectAllMatching}
+                isSelectingAllMatching={isSelectingAllMatching}
+            />
 
             <DataTable
                 columns={columns}
@@ -251,59 +233,44 @@ const UsersPage: React.FC = () => {
                 rowKey={(u) => u.id}
                 isLoading={isLoading}
                 isError={isError}
+                isFetching={isFetching}
                 errorMessage={t("users:page.failedToLoadUsers")}
                 emptyMessage={search ? t("users:page.noUsersMatchSearch") : t("users:page.noUsersMatchFilters")}
+                emptyIcon={<UsersRound size={32} aria-hidden="true" />}
                 sort={sort}
                 onSortChange={toggleSort}
                 startIndex={(page - 1) * PAGE_SIZE}
+                rowClickSelects={rowClickSelects}
+                selectable
+                selectedKeys={selectedUserIds}
+                onSelectionChange={handleSelectionChange}
             />
 
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} mt={4} />
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} className="mt-4" />
 
-            <UserPoliciesDialog
-                isOpen={!!policiesUserEmail}
-                userEmail={policiesUserEmail}
-                onClose={() => setPoliciesUserEmail(null)}
+            <BulkUserAccessDialog
+                isOpen={bulkDialog !== null}
+                userEmails={selectedUserEmails}
+                initialTab={bulkDialog === "permission" ? "permissions" : bulkDialog === "role" ? "roles" : "policies"}
+                onClose={() => setBulkDialog(null)}
             />
 
-            <UserDetailsDialog
-                isOpen={!!viewingUser}
-                user={viewingUser}
-                onClose={() => setViewingUser(null)}
-            />
-
-            <ConfirmDialog
-                isOpen={!!deletingUser}
-                title={t("users:page.deleteDialogTitle")}
-                description={t("users:page.deleteDialogDescription", { email: deletingUser?.email })}
-                confirmLabel={t("ui_text:delete")}
-                isLoading={deleteMutation.isPending}
-                onConfirm={handleDeleteConfirm}
-                onCancel={() => setDeletingUser(null)}
-            />
-
-            <ConfirmDialog
-                isOpen={!!purgingUser}
-                title={t("users:page.purgeDialogTitle")}
-                description={t("users:page.purgeDialogDescription", { email: purgingUser?.email })}
-                confirmLabel={t("users:page.purgeConfirmLabel")}
-                isLoading={purgeMutation.isPending}
-                onConfirm={handlePurgeConfirm}
-                onCancel={() => setPurgingUser(null)}
-            />
-
-            <ConfirmDialog
-                isOpen={!!pendingRoleChange}
-                title={t("users:page.changeRoleDialogTitle")}
-                description={t("users:page.changeRoleDialogDescription", {
-                    email: pendingRoleChange?.user.email,
-                    role: pendingRoleChange ? capitalize(pendingRoleChange.role) : "",
-                })}
-                confirmLabel={t("users:page.changeRoleConfirmLabel")}
-                isDestructive={false}
-                isLoading={roleMutation.isPending}
-                onConfirm={handleRoleChangeConfirm}
-                onCancel={() => setPendingRoleChange(null)}
+            <UsersPageDialogs
+                accessUser={accessUser}
+                accessTab={accessTab}
+                onCloseAccess={() => setAccessUser(null)}
+                deletingUser={deletingUser}
+                isDeletePending={deleteMutation.isPending}
+                onConfirmDelete={handleDeleteConfirm}
+                onCancelDelete={() => setDeletingUser(null)}
+                purgingUser={purgingUser}
+                isPurgePending={purgeMutation.isPending}
+                onConfirmPurge={handlePurgeConfirm}
+                onCancelPurge={() => setPurgingUser(null)}
+                pendingRoleChange={pendingRoleChange}
+                isRoleChangePending={roleMutation.isPending}
+                onConfirmRoleChange={handleRoleChangeConfirm}
+                onCancelRoleChange={() => setPendingRoleChange(null)}
             />
         </PageContainer>
     );

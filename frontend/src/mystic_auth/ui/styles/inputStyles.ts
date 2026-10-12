@@ -1,18 +1,12 @@
-// border.default (theme/system.ts) is only one step off bg.canvas in both
-// modes (gray.200 vs gray.100 light, gray.700 vs gray.900 dark), fine for an
-// input sitting on a Card's bg.surface (a bigger jump), but a filter input
-// placed directly on bg.canvas (e.g. UsersPage/PoliciesPage's search box)
-// read as barely-there against the page itself. A fixed, higher-contrast
-// border, one more step out in each direction, keeps it clearly visible on
-// bg.canvas without depending on Card ever being underneath it. `bg.surface`
-// gives it a filled, raised look instead of a transparent outline sitting
-// flush with the page, and the focus ring ties keyboard/click focus to the
-// same brand color buttons already use, rather than the browser/Chakra
-// default gray ring, which read as an unstyled/unfinished form control.
-export const SEARCH_INPUT_PROPS = {
-    bg: "bg.surface",
-    borderColor: "gray.400",
-    _hover: { borderColor: "gray.600" },
-    _focus: { borderColor: "brand.solid", boxShadow: "0 0 0 1px var(--chakra-colors-brand-solid)" },
-    _dark: { borderColor: "gray.600", _hover: { borderColor: "gray.400" } },
-};
+// border.default is too close to bg.canvas for a search box sitting
+// directly on the page (e.g. UsersPage/PoliciesPage), so this uses a fixed
+// higher-contrast border plus bg.surface for a raised look, and a
+// brand-color focus ring instead of the default gray one.
+// Mirrors the backend's SEARCH_QUERY_MAX_LENGTH (core/search_query.py) so
+// typing/pasting gets instant feedback instead of a 422 after submit. Not a
+// security boundary on its own; the backend still enforces it independently.
+export const SEARCH_QUERY_MAX_LENGTH = 100;
+
+// The border/hover/focus treatment for every bordered text input is baked
+// directly into ui/inputs/Input.tsx/ui/inputs/Textarea.tsx's Tailwind
+// classes, shared by every plain form field, StyledSelect's trigger, etc.

@@ -1,8 +1,25 @@
 # Architecture: SDK and Extension Points
-
+---
 See [Overview](overview.md) for the directory tree these rules produce.
 
+```mermaid
+%%{init: {"themeVariables": {"lineColor": "#334155"}} }%%
+flowchart TD
+    AppCode[App backend code] --> AppSdk[app_sdk.py]
+    AppSdk --> TemplateSdk[sdk.py unchanged]
+    TemplateSdk --> Mystic[MysticAuth public exports]
+    Ui[App UI extension] --> Slots[Documented app extension points]
+    Slots --> Chrome[Shared MysticAuth chrome]
+    classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef blocked fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    classDef decision fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
+    class AppSdk,TemplateSdk,Mystic,Slots,Chrome success
+```
+---
+
 ## Why `sdk.py`/`app_sdk.py` split the way they do
+
+---
 
 Per [`template-usage/overview.md`](../../mystic_auth/template-usage/overview.md): `sdk.py` re-exports
 template pieces, kept exactly as shipped so upstream updates apply cleanly.
@@ -17,23 +34,37 @@ unambiguously ours. `app_sdk.py` also re-exports `password_service` and
 `user_crud`, needed only by `app/seed/seed_demo_data.py` to create demo
 users through mystic_auth's own signup path rather than inserting rows by
 hand.
+---
 
-## Extension-surface rule: every `app/`/`frontend/src/app/` file imports through `sdk`/`app_sdk`
+## Keep app feature code on the public SDK surface
 
-Per `template-usage/overview.md`'s explicit rule ("Import from HERE, not internal
-paths... directly"), nothing under `backend/app/` or `frontend/src/app/`
-reaches into `mystic_auth/` internals directly; it always goes through
-`sdk.py`/`app_sdk.py` (backend) or `sdk.ts`/`app_sdk.ts` (frontend).
-On the backend, `sdk.py` doesn't cover everything this app needs, so
-`app_sdk.py` re-exports the rest (`policy_repository`, `Base`,
-`rate_limiter_service`, `password_service`, `user_crud`; see above for why
-those specifically). On the frontend, `sdk.ts` covers most of what this app
-uses, including the generic UI primitives (`Card`, `PageContainer`,
-`DataTable`, `FormAlert`, `ConfirmDialog`, `toaster`, `LoadingState`, ...),
-but not `DashboardPage` itself: that one gap is what `app_sdk.ts` re-exports
-(see below).
+---
+
+The template guidance says to import MysticAuth capabilities from its public
+SDK, not its internal paths. Backend feature code uses `sdk.py` for published
+exports and `app_sdk.py` for the additional exports this app needs:
+`policy_repository`, the shared `Base`, `rate_limiter_service`, `password_service`,
+`user_crud`, and the existing email task. The app-specific bridge does not
+re-export this app's own routes or models.
+
+Frontend feature code imports from `sdk.ts` when MysticAuth publishes the
+capability there. `app_sdk.ts` currently bridges `DashboardPage` and these
+exports not present on the public surface: the card `StatTile`, `FilterPanel`,
+`SearchInput`, `FilterChips`, `FilterChip`, `StyledSelectOption`, `SortState`,
+and `SortDirection`. It does not forward public exports such as
+`TableActionButton`, `StyledSelect`, `Pagination`, shared hooks, or the display
+`StatTile` from `sdk.ts`. Recheck the bridge after upstream syncs and remove
+each bridge once MysticAuth publishes the same capability.
+
+`App.tsx` composes the app routes with MysticAuth's shared layout and auth
+routes; it is a documented shared extension point. Keep app feature logic in
+the downstream `app/` tree and follow the ownership rules when changing shared
+composition files.
+---
 
 ## Nav gap: `extraNavItems`, not a dashboard wrapper
+
+---
 
 `frontend/src/mystic_auth/layout/Sidebar.tsx` reads its link list from
 `mystic_auth/layout/navItems.ts`, a template internal, not an extension
@@ -54,3 +85,12 @@ point, so the wrapper was removed: `/dashboard` now renders mystic_auth's own
 is never-edit and doesn't cover it). Every route is still independently
 protected by the reused (unedited) `ProtectedRoute`/PBAC check regardless of
 how a user navigates to it.
+
+---
+
+## See also
+
+---
+
+- [Architecture index](README.md)
+- [App documentation](../README.md)

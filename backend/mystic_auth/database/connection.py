@@ -23,6 +23,8 @@ class Database:
             # DB/proxy idle-connection timeouts, so connections are refreshed
             # proactively rather than found dead reactively.
             pool_recycle=1800,
+            pool_size=settings.DB_POOL_SIZE,
+            max_overflow=settings.DB_MAX_OVERFLOW,
         )
 
         self.async_session = async_sessionmaker(
@@ -35,4 +37,4 @@ class Database:
             yield session
 
 
-database = Database(settings.DATABASE_URL)
+database = Database(settings.APP_DATABASE_URL or settings.DATABASE_URL)

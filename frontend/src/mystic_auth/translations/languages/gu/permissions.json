@@ -1,0 +1,104 @@
+{
+    "page": {
+        "title": "પરવાનગીઓ",
+        "description": "આ એપ જે બધી ક્રિયાઓ જાણે છે, ફક્ત વાંચવા માટે.",
+        "glossaryAriaLabel": "ક્રિયા, સંસાધન પ્રકાર, વિનાશક અને કોની પાસે છે તેનો અર્થ શું છે?",
+        "glossary": {
+            "action": {
+                "term": "ક્રિયા",
+                "definition": "એક ચોક્કસ મંજૂર કામગીરી, જેમ કે \"વપરાશકર્તા કાઢી નાખો\", જે ખરેખર ઍક્સેસ નક્કી કરે છે, ભલે તે નીતિમાંથી મળે કે સીધી આપવામાં આવે."
+            },
+            "resourceType": {
+                "term": "સંસાધન પ્રકાર",
+                "definition": "કોઈ ક્રિયાની અસર કયા પ્રકારની વસ્તુ પર થાય છે, જેમ કે \"users\" અથવા \"invoices\", જેનો ઉપયોગ આ યાદીને જૂથબદ્ધ અને ફિલ્ટર કરવા માટે થાય છે."
+            },
+            "destructive": {
+                "term": "વિનાશક",
+                "definition": "એક એવી ક્રિયા જે કંઈક કાઢી નાખે છે, નિષ્ક્રિય કરે છે, અથવા એ રીતે બદલે છે કે તેને પાછું લાવવું મુશ્કેલ બને."
+            },
+            "heldBy": {
+                "term": "કોની પાસે છે",
+                "definition": "હાલમાં આ ક્રિયા કોની પાસે છે, ભલે તે તેમની કોઈ નીતિ મારફતે હોય કે સીધી તેમના ખાતાને આપવામાં આવી હોય."
+            }
+        },
+        "searchPlaceholder": "ક્રિયા અથવા વર્ણન દ્વારા શોધો...",
+        "filterChipSearch": "શોધ: {{value}}",
+        "filterChipResourceType": "સંસાધન પ્રકાર: {{value}}",
+        "resultsCount_one": "{{count}} પરિણામ",
+        "resultsCount_other": "{{count}} પરિણામ",
+        "filterByResourceType": "સંસાધન પ્રકાર દ્વારા ફિલ્ટર કરો",
+        "allResourceTypes": "બધા સંસાધન પ્રકારો",
+        "failedToLoadPermissions": "પરવાનગી સૂચિ લોડ કરવામાં નિષ્ફળ",
+        "catalogForbidden": "તમારી પરવાનગી બદલાઈ હોવાથી પરવાનગી સૂચિ હવે ઉપલબ્ધ નથી. પૃષ્ઠ રિફ્રેશ કરો અથવા ડેશબોર્ડ પર પાછા જાઓ.",
+        "holderInfoErrorTitle": "ધારકની માહિતી લોડ થઈ શકી નથી",
+        "holderInfoErrorDescription": "નીતિ અને સીધી પરવાનગીની ગણતરી અસ્થાયી રીતે ઉપલબ્ધ નથી.",
+        "holderInfoForbiddenTitle": "ધારકની માહિતી હવે ઉપલબ્ધ નથી",
+        "holderInfoForbiddenDescription": "ધારકની માહિતી જોવાની તમારી પરવાનગી બદલાઈ છે. પૃષ્ઠ રિફ્રેશ કરો અથવા આ સંવાદ બંધ કરો.",
+        "retryHolderInfo": "ધારકની માહિતી ફરી લોડ કરો",
+        "noPermissionsMatchFilters": "આ ફિલ્ટરો સાથે કોઈ પરવાનગી મેળ ખાતી નથી",
+        "noPermissionsYet": "સૂચિમાં કોઈ પરવાનગી નથી",
+        "actionCount": "{{count}} ક્રિયાઓ",
+        "clearFilters": "ફિલ્ટર સાફ કરો",
+        "quickFilterLabel": "ઝડપી ફિલ્ટર",
+        "quickFilters": {
+            "all": "બધા",
+            "destructive": "વિનાશક",
+            "policy": "કોઈ નીતિમાં",
+            "direct": "સીધી પરવાનગી",
+            "unused": "બિનઉપયોગી"
+        },
+        "heldByNone": "કોઈ નહીં",
+        "heldByCount_one": "{{count}} વપરાશકર્તા",
+        "heldByCount_other": "{{count}} વપરાશકર્તાઓ",
+        "heldBySources": "{{direct}} સીધી · {{policies}} નીતિ દ્વારા",
+        "groupDestructiveCount_one": "{{count}} વિનાશક",
+        "groupDestructiveCount_other": "{{count}} વિનાશક",
+        "groupInPolicyCount_one": "{{count}} નીતિમાં",
+        "groupInPolicyCount_other": "{{count}} નીતિઓમાં"
+    },
+    "howItWorks": {
+        "actionsTitle": "ક્રિયાઓ",
+        "actionsDescription": "લોકોને જે કરવાની છૂટ આપી શકાય, જેમ કે “વપરાશકર્તાઓ જુઓ”.",
+        "policiesTitle": "નીતિઓ",
+        "policiesDescription": "ક્રિયાઓના નામાંકિત જૂથો.",
+        "peopleTitle": "લોકો",
+        "peopleDescription": "ખરેખર કોને પ્રવેશ મળે છે."
+    },
+    "columns": {
+        "action": "ક્રિયા",
+        "resourceType": "સંસાધન પ્રકાર",
+        "description": "વર્ણન",
+        "view": "વિગતો જુઓ",
+        "source": "સ્ત્રોત",
+        "heldBy": "કોની પાસે છે"
+    },
+    "statsCard": {
+        "resourceTypes": "સંસાધન પ્રકારો",
+        "totalActions": "ક્રિયાઓ",
+        "destructive": "વિનાશક",
+        "unused": "બિનઉપયોગી"
+    },
+    "detailsDialog": {
+        "title": "પરવાનગી વિગતો",
+        "action": "ક્રિયા",
+        "resourceType": "સંસાધન પ્રકાર",
+        "description": "વર્ણન",
+        "heldBy": "કોની પાસે છે",
+        "loadingHolderInfo": "ધારકની માહિતી લોડ થઈ રહી છે...",
+        "holderInfoUnavailable": "ધારકની માહિતી લોડ થઈ શકી નથી.",
+        "holderInfoErrorTitle": "આ ક્રિયા હાલમાં કોની પાસે છે તે લોડ થઈ શક્યું નથી",
+        "holderInfoErrorDescription": "નીતિ અને સીધી આપવામાં આવેલી પરવાનગીની વિગતો અસ્થાયી રીતે ઉપલબ્ધ નથી.",
+        "openPolicy": "{{name}} નીતિની વિગતો ખોલો",
+        "heldByNobody": "હાલમાં કોઈની પાસે આ ક્રિયા નથી.",
+        "viaPolicy": "નીતિ દ્વારા",
+        "directGrants": "સીધી પરવાનગીઓ",
+        "openUsers": "{{label}} ઍક્સેસ ધરાવતા વપરાશકર્તાઓ જુઓ",
+        "heldBySummary_one": "{{count}} વપરાશકર્તા ({{direct}} સીધા)",
+        "heldBySummary_other": "{{count}} વપરાશકર્તાઓ ({{direct}} સીધા)",
+        "policies": "તેને સમાવતી નીતિઓ",
+        "noPolicies": "કોઈ સક્રિય નીતિ આ ક્રિયા આપતી નથી.",
+        "policyUserCount_one": "{{count}} વપરાશકર્તા",
+        "policyUserCount_other": "{{count}} વપરાશકર્તાઓ",
+        "destructiveWarning": "આ ક્રિયા કંઈક બદલે છે અથવા દૂર કરે છે અને સહેલાઈથી પાછી ફેરવી શકાતી નથી - તેને કાળજીપૂર્વક આપો."
+    }
+}

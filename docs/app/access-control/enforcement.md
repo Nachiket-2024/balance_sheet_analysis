@@ -1,8 +1,11 @@
 # Access Control: Enforcement Paths
-
+---
 See [Overview](overview.md) for the hierarchy model and policy shape this enforces.
+---
 
 ## Two enforcement paths, deliberately different
+
+---
 
 - **List endpoints** (`GET /companies/`, listing "every company I can see"):
   `access/scope.py`'s `get_company_scope()` reads the caller's own active
@@ -42,3 +45,12 @@ sequenceDiagram
 Both paths ultimately read the *same* two condition keys
 (`company_id`/`group_root_id`) off the *same* `resource_scope_dict()` helper.
 `access/scope.py` is the one place this app's condition shape is defined.
+
+---
+
+## See also
+
+---
+
+- [Access-control index](README.md)
+- [App documentation](../README.md)

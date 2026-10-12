@@ -1,21 +1,29 @@
 {
-    "save": "सेव करें",
+    "save": "सहेजें",
     "cancel": "रद्द करें",
     "delete": "हटाएं",
-    "edit": "संपादन",
+    "edit": "संपादित करें",
     "create": "बनाएं",
     "close": "बंद करें",
+    "closeDialog": "संवाद बंद करें",
     "confirm": "पुष्टि करें",
     "back": "वापस",
+    "previous": "पिछला",
+    "next": "अगला",
+    "noMatches": "कोई मेल नहीं",
     "loading": "लोड हो रहा है...",
-    "saving": "सेव हो रहा है...",
+    "retry": "पुनः प्रयास करें",
+    "saving": "सहेजा जा रहा है...",
     "yes": "हां",
     "no": "नहीं",
+    "showPassword": "पासवर्ड दिखाएं",
+    "hidePassword": "पासवर्ड छिपाएं",
     "active": "सक्रिय",
     "inactive": "निष्क्रिय",
     "enabled": "सक्षम",
     "disabled": "अक्षम",
     "failedToLoadData": "डेटा लोड करने में विफल",
+    "notAuthorizedToView": "इसे देखने की अनुमति आपके पास नहीं है।",
     "noDataAvailable": "कोई डेटा उपलब्ध नहीं",
     "errorBoundary": {
         "title": "कुछ गलत हो गया",
@@ -23,11 +31,25 @@
         "reload": "फिर से लोड करें"
     },
     "filterLabel": "फ़िल्टर: {{label}}",
+    "selectedCount": "{{count}} चयनित",
+    "bulkUsersSelected": "{{count}} उपयोगकर्ता चुने गए",
+    "bulkOperation": "सामूहिक कार्रवाई",
+    "clearSelection": "चयन साफ़ करें",
+    "selectAllRows": "सभी पंक्तियां चुनें",
+    "selectRow": "पंक्ति चुनें",
     "pagination": {
         "previousPage": "पिछला पृष्ठ",
         "prev": "पिछला",
         "nextPage": "अगला पृष्ठ",
         "next": "अगला",
         "page": "पृष्ठ {{page}}"
+    },
+    "offlineBanner": {
+        "offline": "आप ऑफ़लाइन हैं। कनेक्शन बहाल होने तक कुछ सुविधाएं काम नहीं कर सकतीं।",
+        "backOnline": "आप वापस ऑनलाइन हैं।"
+    },
+    "expandCollapseAll": {
+        "expandAll": "सभी विस्तृत करें",
+        "collapseAll": "सभी संक्षिप्त करें"
     }
 }

@@ -1,18 +1,23 @@
 """
 App-specific extension surface (see docs/mystic_auth/template-usage/overview.md).
 
-This is the counterpart to sdk.py: sdk.py re-exports the template's own
-building blocks, this file is where a project built on this template adds
-its own re-exports for its own domain code, kept separate so template
-updates never conflict with app-specific additions here.
+Counterpart to sdk.py: sdk.py re-exports the template's own building blocks
+and isn't meant to be hand-edited. This file is where a project built on the
+template adds its own re-exports and startup registrations for its own domain
+code, so template updates never conflict with app-specific additions here.
+
+Ships empty upstream on purpose, so it never conflicts on a
+`scripts/mystic_auth/upstream-sync/sync-upstream.sh` sync. If a sync ever shows a change to this file
+coming from upstream anyway, keep YOUR version: upstream's is only ever the
+empty starting point.
+
+Add your own imports/exports below as your app grows.
 
 Deliberately holds ONLY mystic_auth re-exports, not this app's own routers,
-since this app's own models (company_model.py, balance_sheet_model.py) import
-`Base` from here, and main.py imports this app's routers directly from their
-own modules (companies/company_routes.py etc.) instead of through here.
-Re-exporting the routers here too would make this module both a dependency
-of the models (via Base) and a dependent of them (via the routers, which
-import the models): a real circular import, not just a style choice.
+since this app's own models import `Base` from here, and main.py imports the
+app's routers directly from their route modules. Re-exporting those routers
+would make this module a dependency of the models and a dependent of them,
+creating a circular import.
 """
 
 import importlib
@@ -50,13 +55,17 @@ Base = _m("database.base").Base
 # mystic_auth's own routes use this for login/signup/etc.; nothing about it
 # is auth-specific, so reusing it here avoids a second Redis-backed rate
 # limiter implementation.
-rate_limiter_service = _m("auth.security.rate_limiter_service").rate_limiter_service
+rate_limiter_service = _m("auth.security.rate_limiting.rate_limiter_service").rate_limiter_service
 
 # Needed only by app/seed/seed_demo_data.py to create demo users with real
 # hashed passwords and role assignments through mystic_auth's own user
 # creation path, rather than inserting rows by hand.
 password_service = _m("auth.password_logic.password_service").password_service
-user_crud = _m("user_crud.user_crud_collector").user_crud
+user_crud = _m("user.user_crud_collector").user_crud
+
+# Downstream notification code uses the template's existing email task
+# through this extension surface instead of importing template internals.
+send_email_task = _m("procrastinate_tasks.email_tasks").send_email_task
 
 __all__ = [
     "policy_repository",
@@ -64,4 +73,10 @@ __all__ = [
     "rate_limiter_service",
     "password_service",
     "user_crud",
+    "send_email_task",
 ]
+
+
+def register_extensions() -> None:
+    """Register downstream condition handlers before requests are served."""
+    # This app currently has no custom MysticAuth condition handlers.

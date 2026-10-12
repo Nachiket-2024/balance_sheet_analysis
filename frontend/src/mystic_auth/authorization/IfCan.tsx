@@ -3,7 +3,8 @@ import React, { type ReactNode } from "react";
 import { Authorized } from "./Authorized";
 
 interface IfCanProps {
-    action: string;
+    /** A single action, or an array meaning "any of" - see useAuthorization's `can`. */
+    action: string | string[];
     resourceType?: string;
     fallback?: ReactNode;
     children: ReactNode;

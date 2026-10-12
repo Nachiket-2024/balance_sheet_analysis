@@ -1,44 +1,97 @@
 {
+    "pageTitle": "ડેશબોર્ડ",
+    "greeting": {
+        "morning": "સુપ્રભાત, {{name}}",
+        "afternoon": "શુભ બપોર, {{name}}",
+        "evening": "શુભ સાંજ, {{name}}"
+    },
     "loadingDetails": "તમારી વિગતો લોડ થઈ રહી છે...",
     "unableToFetch": "વપરાશકર્તાની વિગતો મેળવવામાં અસમર્થ",
     "noRole": "કોઈ ભૂમિકા સોંપેલ નથી",
     "memberSince": "સભ્ય બન્યાની તારીખ",
-    "lastLogin": "છેલ્લું લોગિન",
-    "activeSession": "સક્રિય સેશન",
-    "activeSessions": "સક્રિય સેશન્સ",
-    "accountSettingsButton": "ખાતાની સેટિંગ્સ",
-    "logoutAllButton": "બધેથી લોગઆઉટ",
+    "previousLogin": "અગાઉનું લોગિન",
+    "noPreviousLogin": "આ પહેલાં કોઈ નહીં",
+    "activeSession": "સક્રિય સત્ર",
+    "activeSessions": "સક્રિય સત્રો",
+    "goToActiveSessions_one": "{{count}} સક્રિય સત્ર, સત્રોની યાદી પર જાઓ",
+    "goToActiveSessions_other": "{{count}} સક્રિય સત્રો, સત્રોની યાદી પર જાઓ",
     "noUserData": "કોઈ વપરાશકર્તા ડેટા ઉપલબ્ધ નથી",
+    "administration": {
+        "heading": "વહીવટ",
+        "loadError": "લોડ થઈ શક્યું નહીં",
+        "users": {
+            "label": "વપરાશકર્તાઓ",
+            "secondary": "{{unverified}} અચકાસાયેલ · {{inactive}} નિષ્ક્રિય"
+        },
+        "policies": {
+            "label": "નીતિઓ",
+            "secondary": "{{active}} સક્રિય · {{inactive}} નિષ્ક્રિય"
+        },
+        "permissions": {
+            "label": "પરવાનગીઓ",
+            "secondary": "{{count}} સંસાધન પ્રકારોમાં"
+        },
+        "rateLimits": {
+            "label": "દર મર્યાદાઓ",
+            "secondary": "હાલમાં ટ્રેક કરેલા કાઉન્ટર્સ"
+        },
+        "securityEvents": {
+            "label": "સુરક્ષા ઘટનાઓ",
+            "secondary": "તાજેતરની ખાતા અને સુરક્ષા પ્રવૃત્તિ જુઓ"
+        }
+    },
+    "quickLinks": {
+        "changePassword": "પાસવર્ડ બદલો",
+        "appearance": "દેખાવ"
+    },
     "logoutAllDialog": {
-        "title": "બધા ડિવાઇસમાંથી લોગઆઉટ",
-        "description": "આ તમારા ખાતાના દરેક ડિવાઇસ પરના દરેક સક્રિય સેશનને, આ સહિત, સમાપ્ત કરશે. ચાલુ રાખવું છે?",
+        "title": "બધા ઉપકરણોમાંથી લોગઆઉટ",
+        "description": "આ તમારા ખાતાના દરેક ઉપકરણ પરના દરેક સક્રિય સત્રને, આ સહિત, સમાપ્ત કરશે. ચાલુ રાખવું છે?",
         "confirmLabel": "બધેથી લોગઆઉટ"
     },
-    "manageSessions": {
-        "heading": "સેશન્સ સંચાલિત કરો",
-        "deviceColumn": "ડિવાઇસ",
-        "thisDeviceBadge": "આ ડિવાઇસ",
+    "activeSessionsCard": {
+        "heading": "સક્રિય સત્રો",
+        "logOutEverywhereButton": "બધે જ લોગઆઉટ કરો",
+        "deviceColumn": "ઉપકરણ",
+        "thisDeviceBadge": "આ ઉપકરણ",
         "ipColumn": "IP",
-        "ipUnknown": "અજ્ઞાત",
+        "ipUnavailable": "IP ઉપલબ્ધ નથી",
+        "locationColumn": "સ્થાન",
+        "locationUnavailable": "સ્થાન ઉપલબ્ધ નથી",
+        "sessionCount_one": "{{count}} સક્રિય સત્ર",
+        "sessionCount_other": "{{count}} સક્રિય સત્રો",
         "signedInColumn": "સાઇન ઇન થયું",
         "lastSeenColumn": "છેલ્લે જોયું",
         "logOut": "લોગ આઉટ",
-        "sessionEndedToast": "સેશન સમાપ્ત થયું",
-        "errorLoadSessions": "તમારા સેશન્સ લોડ કરવામાં નિષ્ફળ",
-        "noActiveSessions": "કોઈ સક્રિય સેશન નથી.",
-        "failedEndSession": "સેશન સમાપ્ત કરવામાં નિષ્ફળ",
+        "sessionEndedToast": "સત્ર સમાપ્ત થયું",
+        "errorLoadSessions": "તમારા સત્રો લોડ કરવામાં નિષ્ફળ",
+        "noActiveSessions": "કોઈ સક્રિય સત્ર નથી.",
+        "failedEndSession": "સત્ર સમાપ્ત કરવામાં નિષ્ફળ",
         "endDialog": {
-            "logoutThisDeviceTitle": "આ ડિવાઇસમાંથી લોગઆઉટ",
-            "endSessionTitle": "સેશન સમાપ્ત કરો",
-            "logoutThisDeviceDescription": "આ તમને હમણાં આ ડિવાઇસમાંથી લોગઆઉટ કરશે. ચાલુ રાખવું છે?",
-            "endSessionDescription": "\"{{device}}\"{{ipSuffix}} પરનું સેશન સમાપ્ત કરવું છે? તે ડિવાઇસ તરત જ સાઇન આઉટ થઈ જશે.",
+            "logoutThisDeviceTitle": "આ ઉપકરણમાંથી લોગઆઉટ",
+            "endSessionTitle": "સત્ર સમાપ્ત કરો",
+            "logoutThisDeviceDescription": "આ તમને હમણાં આ ઉપકરણમાંથી લોગઆઉટ કરશે. ચાલુ રાખવું છે?",
+            "endSessionDescription": "\"{{device}}\"{{ipSuffix}} પરનું સત્ર સમાપ્ત કરવું છે? તે ઉપકરણ તરત જ સાઇન આઉટ થઈ જશે.",
             "confirmLabel": "લોગઆઉટ"
-        }
+        },
+        "thisDeviceNotSelectable": "આ ઉપકરણ પસંદ કરી શકાતું નથી",
+        "logOutSelected": "પસંદ કરેલા લોગઆઉટ કરો",
+        "rowClickSelect": "પસંદગી મોડ",
+        "rowClickSelectTitle": "ચાલુ હોય ત્યારે, પંક્તિમાં ગમે ત્યાં ક્લિક કરવાથી (તેના પોતાના બટન સિવાય) તે પસંદ થાય છે - દરેક ચેકબોક્સ પર ચોક્કસ ક્લિક કર્યા વિના ઘણી પંક્તિઓ પસંદ કરવા માટે ઉપયોગી",
+        "bulkEndDialog": {
+            "title": "{{count}} સત્રો સમાપ્ત કરો",
+            "description": "પસંદ કરેલા {{count}} સત્રો સમાપ્ત કરવા છે? તે ઉપકરણો તરત જ સાઇન આઉટ થઈ જશે.",
+            "confirmLabel": "પસંદ કરેલા લોગઆઉટ કરો"
+        },
+        "bulkEndSuccessToast": "{{count}} સત્રો સમાપ્ત થયા",
+        "bulkEndPartialToast": "{{success}} સત્રો સમાપ્ત થયા, {{error}} નિષ્ફળ"
     },
     "parseUserAgent": {
-        "unknownDevice": "અજ્ઞાત ડિવાઇસ",
+        "unknownDevice": "અજ્ઞાત ઉપકરણ",
         "unknownBrowser": "અજ્ઞાત બ્રાઉઝર",
         "unknownOS": "અજ્ઞાત OS",
         "deviceLabel": "{{os}} પર {{browser}}"
-    }
+    },
+    "loginActivityHeading": "મારી લોગિન પ્રવૃત્તિ",
+    "loginActivitySubtitle": "છેલ્લા {{days}} દિવસ"
 }

@@ -1,0 +1,8 @@
+packaging 26.3
+License: Apache-2.0 OR BSD-2-Clause
+URL: https://github.com/pypa/packaging
+Copyright: See license text
+
+This software is made available under the terms of *either* of the licenses
+found in LICENSE.APACHE or LICENSE.BSD. Contributions to this software is made
+under the terms of *both* these licenses.

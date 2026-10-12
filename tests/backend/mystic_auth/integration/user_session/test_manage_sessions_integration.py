@@ -3,20 +3,21 @@
 # End-to-end coverage for the "Manage Sessions" feature (GET /auth/sessions,
 # DELETE /auth/sessions/{id}, backed by user_session/session_service.py and
 # auth/manage_sessions/*) against the real ASGI app, real PostgreSQL, and
-# real Redis. Mirrors test_audit_log_integration.py's fixture/cleanup style.
+# real Valkey. Mirrors test_audit_log_integration.py's fixture/cleanup style.
 import json
 import uuid
 
 import pytest
 import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
+
 from backend.app.main import app
 from backend.mystic_auth.auth.verify_account.account_verification_service import (
     account_verification_service,
 )
 from backend.mystic_auth.database.connection import database
-from backend.mystic_auth.redis.client import redis_client
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from backend.mystic_auth.valkey.client import valkey_client
 
 PASSWORD = "StrongPass123!"
 
@@ -41,7 +42,7 @@ async def _signup_and_verify(client, created_emails, email):
     created_emails.append(email)
 
     token = await account_verification_service.create_verification_token(email)
-    await redis_client.set(f"verify:{token}", "1", ex=600)
+    await valkey_client.set(f"verify:{token}", "1", ex=600)
     verify_resp = await client.post("/auth/verify-account", json={"token": token})
     assert verify_resp.status_code == 200
 
@@ -147,16 +148,14 @@ async def test_revoking_another_devices_session_ends_it_and_writes_an_audit_even
 
 @pytest.mark.asyncio
 async def test_revoking_another_devices_session_publishes_a_real_time_event(client, created_emails):
-    """The device actually being revoked - not the caller doing the
-    revoking - is the one that needs to find out immediately (see
-    user_session/session_events.py). Subscribes directly via redis-py's own
-    Pub/Sub client, the same channel GET /auth/session-events streams from,
-    rather than going through that endpoint's httpx streaming response:
-    httpx's ASGITransport test harness doesn't reliably support a held-open
-    streaming GET racing a second concurrent request the way a real ASGI
-    server does, so this checks the actual Redis-level side effect instead.
-    See test_session_events_unit.py for the endpoint/generator's own
-    behavior."""
+    """The revoked device, not the caller, needs to find out right away
+    (see user_session/session_events.py). This subscribes directly via
+    valkey-py's Pub/Sub client on the same channel GET /auth/session-events
+    streams from, instead of using that endpoint's httpx streaming
+    response: the ASGITransport test harness doesn't reliably support a
+    held-open streaming GET racing another request, so this checks the
+    Valkey side effect directly. See test_session_events_unit.py for the
+    endpoint/generator's own behavior."""
     email = _unique_email()
     await _signup_and_verify(client, created_emails, email)
     await client.post("/auth/login", json={"email": email, "password": PASSWORD})
@@ -165,7 +164,7 @@ async def test_revoking_another_devices_session_publishes_a_real_time_event(clie
     try:
         await other_device.post("/auth/login", json={"email": email, "password": PASSWORD})
 
-        pubsub = redis_client.pubsub()
+        pubsub = valkey_client.pubsub()
         await pubsub.subscribe(f"session_events:{email}")
         try:
             # Drains the subscription-confirmation message so the next one
@@ -189,15 +188,13 @@ async def test_revoking_another_devices_session_publishes_a_real_time_event(clie
 
 @pytest.mark.asyncio
 async def test_reusing_a_revoked_sessions_refresh_token_stays_scoped_to_that_session(client, created_emails):
-    """A per-session revoke bumps that one device's chain version
+    """Revoking one session bumps that device's chain version
     (session_service.revoke_one_session), so its refresh token is rejected
-    on its very next use - but as a plain "this session is no longer
-    current" (jwt_service.is_current_version, checked before rotation ever
-    reaches reuse-detection), not as suspected theft. Only a token that
-    gets *reused after successfully rotating* looks like replay; a device
-    that was simply revoked and never touched its refresh token again
-    never reaches that path at all, so the caller's own session (and
-    everything else on the account) must be completely unaffected."""
+    on its next use, but as a plain "session no longer current"
+    (jwt_service.is_current_version, checked before rotation reaches
+    reuse-detection), not as suspected theft. Reuse-detection only fires
+    for a token reused *after* a successful rotation, which a revoked
+    device never does. The caller's own session must stay unaffected."""
     email = _unique_email()
     await _signup_and_verify(client, created_emails, email)
     await client.post("/auth/login", json={"email": email, "password": PASSWORD})
@@ -221,6 +218,41 @@ async def test_reusing_a_revoked_sessions_refresh_token_stays_scoped_to_that_ses
         remaining = remaining_resp.json()
         assert len(remaining) == 1
         assert remaining[0]["is_current"] is True
+    finally:
+        await other_device.aclose()
+
+
+@pytest.mark.asyncio
+async def test_revoking_a_session_returns_503_when_chain_version_bump_is_unconfirmed(client, created_emails, mocker):
+    # Regression guard for the "Valkey outage failure modes are inconsistent"
+    # gap: ending one specific session is this endpoint's entire purpose, so
+    # unlike logout it must not report a false "Session revoked" when the
+    # underlying chain-version bump couldn't be confirmed.
+    email = _unique_email()
+    await _signup_and_verify(client, created_emails, email)
+    await client.post("/auth/login", json={"email": email, "password": PASSWORD})
+
+    other_device = await _new_client()
+    try:
+        await other_device.post("/auth/login", json={"email": email, "password": PASSWORD})
+
+        sessions = (await client.get("/auth/sessions")).json()
+        other_session = next(s for s in sessions if not s["is_current"])
+
+        mocker.patch(
+            "backend.mystic_auth.auth.token_logic.jwt_service.jwt_service.bump_chain_version",
+            new_callable=mocker.AsyncMock,
+            return_value=False,
+        )
+
+        revoke_resp = await client.delete(f"/auth/sessions/{other_session['id']}")
+        assert revoke_resp.status_code == 503
+        assert revoke_resp.json()["code"] == "SESSION_REVOCATION_UNAVAILABLE"
+
+        # Left untouched: the row must not be marked revoked while the
+        # token backing it is still live.
+        remaining = (await client.get("/auth/sessions")).json()
+        assert len(remaining) == 2
     finally:
         await other_device.aclose()
 

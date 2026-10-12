@@ -2,5 +2,20 @@
     "widgetTitle": "આ કંપનીના પ્રદર્શન વિશે પૂછો",
     "unableToReach": "LLM સુધી પહોંચી શકાયું નહીં, કૃપા કરીને ફરી પ્રયાસ કરો.",
     "questionPlaceholder": "દા.ત. છેલ્લા થોડા વર્ષોમાં કુલ દેવું કેવી રીતે બદલાયું છે?",
-    "ask": "પૂછો"
+    "ask": "પૂછો",
+    "helpful": "ઉપયોગી",
+    "notHelpful": "ઉપયોગી નથી",
+    "operationsNavLabel": "LLM ઓપરેશન્સ",
+    "operationsTitle": "LLM પ્રોવાઇડર ઓપરેશન્સ",
+    "operationsDescription": "રૂપરેખાંકિત પ્રોવાઇડરનું તાજેતરનું આરોગ્ય અને વિલંબતા ટેલિમેટ્રી.",
+    "operationsLoading": "પ્રોવાઇડર ઓપરેશન્સ લોડ થઈ રહ્યાં છે…",
+    "operationsUnavailable": "પ્રોવાઇડર ઓપરેશન્સ ઉપલબ્ધ નથી.",
+    "provider": "પ્રોવાઇડર",
+    "probeSuccessRate": "તપાસ સફળતા દર",
+    "probeCount": "છેલ્લા 24 કલાકમાં {{count}} તપાસો",
+    "averageLatency": "સરેરાશ વિલંબતા",
+    "failedProbes": "{{count}} નિષ્ફળ તપાસો",
+    "lastChecked": "છેલ્લી તપાસ",
+    "noRecentError": "તાજેતરની કોઈ ભૂલ નથી",
+    "notAvailable": "ઉપલબ્ધ નથી"
 }

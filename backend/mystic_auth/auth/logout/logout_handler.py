@@ -8,13 +8,14 @@ from ...audit_log.audit_log_service import LOGOUT, log_security_event
 from ...logging.logging_config import get_logger
 from ...user_session.session_service import session_service
 from ..token_logic.jwt_service import jwt_service
+from ..token_logic.token_cookie_handler import token_cookie_handler
 
 logger = get_logger(__name__)
 
 
 class LogoutHandler:
     """Ends exactly the caller's own current session (bumps its chain's
-    Redis version - see session_service.revoke_session_on_logout), clears
+    durable Postgres version - see session_service.revoke_session_on_logout), clears
     auth cookies, and returns the logout response."""
 
     async def handle_logout(
@@ -36,30 +37,29 @@ class LogoutHandler:
             email = payload.get("email") if payload and payload.get("type") == "refresh" else None
             jti = payload.get("jti") if payload and payload.get("type") == "refresh" else None
 
-            await session_service.revoke_session_on_logout(db, jti, email)
+            session_revoked = await session_service.revoke_session_on_logout(db, jti, email)
 
-            await log_security_event(LOGOUT, db, user_email=email, success=bool(email), request=request)
+            await log_security_event(
+                LOGOUT,
+                db,
+                user_email=email,
+                success=bool(email),
+                request=request,
+                metadata=None if session_revoked else {"session_revoked": False},
+            )
 
-            # Whether or not the presented refresh token was still live to
-            # revoke (it may already be invalid/expired/revoked, e.g. this
-            # device's session was killed by a password change moments ago,
-            # which revokes every refresh token for the account), the
-            # caller's actual goal, "no valid session left in this browser",
-            # is met either way. Returning an error here instead of
-            # clearing cookies used to leave the frontend stuck showing
-            # "logged in" with a dead refresh-token cookie it could never
-            # successfully log out of.
+            # Succeeds regardless of whether the token was still live to
+            # revoke: the caller's actual goal (no valid session left) is
+            # met either way, and erroring here would leave the frontend
+            # stuck "logged in" with a dead cookie. session_revoked=False
+            # (Postgres unavailable) still returns 200, but is carried in the
+            # body so the risk isn't silently dropped.
             resp = JSONResponse(
-                content={"message": "Logged out successfully"},
+                content={"message": "Logged out successfully", "session_revoked": session_revoked},
                 status_code=200
             )
 
-            resp.delete_cookie(key="access_token", httponly=True, secure=True, samesite="none")
-
-            # path must match the path="/auth" it was set with
-            # (token_cookie_handler.py), or the browser treats this as a different
-            # cookie and never clears it.
-            resp.delete_cookie(key="refresh_token", httponly=True, secure=True, samesite="none", path="/auth")
+            token_cookie_handler.clear_tokens_from_cookies(resp)
 
             return resp
 

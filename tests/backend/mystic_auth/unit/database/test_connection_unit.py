@@ -1,22 +1,22 @@
 # tests/backend/mystic_auth/unit/database/test_connection_unit.py
 #
-# Database is a module-level singleton built once at import time; this
-# guards its actual engine/session configuration (URL, pool settings,
-# expire_on_commit), since nothing else in the suite asserts on it, and a
-# regression here (e.g. losing pool_pre_ping) would only surface as an
-# intermittent "connection already closed" under real production load, not
-# as a test failure anywhere else.
+# Database is a module-level singleton built once at import time. These
+# tests guard its engine/session configuration (URL, pool settings,
+# expire_on_commit): nothing else in the suite checks it, and a regression
+# here (e.g. losing pool_pre_ping) would only show up as an intermittent
+# "connection already closed" in production, not as a test failure.
 #
-# Pool/session assertions below construct a fresh Database(...) rather than
-# inspecting the global `database` singleton's own .engine/.async_session:
-# tests/backend/conftest.py deliberately reassigns those two attributes on
-# the shared singleton to a NullPool engine for the whole test session (see
-# its own comment), so asserting on the singleton here would really be
-# asserting on conftest's override, not on Database's own default behavior.
+# Pool/session assertions below construct a fresh Database(...) instead of
+# inspecting the global `database` singleton's .engine/.async_session:
+# tests/backend/conftest.py reassigns those two attributes on the shared
+# singleton to a NullPool engine for the whole test session, so asserting
+# on the singleton here would test conftest's override, not Database's
+# actual default behavior.
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.mystic_auth.core.settings import settings
 from backend.mystic_auth.database.connection import Database, database
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def test_database_engine_is_configured_from_settings_database_url():
@@ -57,9 +57,9 @@ def test_async_session_is_bound_to_its_own_engine_with_expire_on_commit_disabled
 @pytest.mark.asyncio
 async def test_get_session_yields_a_usable_async_session_and_closes_it_after():
     # Uses the real, shared `database` singleton (the same one every
-    # request-scoped FastAPI dependency actually gets), not a fresh
-    # instance: this is exercising get_session's generator behavior, which
-    # conftest's pool override doesn't change.
+    # request-scoped FastAPI dependency gets), not a fresh instance: this
+    # exercises get_session's generator behavior, which conftest's pool
+    # override doesn't change.
     session_generator = database.get_session()
     session = await anext(session_generator)
 

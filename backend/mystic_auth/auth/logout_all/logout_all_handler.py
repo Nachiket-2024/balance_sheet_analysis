@@ -8,12 +8,14 @@ from ...audit_log.audit_log_service import LOGOUT_ALL, log_security_event
 from ...logging.logging_config import get_logger
 from ..refresh_token_logic.refresh_token_service import refresh_token_service
 from ..token_logic.jwt_service import jwt_service
+from ..token_logic.token_cookie_handler import token_cookie_handler
+from ..token_logic.token_version_store import TokenVersionUnavailableError
 
 logger = get_logger(__name__)
 
 
 class LogoutAllHandler:
-    """Revokes every session on the account (one account-wide Redis
+    """Revokes every session on the account (one account-wide Valkey
     version bump - see refresh_token_service.revoke_all_tokens_for_user)
     and clears authentication cookies."""
 
@@ -27,22 +29,38 @@ class LogoutAllHandler:
                     status_code=400
                 )
 
-            # decode_payload, not verify_token: an already-revoked refresh
-            # token (e.g. this device's own session, killed moments ago by a
-            # password change that revokes every refresh token for the
-            # account) must still resolve to its owning email so the rest of
-            # that account's sessions can be revoked and cookies cleared,
-            # instead of failing outright and leaving stale cookies behind.
-            # decode_payload skips the revocation check verify_token does,
-            # but NOT the "type" claim check: a wrong-type token (e.g. an
-            # access token mistakenly presented here) must still be rejected
-            # for revocation purposes, same as refresh_tokens() in
-            # refresh_token_service.py.
+            # decode_payload, not verify_token: an already-revoked refresh token
+            # must still resolve to its owning email so the rest of that
+            # account's sessions can be revoked and cookies cleared, rather than
+            # failing outright and leaving stale cookies behind. It still enforces
+            # the "type" claim, though, so a wrong-type token is still rejected
+            # (same as refresh_tokens() in refresh_token_service.py).
             payload = await jwt_service.decode_payload(refresh_token)
 
             email = payload.get("email") if payload and payload.get("type") == "refresh" else None
 
-            revoked_count = await refresh_token_service.revoke_all_tokens_for_user(email, db) if email else 0
+            try:
+                revoked_count = await refresh_token_service.revoke_all_tokens_for_user(email, db) if email else 0
+            except TokenVersionUnavailableError:
+                # Unlike plain logout, revoking every session IS this
+                # request's entire purpose - reporting success here would be
+                # a false "done" while every existing token on the account
+                # stays valid. Cookies are still cleared (this browser's own
+                # goal is met regardless), but the response must not look
+                # like a completed logout-all.
+                await log_security_event(
+                    LOGOUT_ALL, db, user_email=email, success=False, request=request,
+                    metadata={"error": "valkey_unavailable"},
+                )
+                resp = JSONResponse(
+                    content={
+                        "error": "Could not confirm logout from all devices; please try again shortly",
+                        "code": "SESSION_REVOCATION_UNAVAILABLE",
+                    },
+                    status_code=503,
+                )
+                token_cookie_handler.clear_tokens_from_cookies(resp)
+                return resp
 
             await log_security_event(
                 LOGOUT_ALL,
@@ -61,11 +79,7 @@ class LogoutAllHandler:
                 content={"message": f"Logged out from {revoked_count} devices"},
                 status_code=200
             )
-            resp.delete_cookie(key="access_token", httponly=True, secure=True, samesite="none")
-            # path must match the path="/auth" refresh_token was set with
-            # (token_cookie_handler.py), or the browser treats this as a different
-            # cookie and never clears the real one.
-            resp.delete_cookie(key="refresh_token", httponly=True, secure=True, samesite="none", path="/auth")
+            token_cookie_handler.clear_tokens_from_cookies(resp)
 
             return resp
 

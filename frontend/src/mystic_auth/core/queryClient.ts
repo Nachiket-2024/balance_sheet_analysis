@@ -1,27 +1,16 @@
 import { QueryClient } from "@tanstack/react-query";
 
-/**
- * Singleton TanStack Query client for all server state in the app. Exported as a module-level
- * singleton (rather than only living inside a component) so code outside the React tree,
- * specifically auth/session_lifecycle/setupAuthInterceptor.ts, which needs to write directly into the
- * ["currentUser"] query cache on an unrecoverable 401, can reach it without a hook.
- */
+// Singleton TanStack Query client for all server state in the app. Exported at module
+// level (not just inside a component) so code outside the React tree, specifically
+// setupAuthInterceptor.ts, can write into the ["currentUser"] cache on an
+// unrecoverable 401 without needing a hook.
 export const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
             retry: false,
-            // Default was 0, so every remount (e.g. navigating away from and
-            // back to a page) and every window refocus was treated as
-            // "stale" and silently refetched in the background - harmless
-            // for correctness (TanStack still shows cached data instantly)
-            // but it meant duplicate network calls on nearly every
-            // navigation, e.g. DashboardPage's own useCurrentUserQuery call
-            // re-hitting GET /auth/me moments after App.tsx's root
-            // useAuthSession call already had. 30s is short enough that
-            // another user's change (a role edit, a revoked policy) still
-            // shows up within one page-load of it happening, while
-            // absorbing the "tabbed away and back" and "navigated back to
-            // this page" cases that don't need a fresh round-trip.
+            // Default of 0 makes every remount/refocus stale, causing duplicate
+            // requests on nearly every navigation. 30s absorbs that while still
+            // picking up another user's change within one page load.
             staleTime: 30 * 1000,
         },
     },

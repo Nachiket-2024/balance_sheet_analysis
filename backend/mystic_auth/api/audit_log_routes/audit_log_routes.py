@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +12,7 @@ from ...audit_log.audit_log_schema import AuditLogEntryRead, LoginTrendPoint
 from ...auth.current_user.current_user_dependency import get_current_user
 from ...authorization.dependencies.authorization_dependency import require_authorization
 from ...authorization.permissions import Permission
+from ...core.search_query import SEARCH_QUERY_MAX_LENGTH
 from ...database.connection import database
 
 router = APIRouter(prefix="/audit", tags=["Audit Logs"])
@@ -26,6 +29,8 @@ _SORT_BY_DESCRIPTION = (
 _EVENT_TYPE_DESCRIPTION = "Exact match on event_type (see audit_log_service.py's event-type constants)"
 _IP_ADDRESS_DESCRIPTION = "Case-insensitive substring match on ip_address"
 _SUCCESS_DESCRIPTION = "Exact match on success (true = Success, false = Failed)"
+_FROM_DESCRIPTION = "Only entries at or after this timestamp (created_at, inclusive)"
+_TO_DESCRIPTION = "Only entries at or before this timestamp (created_at, inclusive)"
 
 
 @router.get("/security-log", response_model=list[AuditLogEntryRead])
@@ -33,12 +38,16 @@ async def list_security_audit_log(
     response: Response,
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
-    search: str | None = Query(default=None, description="Case-insensitive substring match on user_email"),
+    search: str | None = Query(
+        default=None, max_length=SEARCH_QUERY_MAX_LENGTH, description="Case-insensitive substring match on user_email"
+    ),
     event_type: str | None = Query(default=None, description=_EVENT_TYPE_DESCRIPTION),
-    ip_address: str | None = Query(default=None, description=_IP_ADDRESS_DESCRIPTION),
+    ip_address: str | None = Query(default=None, max_length=SEARCH_QUERY_MAX_LENGTH, description=_IP_ADDRESS_DESCRIPTION),
     success: bool | None = Query(default=None, description=_SUCCESS_DESCRIPTION),
     sort_by: str | None = Query(default=None, description=_SORT_BY_DESCRIPTION),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    from_: datetime | None = Query(default=None, alias="from", description=_FROM_DESCRIPTION),
+    to: datetime | None = Query(default=None, description=_TO_DESCRIPTION),
     current_user: dict = _READ_DEPENDENCY,
     db: AsyncSession = Depends(database.get_session),
 ):
@@ -48,7 +57,9 @@ async def list_security_audit_log(
     # from the same filters so the page count always matches what's
     # actually being paged through.
     response.headers["X-Total-Count"] = str(
-        await audit_log_repository.count(db, search=search, event_type=event_type, ip_address=ip_address, success=success)
+        await audit_log_repository.count(
+            db, search=search, event_type=event_type, ip_address=ip_address, success=success, from_=from_, to=to
+        )
     )
     return await audit_log_repository.get_all(
         db,
@@ -60,30 +71,82 @@ async def list_security_audit_log(
         success=success,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        from_=from_,
+        to=to,
+    )
+
+
+@router.get("/security-log/users/{user_email}", response_model=list[AuditLogEntryRead])
+async def list_user_security_audit_log(
+    user_email: str,
+    response: Response,
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    event_type: str | None = Query(default=None, description=_EVENT_TYPE_DESCRIPTION),
+    ip_address: str | None = Query(default=None, max_length=SEARCH_QUERY_MAX_LENGTH, description=_IP_ADDRESS_DESCRIPTION),
+    success: bool | None = Query(default=None, description=_SUCCESS_DESCRIPTION),
+    sort_by: str | None = Query(default=None, description=_SORT_BY_DESCRIPTION),
+    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    from_: datetime | None = Query(default=None, alias="from", description=_FROM_DESCRIPTION),
+    to: datetime | None = Query(default=None, description=_TO_DESCRIPTION),
+    current_user: dict = _READ_DEPENDENCY,
+    db: AsyncSession = Depends(database.get_session),
+):
+    """A specific user's security events, newest first by default - the
+    admin counterpart to /security-log/me, gated on security_audit:read
+    like /security-log rather than self-scoped. Backs the User Access
+    dialog's "Recent access changes" (event_type=access_change, see
+    _apply_filters' alias in audit_log_repository.py)."""
+    response.headers["X-Total-Count"] = str(
+        await audit_log_repository.count_for_user(
+            user_email, db, event_type=event_type, ip_address=ip_address, success=success, from_=from_, to=to
+        )
+    )
+    return await audit_log_repository.get_for_user(
+        user_email,
+        db,
+        limit=limit,
+        offset=offset,
+        event_type=event_type,
+        ip_address=ip_address,
+        success=success,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        from_=from_,
+        to=to,
     )
 
 
 @router.get("/security-log/login-trend", response_model=list[LoginTrendPoint])
 async def get_login_trend(
     days: int = Query(default=14, ge=1, le=90),
+    search: str | None = Query(
+        default=None, max_length=SEARCH_QUERY_MAX_LENGTH, description="Case-insensitive substring match on user_email"
+    ),
+    from_: datetime | None = Query(default=None, alias="from", description=_FROM_DESCRIPTION),
+    to: datetime | None = Query(default=None, description=_TO_DESCRIPTION),
     current_user: dict = _READ_DEPENDENCY,
     db: AsyncSession = Depends(database.get_session),
 ):
     """Daily login success/failure counts across every user, for the Audit
     Log page's trend chart."""
-    return await audit_log_repository.get_login_trend(db, days=days)
+    return await audit_log_repository.get_login_trend(db, days=days, search=search, from_=from_, to=to)
 
 
 @router.get("/security-log/me/login-trend", response_model=list[LoginTrendPoint])
 async def get_my_login_trend(
     days: int = Query(default=14, ge=1, le=90),
+    from_: datetime | None = Query(default=None, alias="from", description=_FROM_DESCRIPTION),
+    to: datetime | None = Query(default=None, description=_TO_DESCRIPTION),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(database.get_session),
 ):
     """The caller's own daily login success/failure counts, no
     security_audit:read required - same self-scoped reasoning as
     /security-log/me."""
-    return await audit_log_repository.get_login_trend(db, days=days, user_email=current_user["email"])
+    return await audit_log_repository.get_login_trend(
+        db, days=days, user_email=current_user["email"], from_=from_, to=to
+    )
 
 
 @router.get("/security-log/me", response_model=list[AuditLogEntryRead])
@@ -92,10 +155,12 @@ async def list_my_security_audit_log(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     event_type: str | None = Query(default=None, description=_EVENT_TYPE_DESCRIPTION),
-    ip_address: str | None = Query(default=None, description=_IP_ADDRESS_DESCRIPTION),
+    ip_address: str | None = Query(default=None, max_length=SEARCH_QUERY_MAX_LENGTH, description=_IP_ADDRESS_DESCRIPTION),
     success: bool | None = Query(default=None, description=_SUCCESS_DESCRIPTION),
     sort_by: str | None = Query(default=None, description=_SORT_BY_DESCRIPTION),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    from_: datetime | None = Query(default=None, alias="from", description=_FROM_DESCRIPTION),
+    to: datetime | None = Query(default=None, description=_TO_DESCRIPTION),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(database.get_session),
 ):
@@ -108,7 +173,7 @@ async def list_my_security_audit_log(
     """
     response.headers["X-Total-Count"] = str(
         await audit_log_repository.count_for_user(
-            current_user["email"], db, event_type=event_type, ip_address=ip_address, success=success
+            current_user["email"], db, event_type=event_type, ip_address=ip_address, success=success, from_=from_, to=to
         )
     )
     return await audit_log_repository.get_for_user(
@@ -121,4 +186,6 @@ async def list_my_security_audit_log(
         success=success,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        from_=from_,
+        to=to,
     )

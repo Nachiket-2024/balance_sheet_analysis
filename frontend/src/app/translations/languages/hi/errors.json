@@ -1,4 +1,7 @@
 {
     "COMPANY_NOT_FOUND": "कंपनी नहीं मिली",
-    "BALANCE_SHEET_NOT_FOUND": "बैलेंस शीट नहीं मिली"
+    "BALANCE_SHEET_NOT_FOUND": "बैलेंस शीट नहीं मिली",
+    "FINANCIAL_STATEMENT_NOT_FOUND": "वित्तीय विवरण नहीं मिला",
+    "REVIEW_REPORT_NOT_FOUND": "समीक्षा रिपोर्ट नहीं मिली",
+    "ALERT_NOT_FOUND": "अलर्ट नहीं मिला"
 }

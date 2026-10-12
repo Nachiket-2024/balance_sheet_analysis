@@ -1,25 +1,65 @@
 {
+    "pageTitle": "Dashboard",
+    "greeting": {
+        "morning": "Good morning, {{name}}",
+        "afternoon": "Good afternoon, {{name}}",
+        "evening": "Good evening, {{name}}"
+    },
     "loadingDetails": "Loading your details...",
     "unableToFetch": "Unable to fetch user details",
     "noRole": "No role assigned",
     "memberSince": "Member since",
-    "lastLogin": "Last login",
+    "previousLogin": "Previous login",
+    "noPreviousLogin": "None before this one",
     "activeSession": "Active session",
     "activeSessions": "Active sessions",
-    "accountSettingsButton": "Account Settings",
-    "logoutAllButton": "Logout All",
+    "goToActiveSessions_one": "{{count}} active session, go to the sessions list",
+    "goToActiveSessions_other": "{{count}} active sessions, go to the sessions list",
     "noUserData": "No user data available",
+    "administration": {
+        "heading": "Management",
+        "loadError": "Couldn't load",
+        "users": {
+            "label": "Users",
+            "secondary": "{{unverified}} unverified · {{inactive}} inactive"
+        },
+        "policies": {
+            "label": "Policies",
+            "secondary": "{{active}} active · {{inactive}} inactive"
+        },
+        "permissions": {
+            "label": "Permissions",
+            "secondary": "across {{count}} resource types"
+        },
+        "rateLimits": {
+            "label": "Rate Limits",
+            "secondary": "counters tracked right now"
+        },
+        "securityEvents": {
+            "label": "Security Events",
+            "secondary": "Review recent account & security activity"
+        }
+    },
+    "quickLinks": {
+        "changePassword": "Change Password",
+        "appearance": "Appearance"
+    },
     "logoutAllDialog": {
         "title": "Logout all devices",
         "description": "This will end every active session for your account on every device, including this one. Continue?",
         "confirmLabel": "Logout all"
     },
-    "manageSessions": {
-        "heading": "Manage Sessions",
+    "activeSessionsCard": {
+        "heading": "Active Sessions",
+        "logOutEverywhereButton": "Log out everywhere",
         "deviceColumn": "Device",
         "thisDeviceBadge": "This device",
         "ipColumn": "IP",
-        "ipUnknown": "Unknown",
+        "ipUnavailable": "IP unavailable",
+        "locationColumn": "Location",
+        "locationUnavailable": "Location unavailable",
+        "sessionCount_one": "{{count}} active session",
+        "sessionCount_other": "{{count}} active sessions",
         "signedInColumn": "Signed in",
         "lastSeenColumn": "Last seen",
         "logOut": "Log out",
@@ -33,12 +73,25 @@
             "logoutThisDeviceDescription": "This will log you out of this device now. Continue?",
             "endSessionDescription": "End the session on \"{{device}}\"{{ipSuffix}}? That device will be signed out immediately.",
             "confirmLabel": "Log out"
-        }
+        },
+        "thisDeviceNotSelectable": "This device isn't selectable",
+        "logOutSelected": "Log out selected",
+        "rowClickSelect": "Select mode",
+        "rowClickSelectTitle": "Click anywhere in a row to select it, instead of only its checkbox",
+        "bulkEndDialog": {
+            "title": "End {{count}} sessions",
+            "description": "End the selected {{count}} sessions? Those devices will be signed out immediately.",
+            "confirmLabel": "Log out selected"
+        },
+        "bulkEndSuccessToast": "{{count}} sessions ended",
+        "bulkEndPartialToast": "{{success}} sessions ended, {{error}} failed"
     },
     "parseUserAgent": {
         "unknownDevice": "Unknown device",
         "unknownBrowser": "Unknown browser",
         "unknownOS": "Unknown OS",
         "deviceLabel": "{{browser}} on {{os}}"
-    }
+    },
+    "loginActivityHeading": "My Login Activity",
+    "loginActivitySubtitle": "Last {{days}} days"
 }

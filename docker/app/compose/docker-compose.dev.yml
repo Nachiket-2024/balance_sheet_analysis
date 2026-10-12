@@ -1,0 +1,33 @@
+# Your own Compose overrides for this fork, merged on top of upstream's
+# docker/mystic_auth/compose/docker-compose.dev.yml (docker compose -f
+# <that file> -f <this file> ...). Ships empty; upstream never edits this
+# file again. Add your own services, extra volumes, or env_file entries
+# here. See docs/mystic_auth/template-usage/overview.md for the
+# mystic_auth/app split this mirrors.
+services:
+  alembic:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      # Mystic Auth creates its log directory during settings imports. The
+      # source tree bind mount is owned by the host user, so the image's
+      # unprivileged app user cannot create /app/logs without this volume.
+      - backend_logs:/app/logs
+
+  frontend:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      # Keep the browser bundle pointed at this deployment's published API
+      # port when the app uses non-default local ports.
+      VITE_API_BASE_URL: ${BACKEND_BASE_URL}
+    volumes:
+      # Browser tests import shared fixtures through the repo-root path
+      # `frontend/e2e/*` while the test tree is mounted separately at `/tests`.
+      - ../../../frontend:/frontend:ro

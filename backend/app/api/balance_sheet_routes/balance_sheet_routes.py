@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+import csv
+import io
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...access.permissions import (
@@ -47,6 +50,44 @@ async def list_company_balance_sheets(
     return await list_balance_sheets_for_company(company_id, db)
 
 
+@router.get("/company/{company_id}/export.csv")
+async def export_company_balance_sheets(
+    company_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(database.get_session),
+):
+    """Export the scoped periods with provenance for offline review."""
+    company = await get_or_404(get_company_by_id(company_id, db), "Company not found", code="COMPANY_NOT_FOUND")
+    await authorization_service.require(
+        current_user["email"],
+        BALANCE_SHEET_READ,
+        RESOURCE_BALANCE_SHEET,
+        db,
+        resource=resource_scope_dict(company.id, company.group_root_id),
+    )
+    rows = await list_balance_sheets_for_company(company_id, db)
+    fields = [
+        "id", "company_id", "year", "period_end_date", "period_type", "source_provider",
+        "source_url", "currency_code", "unit_scale", "data_quality_status", "imported_at", "version",
+        "total_assets", "total_liabilities_net_minority_interest", "stockholders_equity", "total_debt",
+        "net_debt", "current_assets", "current_liabilities", "working_capital", "cash_and_cash_equivalents",
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        values = {field: getattr(row, field) for field in fields}
+        for field in ("period_end_date", "imported_at"):
+            if values[field] is not None:
+                values[field] = values[field].isoformat()
+        writer.writerow(values)
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="company-{company.id}-balance-sheets.csv"'},
+    )
+
+
 @router.get("/{company_id}/{year}", response_model=BalanceSheetResponse)
 async def get_company_balance_sheet(
     company_id: int,
@@ -75,6 +116,7 @@ async def create_company_balance_sheet(
     request: Request,
     company_id: int,
     year: int,
+    refresh: bool = Query(default=False, description="Replace the current period and retain a restatement snapshot"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(database.get_session),
 ):
@@ -94,7 +136,7 @@ async def create_company_balance_sheet(
         resource=resource_scope_dict(company.id, company.group_root_id),
     )
     try:
-        return await import_balance_sheet(company_id, year, company.ticker, db)
+        return await import_balance_sheet(company_id, year, company.ticker, db, refresh=refresh)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except YFinanceFetchError as exc:

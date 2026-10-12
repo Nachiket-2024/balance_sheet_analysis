@@ -2,5 +2,20 @@
     "widgetTitle": "इस कंपनी के प्रदर्शन के बारे में पूछें",
     "unableToReach": "LLM तक नहीं पहुंचा जा सका, कृपया पुनः प्रयास करें।",
     "questionPlaceholder": "जैसे, पिछले कुछ वर्षों में कुल ऋण कैसे बदला है?",
-    "ask": "पूछें"
+    "ask": "पूछें",
+    "helpful": "उपयोगी",
+    "notHelpful": "उपयोगी नहीं",
+    "operationsNavLabel": "LLM संचालन",
+    "operationsTitle": "LLM प्रदाता संचालन",
+    "operationsDescription": "कॉन्फ़िगर किए गए प्रदाता का हालिया स्वास्थ्य और विलंबता डेटा।",
+    "operationsLoading": "प्रदाता संचालन लोड हो रहा है…",
+    "operationsUnavailable": "प्रदाता संचालन उपलब्ध नहीं है।",
+    "provider": "प्रदाता",
+    "probeSuccessRate": "जांच सफलता दर",
+    "probeCount": "पिछले 24 घंटों में {{count}} जांच",
+    "averageLatency": "औसत विलंबता",
+    "failedProbes": "{{count}} विफल जांच",
+    "lastChecked": "अंतिम जांच",
+    "noRecentError": "कोई हालिया त्रुटि नहीं",
+    "notAvailable": "उपलब्ध नहीं"
 }

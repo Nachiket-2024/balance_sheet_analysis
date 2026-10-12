@@ -5,17 +5,27 @@
     "edit": "Edit",
     "create": "Create",
     "close": "Close",
+    "bulkUsersSelected": "{{count}} users selected",
+    "bulkOperation": "Bulk operation",
+    "closeDialog": "Close dialog",
     "confirm": "Confirm",
     "back": "Back",
+    "previous": "Previous",
+    "next": "Next",
     "loading": "Loading...",
+    "noMatches": "No matches",
     "saving": "Saving...",
+    "retry": "Retry",
     "yes": "Yes",
     "no": "No",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
     "active": "Active",
     "inactive": "Inactive",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "failedToLoadData": "Failed to load data",
+    "notAuthorizedToView": "You don't have permission to view this.",
     "noDataAvailable": "No data available",
     "errorBoundary": {
         "title": "Something went wrong",
@@ -23,11 +33,23 @@
         "reload": "Reload"
     },
     "filterLabel": "Filter: {{label}}",
+    "selectedCount": "{{count}} selected",
+    "clearSelection": "Clear selection",
+    "selectAllRows": "Select all rows",
+    "selectRow": "Select row",
     "pagination": {
         "previousPage": "Previous page",
         "prev": "Prev",
         "nextPage": "Next page",
         "next": "Next",
         "page": "Page {{page}}"
+    },
+    "offlineBanner": {
+        "offline": "You're offline. Some features may not work until your connection is restored.",
+        "backOnline": "You're back online."
+    },
+    "expandCollapseAll": {
+        "expandAll": "Expand all",
+        "collapseAll": "Collapse all"
     }
 }

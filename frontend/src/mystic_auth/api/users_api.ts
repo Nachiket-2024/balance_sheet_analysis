@@ -10,17 +10,29 @@ export interface ManagedUserRead {
     created_at: string;
     updated_at: string;
     deleted_at: string | null;
+    /** Set on every successful sign-in. null means this account has never
+     * signed in (e.g. created by a permission holder but not yet used). */
+    last_login_at: string | null;
     has_password: boolean;
+    /** Per-user brand color override (#rrggbb). null = using the app
+     * default scale (app/theme.ts). See appearanceStore.ts. */
+    brand_color: string | null;
+    /** Self-service PUT /users/me only, and only set on a password change: whether the
+     * account's other sessions got revoked. False means the password changed but Valkey
+     * was unreachable, so other sessions are still live - see ChangePasswordCard.tsx. */
+    sessions_revoked?: boolean | null;
 }
 
 export interface UserUpdatePayload {
     name?: string;
     password?: string;
-    // Required by the backend when changing the password on an account that
-    // already has one (self-service PUT /users/me only; the management route
-    // ignores it). Not needed when setting a password for the first time on
-    // an OAuth-only account.
+    // Required when changing a password on an account that already has one
+    // (self-service PUT /users/me only; ignored by the management route).
+    // Not needed when setting a password for the first time on an OAuth-only account.
     current_password?: string;
+    /** #rrggbb to set a custom brand color, or null to reset to the app
+     * default. Omitted (undefined) leaves the stored value unchanged. */
+    brand_color?: string | null;
 }
 
 export interface UserStatsRead {
@@ -39,25 +51,40 @@ export interface ListUsersParams {
     isVerified?: boolean;
     /** One of "active" | "inactive" | "deleted" (see UsersPage.tsx's Status badge). */
     status?: string;
-    /** Column to sort by; must be one of the backend's own allowlisted
-     * sortable columns (see user_base_crud.py's _SORTABLE_COLUMN_NAMES) -
-     * any other value is ignored server-side and falls back to id. */
+    /** Exact match on the name of an assigned policy (see PolicyRead['name']). */
+    policy?: string;
+    /** Users holding a policy whose actions include this permission, one of
+     * PERMISSIONS' own values (authorization/permissions.ts). */
+    permission?: string;
+    permissionSource?: "policy" | "direct";
+    /** Column to sort by. Must be one of the backend's allowlisted sortable columns
+     * (see user_base_crud.py's _SORTABLE_COLUMN_NAMES); anything else is ignored
+     * server-side and falls back to id. */
     sortBy?: string;
     sortDir?: "asc" | "desc";
+    /** Relative bucket, one of "today" | "7d" | "30d" | "90d" | "never".
+     * Ignored server-side if lastLoginFrom/lastLoginTo are set. */
+    lastLogin?: string;
+    /** Custom range bounds (ISO datetime strings), inclusive. Either one
+     * alone is enough to filter, same as most date-range pickers. */
+    lastLoginFrom?: string;
+    lastLoginTo?: string;
 }
 
 function toApiParams({
-    limit = 1000, offset = 0, search, role, isVerified, status, sortBy, sortDir,
+    limit = 1000, offset = 0, search, role, isVerified, status, policy, permission, permissionSource, sortBy, sortDir,
+    lastLogin, lastLoginFrom, lastLoginTo,
 }: ListUsersParams) {
     return {
-        limit, offset, search, role, is_verified: isVerified, status, sort_by: sortBy, sort_dir: sortDir,
+        limit, offset, search, role, is_verified: isVerified, status, policy, permission,
+        permission_source: permissionSource,
+        sort_by: sortBy, sort_dir: sortDir,
+        last_login: lastLogin, last_login_from: lastLoginFrom, last_login_to: lastLoginTo,
     };
 }
 
-// X-Total-Count (total matching rows, ignoring limit/offset) rides the
-// response headers rather than the body: response_model on the backend
-// stays a plain list, and the header is what UsersPage derives its page
-// count from (see userQueries.ts).
+// Total matching row count rides the X-Total-Count response header; UsersPage reads
+// it for the page count (see userQueries.ts).
 export const listUsersApi = (params: ListUsersParams = {}) =>
     api.get<ManagedUserRead[]>("/users/", { params: toApiParams(params) });
 
@@ -73,8 +100,8 @@ export const updateUserApi = (userEmail: string, payload: UserUpdatePayload) =>
 // revokes active sessions, preserves the row and its audit history.
 export const deleteUserApi = (userEmail: string) => api.delete(`/users/${encodeURIComponent(userEmail)}`);
 
-// Hard delete (separate, irreversible operation): requires users:purge,
-// a distinct and more sensitive permission from users:delete_any.
+// Hard delete (separate, irreversible operation): requires users:delete_any,
+// a distinct and more sensitive permission from users:deactivate_any.
 export const purgeUserApi = (userEmail: string) => api.delete(`/users/${encodeURIComponent(userEmail)}/purge`);
 
 // Undo a soft delete, requires users:reactivate.
@@ -83,3 +110,10 @@ export const reactivateUserApi = (userEmail: string) =>
 
 export const updateUserRoleApi = (userEmail: string, role: string) =>
     api.patch(`/users/${encodeURIComponent(userEmail)}/role`, { role });
+
+// CSV of every user matching the given filters (no limit/offset - always
+// the whole filtered set, unlike listUsersApi's paginated page). Same
+// filter params as the list, blob response so UsersPage can turn it into
+// a real file download.
+export const exportUsersApi = (params: ListUsersParams = {}) =>
+    api.get<Blob>("/users/export", { params: toApiParams(params), responseType: "blob" });

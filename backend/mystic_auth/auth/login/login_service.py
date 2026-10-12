@@ -1,11 +1,12 @@
 import asyncio
 import traceback
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import Request
 
 from ...logging.logging_config import get_logger
-from ...user_crud.user_crud_collector import user_crud
+from ...user.user_crud_collector import user_crud
 from ...user_session.session_service import session_service
 from ..password_logic.password_service import password_service
 from ..token_logic.jwt_service import jwt_service
@@ -27,15 +28,10 @@ class LoginService:
 
             # Compare against the user's real hash if one exists, otherwise a fixed
             # dummy hash, unconditionally and before any not-found/unverified checks.
-            # A previous version only reached this comparison for an existing,
-            # verified account with the wrong password, and returned immediately (no
-            # hashing) for "not found" and "unverified". Since Argon2 hashing is
-            # measurably slow, that let an attacker distinguish "no such verified
-            # account" from "wrong password on a real one" purely by response
-            # latency, enabling account enumeration despite every branch already
-            # returning the same generic failure. Comparing against the dummy hash
-            # keeps the "no real hash" branches' timing indistinguishable from a
-            # genuine comparison.
+            # Argon2 hashing is measurably slow, so skipping it on the "not
+            # found"/"unverified" branches would let an attacker distinguish those
+            # cases from "wrong password on a real account" by response latency
+            # alone, enabling account enumeration despite identical response bodies.
             hash_to_check = user.hashed_password if user and user.hashed_password else password_service.DUMMY_HASH
             password_matches = await password_service.verify_password(password, hash_to_check)
 
@@ -59,6 +55,9 @@ class LoginService:
             if not password_matches:
                 logger.warning("Incorrect password for email: %s", email)
                 return None
+
+            if db is not None:
+                await user_crud.update(user, {"last_login_at": datetime.now(UTC)}, db)
 
             # A fresh chain_id: this login shares nothing with any other
             # session on the account, so a future targeted revoke of one

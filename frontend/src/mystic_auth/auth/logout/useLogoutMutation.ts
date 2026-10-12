@@ -2,20 +2,18 @@ import { useMutation } from "@tanstack/react-query";
 
 import { logoutApi } from "../../api/auth_api";
 import { extractApiErrorMessage } from "../../api/apiError";
-import { useAuthStore } from "../../store/authStore";
-import { queryClient } from "../../core/queryClient";
-import { CURRENT_USER_QUERY_KEY } from "../current_user/useCurrentUserQuery";
-import { SESSIONS_QUERY_KEY } from "../../dashboard/manage_sessions/useSessionsQuery";
-import { MY_POLICIES_QUERY_KEY } from "../../policies/policyQueries";
-import { MY_AUTHORIZATION_AUDIT_LOG_QUERY_KEY } from "../../audit_log/authorization_log/authorizationLogQueries";
-import { MY_SECURITY_AUDIT_LOG_QUERY_KEY } from "../../audit_log/security_log/securityLogQueries";
+import { clearMyAccountSessionCaches } from "../session_lifecycle/clearMyAccountSessionCaches";
 import type { LogoutResponse } from "./logout_types";
 
-// Marks the auth store unauthenticated immediately rather than waiting on a
-// currentUser refetch that would 401 by design. Deliberately
-// `setAuthenticated(false)`, not `reset()`: `reset()` puts isAuthenticated
-// back to null, which ProtectedRoute reads as "still checking the session"
-// (spinner) rather than "log out now" (immediate redirect).
+// clearMyAccountSessionCaches uses setAuthenticated(false), not reset(): reset() sets
+// isAuthenticated back to null, which ProtectedRoute reads as "still checking"
+// (spinner) rather than "log out now" (redirect).
+//
+// Runs in onSettled, not onSuccess: POST /auth/logout 400s whenever the refresh_token
+// cookie is already gone (expired, or logged out elsewhere), which would skip
+// onSuccess and leave the user stuck on a now-401ing page. Clearing local state
+// regardless of the backend result matches the backend's own "always clear cookies"
+// stance.
 export function useLogoutMutation() {
     return useMutation<LogoutResponse, Error, void>({
         mutationFn: async () => {
@@ -26,20 +24,6 @@ export function useLogoutMutation() {
                 throw new Error(extractApiErrorMessage(error, "Logout failed"), { cause: error });
             }
         },
-        onSuccess: () => {
-            useAuthStore.getState().setAuthenticated(false);
-            queryClient.setQueryData(CURRENT_USER_QUERY_KEY, null);
-            // Removed, not just invalidated: none of these "me"-scoped
-            // queries are keyed by email, so a stale one (sessions, policy
-            // assignments, audit history) must never flash on screen for
-            // whoever logs in next in this browser, even for the instant
-            // before a refetch would land. MY_SECURITY_AUDIT_LOG_QUERY_KEY's
-            // prefix match also covers its own children, LAST_LOGIN_QUERY_KEY
-            // and MY_LOGIN_TREND_QUERY_KEY, so they don't need a separate call.
-            queryClient.removeQueries({ queryKey: SESSIONS_QUERY_KEY });
-            queryClient.removeQueries({ queryKey: MY_POLICIES_QUERY_KEY });
-            queryClient.removeQueries({ queryKey: MY_AUTHORIZATION_AUDIT_LOG_QUERY_KEY });
-            queryClient.removeQueries({ queryKey: MY_SECURITY_AUDIT_LOG_QUERY_KEY });
-        },
+        onSettled: clearMyAccountSessionCaches,
     });
 }

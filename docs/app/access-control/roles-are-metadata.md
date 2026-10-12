@@ -1,5 +1,5 @@
 # Roles Are Metadata, Not the Enforcement Mechanism
-
+---
 "Analyst"/"CEO"/"group executive" are personas for humans to reason about
 (and for seeding convenience), not literal RBAC rows. The `User.role`
 column (from mystic_auth) is display metadata only, exactly as it is for
@@ -9,3 +9,14 @@ policy evaluation against the specific resource being requested, per
 A single "CEO" policy *definition* (e.g. "read, scoped to one company_id") is
 reused for every CEO: only the `company_id` value in each user's own
 assignment differs.
+
+> Diagram omitted. See the surrounding prose, tables, or numbered steps for the same flow.
+
+---
+
+## See also
+
+---
+
+- [Access-control index](README.md)
+- [App documentation](../README.md)

@@ -11,7 +11,20 @@ from dotenv import load_dotenv
 # pydantic-settings loading.
 load_dotenv(dotenv_path=Path(__file__).resolve().parents[3] / ".env")
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-# Groq's OpenAI-compatible chat completions endpoint.
-GROQ_API_URL = os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1/chat/completions")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
+LLM_API_KEY = os.getenv("LLM_API_KEY", os.getenv("GROQ_API_KEY", ""))
+# Providers supported by the app use the OpenAI-compatible chat completions contract.
+LLM_API_URL = os.getenv("LLM_API_URL", os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1/chat/completions"))
+LLM_MODEL = os.getenv("LLM_MODEL", os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"))
+# Backward-compatible names for existing deployment configuration.
+GROQ_API_KEY = LLM_API_KEY
+GROQ_API_URL = LLM_API_URL
+GROQ_MODEL = LLM_MODEL
+try:
+    GROQ_MAX_TOKENS = max(128, min(int(os.getenv("LLM_MAX_TOKENS", os.getenv("GROQ_MAX_TOKENS", "800"))), 4000))
+except ValueError:
+    GROQ_MAX_TOKENS = 800
+try:
+    LLM_DAILY_CHAR_BUDGET = max(10_000, min(int(os.getenv("LLM_DAILY_CHAR_BUDGET", "500000")), 10_000_000))
+except ValueError:
+    LLM_DAILY_CHAR_BUDGET = 500_000

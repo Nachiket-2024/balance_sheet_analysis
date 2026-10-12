@@ -1,0 +1,104 @@
+{
+    "page": {
+        "title": "परवानग्या",
+        "description": "हे ॲप ओळखत असलेली प्रत्येक क्रिया, फक्त वाचनीय.",
+        "glossaryAriaLabel": "क्रिया, संसाधन प्रकार, विध्वंसक आणि कोणाकडे आहे म्हणजे काय?",
+        "glossary": {
+            "action": {
+                "term": "क्रिया",
+                "definition": "एक विशिष्ट परवानगी असलेली क्रिया, जसे की \"वापरकर्ता हटवा\", जी प्रत्यक्षात प्रवेश ठरवते, मग ती धोरणातून येवो किंवा थेट दिली गेलेली असो."
+            },
+            "resourceType": {
+                "term": "संसाधन प्रकार",
+                "definition": "एखाद्या क्रियेचा परिणाम कोणत्या प्रकारच्या गोष्टीवर होतो, जसे की \"users\" किंवा \"invoices\", जी ही यादी गटबद्ध आणि फिल्टर करण्यासाठी वापरली जाते."
+            },
+            "destructive": {
+                "term": "विध्वंसक",
+                "definition": "अशी क्रिया जी काहीतरी हटवते, निष्क्रिय करते, किंवा अशा प्रकारे बदलते की ती परत करणे कठीण असते."
+            },
+            "heldBy": {
+                "term": "कोणाकडे आहे",
+                "definition": "सध्या ही क्रिया कोणाकडे आहे, मग ती त्यांच्या एखाद्या धोरणामार्फत असो किंवा थेट त्यांच्या खात्याला दिलेली असो."
+            }
+        },
+        "searchPlaceholder": "क्रिया किंवा वर्णनाने शोधा...",
+        "filterChipSearch": "शोध: {{value}}",
+        "filterChipResourceType": "संसाधन प्रकार: {{value}}",
+        "resultsCount_one": "{{count}} निकाल",
+        "resultsCount_other": "{{count}} निकाल",
+        "filterByResourceType": "संसाधन प्रकारानुसार फिल्टर करा",
+        "allResourceTypes": "सर्व संसाधन प्रकार",
+        "failedToLoadPermissions": "परवानगी यादी लोड करण्यात अयशस्वी",
+        "catalogForbidden": "तुमची परवानगी बदलल्यामुळे परवानगी यादी आता उपलब्ध नाही. पृष्ठ रिफ्रेश करा किंवा डॅशबोर्डवर परत जा.",
+        "holderInfoErrorTitle": "धारकाची माहिती लोड करता आली नाही",
+        "holderInfoErrorDescription": "धोरण आणि थेट परवानगीची मोजणी तात्पुरती उपलब्ध नाही.",
+        "holderInfoForbiddenTitle": "धारकाची माहिती आता उपलब्ध नाही",
+        "holderInfoForbiddenDescription": "धारकाची माहिती पाहण्याची तुमची परवानगी बदलली आहे. पृष्ठ रिफ्रेश करा किंवा हा संवाद बंद करा.",
+        "retryHolderInfo": "धारकाची माहिती पुन्हा लोड करा",
+        "noPermissionsMatchFilters": "या फिल्टरशी कोणतीही परवानगी जुळत नाही",
+        "noPermissionsYet": "यादीत कोणतीही परवानगी नाही",
+        "actionCount": "{{count}} क्रिया",
+        "clearFilters": "फिल्टर साफ करा",
+        "quickFilterLabel": "जलद फिल्टर",
+        "quickFilters": {
+            "all": "सर्व",
+            "destructive": "विध्वंसक",
+            "policy": "एखाद्या धोरणात",
+            "direct": "थेट परवानगी",
+            "unused": "अवापरलेले"
+        },
+        "heldByNone": "कोणीही नाही",
+        "heldByCount_one": "{{count}} वापरकर्ता",
+        "heldByCount_other": "{{count}} वापरकर्ते",
+        "heldBySources": "{{direct}} थेट · {{policies}} धोरणाद्वारे",
+        "groupDestructiveCount_one": "{{count}} विध्वंसक",
+        "groupDestructiveCount_other": "{{count}} विध्वंसक",
+        "groupInPolicyCount_one": "{{count}} धोरणात",
+        "groupInPolicyCount_other": "{{count}} धोरणांमध्ये"
+    },
+    "howItWorks": {
+        "actionsTitle": "क्रिया",
+        "actionsDescription": "लोकांना करण्याची परवानगी दिली जाऊ शकते अशा गोष्टी, जसे “वापरकर्ते पहा”.",
+        "policiesTitle": "धोरणे",
+        "policiesDescription": "क्रियांचे नामांकित गट.",
+        "peopleTitle": "लोक",
+        "peopleDescription": "प्रत्यक्षात कोणाला प्रवेश मिळतो."
+    },
+    "columns": {
+        "action": "क्रिया",
+        "resourceType": "संसाधन प्रकार",
+        "description": "वर्णन",
+        "view": "तपशील पहा",
+        "source": "स्रोत",
+        "heldBy": "कोणाकडे आहे"
+    },
+    "statsCard": {
+        "resourceTypes": "संसाधन प्रकार",
+        "totalActions": "क्रिया",
+        "destructive": "विध्वंसक",
+        "unused": "अवापरलेले"
+    },
+    "detailsDialog": {
+        "title": "परवानगी तपशील",
+        "action": "क्रिया",
+        "resourceType": "संसाधन प्रकार",
+        "description": "वर्णन",
+        "heldBy": "कोणाकडे आहे",
+        "loadingHolderInfo": "धारकाची माहिती लोड होत आहे...",
+        "holderInfoUnavailable": "धारकाची माहिती लोड करता आली नाही.",
+        "holderInfoErrorTitle": "ही कृती सध्या कोणाकडे आहे हे लोड करता आले नाही",
+        "holderInfoErrorDescription": "धोरण आणि थेट परवानगीचा तपशील तात्पुरता उपलब्ध नाही.",
+        "openPolicy": "{{name}} धोरणाचा तपशील उघडा",
+        "heldByNobody": "सध्या ही क्रिया कोणाकडेही नाही.",
+        "viaPolicy": "धोरणाद्वारे",
+        "directGrants": "थेट परवानग्या",
+        "openUsers": "{{label}} प्रवेश असलेले वापरकर्ते पहा",
+        "heldBySummary_one": "{{count}} वापरकर्ता ({{direct}} थेट)",
+        "heldBySummary_other": "{{count}} वापरकर्ते ({{direct}} थेट)",
+        "policies": "याचा समावेश असलेली धोरणे",
+        "noPolicies": "कोणतेही सक्रिय धोरण ही क्रिया देत नाही.",
+        "policyUserCount_one": "{{count}} वापरकर्ता",
+        "policyUserCount_other": "{{count}} वापरकर्ते",
+        "destructiveWarning": "ही क्रिया काहीतरी बदलते किंवा काढून टाकते आणि सहज पूर्ववत करता येत नाही - ती काळजीपूर्वक द्या."
+    }
+}

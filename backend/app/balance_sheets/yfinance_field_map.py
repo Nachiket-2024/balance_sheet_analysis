@@ -1,5 +1,6 @@
 # Mapping from yfinance's balance-sheet row labels to this app's DB column
-# names. Ported unchanged from the pre-migration repo (to_arrange/backend/
+# names. Ported from the original application before the Mystic Auth
+# integration.
 # utils/yfinance_field_map.py), since yfinance's label vocabulary didn't change.
 YFINANCE_TO_DB_FIELDS = {
     "Accounts Payable": "accounts_payable",

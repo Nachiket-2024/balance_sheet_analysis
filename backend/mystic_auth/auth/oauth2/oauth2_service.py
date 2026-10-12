@@ -7,6 +7,7 @@ import hashlib
 import secrets
 import traceback
 import uuid
+from datetime import UTC, datetime
 from typing import cast
 
 import httpx
@@ -15,21 +16,20 @@ from fastapi import Request
 from ...authorization.policies.default_policies import SELF_SERVICE_POLICY_NAME, assign_app_default_policies
 
 # PBAC: new users get their access via an explicit default policy assignment,
-# never via their (metadata-only) role, see the role-as-metadata invariant. New
-# users must receive access through default policy assignment, not default
-# roles." Mirrors signup_service.py.
+# never via their (metadata-only) role; see the role-as-metadata invariant.
+# Mirrors signup_service.py.
 from ...authorization.repositories.policy_repository import policy_repository
 from ...emails.email_normalization import normalize_email
 from ...logging.logging_config import get_logger
-from ...redis.client import redis_client
-from ...user_crud.user_crud_collector import user_crud
+from ...user.user_crud_collector import user_crud
+from ...user.user_model import UserRole
 
 # UserRole is used ONLY to block OAuth2 login into the reserved system account
 # (see login_or_create_user below), mirroring the same guard
 # user_management_routes.py applies to update/delete/role-change. Never used to
 # grant access.
 from ...user_session.session_service import session_service
-from ...user_table.user_model import UserRole
+from ...valkey.client import valkey_client
 from ..token_logic.jwt_service import jwt_service
 
 logger = get_logger(__name__)
@@ -37,6 +37,21 @@ logger = get_logger(__name__)
 # Lifetime of an OAuth2 CSRF state token: long enough to cover the user
 # completing the Google consent screen, short enough to limit replay risk.
 OAUTH2_STATE_TTL_SECONDS = 300
+OAUTH2_HTTP_TIMEOUT_SECONDS = 10.0
+
+
+class OAuth2LoginRejected(Exception):
+    """
+    Raised by login_or_create_user for a rejection the caller should surface
+    to the user with a specific reason, as opposed to every other failure in
+    this method (unexpected exceptions), which stays a bare `None` return -
+    see oauth2_login_handler.handle_oauth2_callback, the sole caller, which
+    maps `code` to a `?error=` query param on the redirect back to /login.
+    """
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
 
 
 class OAuth2Service:
@@ -46,7 +61,7 @@ class OAuth2Service:
         Issues a single-use CSRF state token plus a PKCE code_challenge for an
         OAuth2 login attempt, returning (state, code_challenge) to embed in the
         Google authorization URL. The code_verifier itself never leaves the server;
-        it is persisted in Redis keyed by state, with a short expiry, so the
+        it is persisted in Valkey keyed by state, with a short expiry, so the
         callback can retrieve it and the pair can only be redeemed once.
 
         OAuth 2.1 requires PKCE for every client, confidential or not: it defends
@@ -60,7 +75,7 @@ class OAuth2Service:
         digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
         code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
-        await redis_client.set(f"oauth_state:{state}", code_verifier, ex=OAUTH2_STATE_TTL_SECONDS)
+        await valkey_client.set(f"oauth_state:{state}", code_verifier, ex=OAUTH2_STATE_TTL_SECONDS)
 
         return state, code_challenge
 
@@ -74,11 +89,11 @@ class OAuth2Service:
             return None
 
         # Atomically fetch-and-delete so the same state (and its paired
-        # code_verifier) can never be redeemed twice. redis-py's stub types
+        # code_verifier) can never be redeemed twice. valkey-py's stub types
         # getdel() for both raw-bytes and decoded-str responses; this client
-        # is constructed with decode_responses=True (see redis/client.py),
+        # is constructed with decode_responses=True (see valkey/client.py),
         # so the result is always str | None here.
-        return cast("str | None", await redis_client.getdel(f"oauth_state:{state}"))
+        return cast("str | None", await valkey_client.getdel(f"oauth_state:{state}"))
 
     @staticmethod
     async def exchange_code_for_tokens(
@@ -100,7 +115,7 @@ class OAuth2Service:
                 "code_verifier": code_verifier,
             }
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=OAUTH2_HTTP_TIMEOUT_SECONDS) as client:
                 resp = await client.post(token_url, data=data)
                 resp.raise_for_status()
                 return resp.json()
@@ -115,7 +130,7 @@ class OAuth2Service:
             userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
             headers = {"Authorization": f"Bearer {access_token}"}
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=OAUTH2_HTTP_TIMEOUT_SECONDS) as client:
                 resp = await client.get(userinfo_url, headers=headers)
                 resp.raise_for_status()
                 return resp.json()
@@ -136,9 +151,9 @@ class OAuth2Service:
         Sessions row (device/IP/last-seen) is recorded separately below via
         session_service, keyed off the same chain_id. An earlier version
         additionally wrote each token pair into a
-        separate `user_tokens:{email}` Redis list, but nothing ever read that
+        separate `user_tokens:{email}` Valkey list, but nothing ever read that
         list; it was pure dead weight that grew forever (no TTL) and needlessly
-        held raw, cleartext bearer tokens in Redis on top of the version counters.
+        held raw, cleartext bearer tokens in Valkey on top of the version counters.
 
         Pre-hijacking note: an unverified account is not proof that whoever
         created it owns the email address: anyone can sign up with any email and
@@ -178,7 +193,7 @@ class OAuth2Service:
             # system superuser entirely bypassing its password.
             if user and user.role == UserRole.system:
                 logger.warning("OAuth2 login rejected for reserved system account: %s", email)
-                return None
+                raise OAuth2LoginRejected("OAUTH_LOGIN_FAILED")
 
             if not user:
                 user_data = {
@@ -232,10 +247,17 @@ class OAuth2Service:
             # Mirrors login_service.py's same check for password-based login: a
             # deactivated account's tokens would ultimately be rejected by
             # current_user_handler.py anyway, but this login boundary is the right
-            # place to give a clear "account deactivated" outcome instead.
+            # place to give a clear outcome instead. deleted_at (not just
+            # is_active) distinguishes a soft-deleted account from a merely
+            # deactivated one, same distinction user_base_crud.py's status
+            # filter already keys off, so the two get a different message.
             if not user.is_active:
-                logger.info("OAuth2 login blocked for deactivated account: %s", email)
-                return None
+                code = "ACCOUNT_DELETED" if user.deleted_at is not None else "ACCOUNT_DEACTIVATED"
+                logger.info("OAuth2 login blocked (%s): %s", code, email)
+                raise OAuth2LoginRejected(code)
+
+            if db is not None:
+                await user_crud.update(user, {"last_login_at": datetime.now(UTC)}, db)
 
             # A fresh chain_id: see login_service.py's identical comment.
             chain_id = uuid.uuid4().hex
@@ -257,6 +279,8 @@ class OAuth2Service:
 
             return {"access_token": access_token, "refresh_token": refresh_token}
 
+        except OAuth2LoginRejected:
+            raise
         except Exception:
             logger.error("Error in login or create user:\n%s", traceback.format_exc())
             return None

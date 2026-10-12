@@ -1,51 +1,52 @@
 import React from "react";
-import { Stack, Heading, Text, StackSeparator } from "@chakra-ui/react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 
 import PasswordResetConfirmForm from "./PasswordResetConfirmForm";
 
-// Shared surface styling (theme surface/border tokens): replaces this
-// page's own hand-rolled bg="white"/boxShadow="lg" card.
-import Card from "../../ui/Card";
+import Card from "../../ui/cards/Card";
 
 // Shared brand header + footer shell for every unauthenticated page.
-import AuthLayout from "../../layout/AuthLayout";
+import AuthLayout from "../../layout/auth_layout/AuthLayout";
+import Logo from "../../layout/app_layout/Logo";
 
 const PasswordResetConfirmPage: React.FC = () => {
     const { t } = useTranslation("auth");
     const [searchParams] = useSearchParams();
-    const token = searchParams.get("token") || "";
+    const location = useLocation();
+    const navigate = useNavigate();
+    // Keep the one-time token in component memory, then remove it from the
+    // address bar/history. The email link still works after initial load,
+    // while copied URLs and screenshots no longer retain it.
+    const [token] = React.useState(() => {
+        const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
+        return hashParams.get("token") || searchParams.get("token") || "";
+    });
 
-    const hasTokenFromUrl = !!token;
+    React.useEffect(() => {
+        if (token) navigate("/reset-password", { replace: true });
+    }, [navigate, token]);
 
     return (
         <AuthLayout>
-            <Card w="450px" maxW="md" p={{ base: 5, md: 7 }}>
-                <Stack align="center" textAlign="center" separator={<StackSeparator />}>
-                    <Heading size="xl" color="brand.fg">
-                        {t("passwordResetConfirmPage.heading")}
-                    </Heading>
-
-                    {hasTokenFromUrl ? (
-                        <Text fontSize="md" color="fg.muted">
-                            {t("passwordResetConfirmPage.withToken")}
-                        </Text>
-                    ) : (
-                        <Text fontSize="md" color="fg.muted">
-                            {t("passwordResetConfirmPage.withoutToken")}
-                        </Text>
-                    )}
+            {/* Same shared width/padding/top-border as every other auth card
+                (S1/S7). Was maxW="3xl" - twice as wide as Login/Signup for no
+                reason, since this form is a single column either way. */}
+            <Card className="mx-auto w-full max-w-md border-t-[3px] border-t-brand-solid bg-bg-surface/95 p-5 shadow-dialog backdrop-blur md:p-7">
+                <div className="flex flex-col items-center text-center gap-4">
+                    <Link to="/">
+                        <Logo />
+                    </Link>
+                    <div className="h-px w-full bg-brand-solid" aria-hidden="true" />
+                    <div className="flex flex-col gap-1 mb-1">
+                        <h1 className="text-lg font-semibold">{t("passwordResetConfirmPage.heading")}</h1>
+                        <p className="text-sm text-fg-muted">
+                            {t("passwordResetConfirmPage.subtitle")}
+                        </p>
+                    </div>
 
                     <PasswordResetConfirmForm token={token} />
-
-                    <Text fontSize="16px" color="fg.muted">
-                        {t("passwordResetConfirmPage.rememberPassword")}{" "}
-                        <Link to="/login" style={{ color: "var(--chakra-colors-brand-fg)", fontWeight: 600 }}>
-                            {t("passwordResetConfirmPage.backToLogin")}
-                        </Link>
-                    </Text>
-                </Stack>
+                </div>
             </Card>
         </AuthLayout>
     );

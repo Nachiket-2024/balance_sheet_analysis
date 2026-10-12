@@ -2,11 +2,156 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- public/favicon.svg is also the source for the in-app logo badge
+         (mystic_auth/layout/Logo.tsx): replace this one file to rebrand
+         both the browser tab icon and the in-app mark at once. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preload" as="image" href="/favicon.svg" type="image/svg+xml" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Static placeholder, kept in sync by hand with settings.ts's
+         BRAND_COLOR fallback; applyFaviconAndMetaColor.ts corrects it once
+         the app boots. -->
+    <meta name="theme-color" content="#b5533c" />
+    <meta name="description" content="%VITE_APP_NAME% - authentication and policy-based access control." />
     <title>%VITE_APP_NAME%</title>
+    <!-- Boot shell styling lives in this dedicated <style> block, not
+         style="" attributes, because the production CSP's style-src is a
+         hash allowlist with no 'unsafe-inline'/'unsafe-hashes' entry (see
+         docker/mystic_auth/nginx.frontend.conf). A browser enforcing that
+         CSP silently drops disallowed inline style attributes but still
+         allows a <style> block whose exact contents match a listed sha256
+         hash, the same mechanism the other CSP hashes there already rely
+         on. Keep this block's contents byte-for-byte in sync with that
+         hash if you ever edit it - no %VITE_APP_NAME%-style substitution
+         inside it, since that would change the hash per deployment. -->
+    <style>
+      /* This block fixes several real, measured reflows of the boot shell
+         between first paint and removal - each looked like "two loading
+         screens" rather than one stable one, found by comparing computed
+         styles/rects at different points in a real (not local) page load:
+
+         - html/body get an explicit background/color-scheme here, before
+           #boot-shell's div even exists, because some Chromium browsers
+           (observed on Opera) auto-invert an undeclared-background page to
+           dark on an OS set to dark, then revert once real colors apply.
+         - Every size below is px, not rem: fontSizeStore.ts scales
+           document.documentElement's font-size for a saved text-size
+           preference the instant main.tsx runs, well after this shell has
+           already painted - rem units here would visibly resize on that.
+         - #boot-shell uses top/right/bottom/left: 0 plus height: 100vh
+           (box-sizing: border-box), not the inset: 0 shorthand with
+           min-height: measured at ~864px (its own content height) for the
+           first ~150-200ms of a real network load before snapping to the
+           true 800px viewport height - inset resolving late, in effect.
+         - The h1's font-weight and the p's font-size/line-height are both
+           pinned explicitly for the same reason: left undeclared, each
+           renders at the browser default until Tailwind's async preflight
+           stylesheet loads and resets it, changing that element's height
+           (and so the whole centered block's position) mid-load.
+
+         Dark/light itself is driven by the data-boot-theme attribute a
+         small synchronous <script> below sets on <html> before <body>
+         parses. That script mirrors themeStore.ts's getInitialColorMode
+         exactly (stored "color-mode" first, OS prefers-color-scheme
+         otherwise), so this shell always matches what the real app is
+         about to render, with no separate flash once React mounts. */
+      html, body {
+        background: #faf9f7;
+        color-scheme: light;
+      }
+      html[data-boot-theme="dark"] {
+        color-scheme: dark;
+      }
+      html[data-boot-theme="dark"] body {
+        background: #0a0d13;
+      }
+      html[data-boot-theme="dark"] #boot-shell {
+        background: #0a0d13;
+        color: #eef1f6;
+      }
+      html[data-boot-theme="dark"] #boot-shell .boot-shell-text p {
+        color: #9aa4b2;
+      }
+      #boot-shell {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 9999;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+        background: #faf9f7;
+        color: #252321;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        box-sizing: border-box;
+      }
+      #boot-shell .boot-shell-content {
+        width: min(100%, 448px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+      }
+      #boot-shell .boot-shell-icon {
+        display: block;
+        width: 48px;
+        height: 48px;
+        object-fit: contain;
+      }
+      #boot-shell .boot-shell-text {
+        transform: translateY(-2px);
+      }
+      #boot-shell .boot-shell-text h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.25;
+      }
+      #boot-shell .boot-shell-text p {
+        margin: 4px 0 0;
+        font-size: 16px;
+        line-height: 1.5;
+        color: #68635e;
+      }
+    </style>
+    <!-- Synchronous (no type="module", no defer/async) so it runs and
+         blocks parsing before <body> - and so before #boot-shell - exists,
+         reading the same localStorage key themeStore.ts does. This mirrors
+         getInitialColorMode() in mystic_auth/store/themeStore.ts exactly;
+         keep the two in sync if that logic ever changes. Needs a listed
+         CSP script-src hash the same way the <style> block above needs a
+         style-src hash - see docker/mystic_auth/nginx.frontend.conf. -->
+    <script>
+      (function () {
+        try {
+          var stored = window.localStorage.getItem("color-mode");
+          var dark =
+            stored === "dark" ||
+            (stored !== "light" &&
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.setAttribute("data-boot-theme", "dark");
+        } catch (e) {
+          // localStorage/matchMedia can throw (private browsing, disabled
+          // storage); fall through to the light default rather than block.
+        }
+      })();
+    </script>
   </head>
   <body>
+    <div id="boot-shell" aria-busy="true" aria-live="polite">
+      <div class="boot-shell-content">
+        <img class="boot-shell-icon" src="/favicon.svg" alt="" width="48" height="48">
+        <div class="boot-shell-text">
+          <h1>%VITE_APP_NAME%</h1>
+          <p>Loading your session</p>
+        </div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/app/main.tsx"></script>
   </body>

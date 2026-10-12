@@ -19,7 +19,10 @@ export function useCompanyBalanceSheetsQuery(companyId: number, options?: { enab
 export function useImportBalanceSheetMutation(companyId: number) {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (year: number) => importCompanyBalanceSheetApi(companyId, year),
+        mutationFn: (request: number | { year: number; refresh?: boolean }) => {
+            if (typeof request === "number") return importCompanyBalanceSheetApi(companyId, request);
+            return importCompanyBalanceSheetApi(companyId, request.year, request.refresh ?? false);
+        },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: companyBalanceSheetsQueryKey(companyId) }),
     });
 }

@@ -1,11 +1,14 @@
 {
     "NO_ACCESS_TOKEN": "कोई एक्सेस टोकन उपलब्ध नहीं है",
     "INVALID_OR_EXPIRED_TOKEN": "आपका सत्र समाप्त हो गया है। कृपया फिर से लॉग इन करें",
+    "INVALID_OR_EXPIRED_DELETE_TOKEN": "यह डिलीट लिंक समाप्त हो गया है। फिर से शुरू करने के लिए अकाउंट सेटिंग्स में जाएं",
     "INVALID_TOKEN_PAYLOAD": "अमान्य सत्र। कृपया फिर से लॉग इन करें",
     "USER_NOT_FOUND": "उपयोगकर्ता नहीं मिला",
     "ACCOUNT_DEACTIVATED": "यह खाता निष्क्रिय कर दिया गया है",
     "INTERNAL_SERVER_ERROR": "हमारी ओर से कुछ गलत हो गया। कृपया पुनः प्रयास करें",
-    "ACCOUNT_LOCKED": "बहुत अधिक असफल लॉगिन प्रयास। यह खाता अस्थायी रूप से लॉक है",
+    "NETWORK_ERROR": "कनेक्शन नहीं हो सका। अपना कनेक्शन जांचें और फिर से प्रयास करें।",
+    "SERVER_ERROR": "हमारी ओर से कुछ गलत हो गया। कृपया फिर से प्रयास करें।",
+    "ACCOUNT_LOCKED": "बहुत अधिक असफल लॉगिन प्रयास। यह खाता अस्थायी रूप से लॉक है। {{minutes}} मिनट में फिर से प्रयास करें।",
     "EMAIL_PASSWORD_REQUIRED": "ईमेल और पासवर्ड आवश्यक हैं",
     "INVALID_CREDENTIALS": "अमान्य ईमेल या पासवर्ड",
     "PASSWORD_TOO_WEAK": "पासवर्ड न्यूनतम मजबूती आवश्यकताओं को पूरा नहीं करता",
@@ -13,6 +16,7 @@
     "BASELINE_POLICY_CANNOT_BE_RENAMED": "बेसलाइन नीति '{{policyName}}' का नाम नहीं बदला जा सकता",
     "BASELINE_POLICY_CANNOT_BE_DEACTIVATED": "बेसलाइन नीति '{{policyName}}' को निष्क्रिय नहीं किया जा सकता",
     "BASELINE_POLICY_CANNOT_BE_DELETED": "बेसलाइन नीति '{{policyName}}' को हटाया नहीं जा सकता",
+    "POLICY_MUST_BE_INACTIVE_TO_DELETE": "नीति '{{policyName}}' को हटाने से पहले निष्क्रिय करें",
     "INSUFFICIENT_PERMISSIONS": "इस कार्य को करने की आपके पास अनुमति नहीं है",
     "CANNOT_GRANT_UNHELD_ACTION": "'{{action}}' अधिकार प्रदान नहीं किया जा सकता: यह आपके पास स्वयं नहीं है",
     "DATABASE_ERROR": "डेटाबेस त्रुटि हुई। कृपया पुनः प्रयास करें",
@@ -43,5 +47,11 @@
     "USER_NOT_FOUND_OR_ALREADY_VERIFIED": "उपयोगकर्ता नहीं मिला, या खाता पहले से सत्यापित है",
     "INVALID_OR_EXPIRED_RESET_TOKEN": "यह पासवर्ड रीसेट लिंक अमान्य है या समाप्त हो गया है",
     "INVALID_RESET_TOKEN_OR_PASSWORD": "यह रीसेट लिंक या पासवर्ड अमान्य है",
-    "TOO_MANY_ATTEMPTS": "बहुत अधिक {{endpoint}} प्रयास। कृपया बाद में पुनः प्रयास करें"
+    "TOO_MANY_ATTEMPTS": "बहुत अधिक {{endpoint}} प्रयास। कृपया बाद में पुनः प्रयास करें",
+    "SESSION_REVOCATION_UNAVAILABLE": "अभी इसे रद्द किए जाने की पुष्टि नहीं हो सकी। कृपया थोड़ी देर बाद पुनः प्रयास करें",
+    "ACCOUNT_DELETED": "यह खाता हटा दिया गया है",
+    "OAUTH_LOGIN_FAILED": "हम आपको Google से लॉग इन नहीं कर सके। कृपया पुनः प्रयास करें",
+    "OAUTH_STATE_INVALID": "आपका साइन-इन प्रयास समाप्त हो गया या सत्यापित नहीं किया जा सका। कृपया पुनः प्रयास करें",
+    "OAUTH_EMAIL_NOT_VERIFIED": "आपके Google खाते का ईमेल पता सत्यापित नहीं है। कृपया इसे Google के साथ सत्यापित करें और पुनः प्रयास करें",
+    "OAUTH_CANCELLED": "Google के साथ साइन-इन रद्द कर दिया गया"
 }

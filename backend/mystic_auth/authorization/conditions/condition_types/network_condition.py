@@ -8,16 +8,10 @@ logger = get_logger(__name__)
 
 
 class NetworkCondition(ConditionHandler):
-    """
-    "network": {"allowed_ips": ["10.0.0.0/8", "203.0.113.7"]}: the
-    caller's IP (read from context["ip_address"], the only place this app
-    surfaces the request's source IP into the condition-evaluation
-    context) must match one of the listed single IPs or CIDR ranges.
-
-    Fails safe (denies) if allowed_ips is empty, the context carries no
-    ip_address at all, or either address string fails to parse, per
-    missing IP context and invalid IP
-    rejection" requirements.
+    """{"allowed_ips": ["10.0.0.0/8", "203.0.113.7"]}: the caller's IP
+    (from context["ip_address"]) must match one of the listed IPs or CIDR
+    ranges. Denies if allowed_ips or ip_address is missing, or either
+    address string fails to parse.
     """
 
     def evaluate(self, condition_value, user_email, resource, context) -> bool:
@@ -39,9 +33,6 @@ class NetworkCondition(ConditionHandler):
                     return True
             return False
         except Exception:
-            # Fails safe (see class docstring): a malformed IP/CIDR entry
-            # denies rather than raising, but logged so a misconfigured
-            # policy doesn't silently deny forever with no trail an
-            # operator can find.
+            # Logged so a misconfigured policy's silent denial is traceable.
             logger.warning("network condition failed to evaluate, denying:\n%s", traceback.format_exc())
             return False

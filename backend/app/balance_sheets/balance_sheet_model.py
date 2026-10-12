@@ -1,7 +1,7 @@
-from datetime import datetime
-from typing import TYPE_CHECKING
+from datetime import date, datetime
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -12,6 +12,8 @@ if TYPE_CHECKING:
     # isn't a real cycle, but keeping it TYPE_CHECKING-only means mypy sees
     # the real type for the relationship() below without adding an actual
     # runtime dependency between the two feature folders.
+    from ..companies.company_model import Company
+else:
     from ..companies.company_model import Company
 
 
@@ -24,7 +26,7 @@ class BalanceSheet(Base):
     Every field below is a nullable Float sourced from yfinance, since a given
     company/year may be missing any individual line item depending on what
     yfinance actually reported for it. Field list ported unchanged from the
-    pre-migration repo (to_arrange/backend/models/balance_sheet_model.py);
+    original application before the Mystic Auth integration;
     see yfinance_field_map.py for the yfinance-label -> column-name mapping.
     """
 
@@ -35,9 +37,17 @@ class BalanceSheet(Base):
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
     year: Mapped[int] = mapped_column(Integer, index=True)
 
-    # Explicit DateTime(timezone=True), see company_model.py's own comment
-    # on the same pattern.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    period_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    period_type: Mapped[str] = mapped_column(String(16), default="annual", server_default="annual")
+    source_provider: Mapped[str] = mapped_column(String(64), default="yfinance", server_default="yfinance")
+    source_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    currency_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    unit_scale: Mapped[float] = mapped_column(default=1.0, server_default="1")
+    data_quality_status: Mapped[str] = mapped_column(String(32), default="current", server_default="current")
+    source_fields: Mapped[list[str]] = mapped_column(JSON, default=list, server_default=text("'[]'"))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
     company: Mapped[Company] = relationship()
 
@@ -109,6 +119,42 @@ class BalanceSheet(Base):
     cash_and_cash_equivalents: Mapped[float | None]
     cash_equivalents: Mapped[float | None]
     cash_financial: Mapped[float | None]
+
+
+class BalanceSheetSnapshot(Base):
+    """Immutable JSON snapshot captured before a balance-sheet refresh."""
+
+    __tablename__ = "balance_sheet_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    balance_sheet_id: Mapped[int] = mapped_column(
+        ForeignKey("balance_sheets.id", ondelete="CASCADE"), index=True
+    )
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reason: Mapped[str] = mapped_column(String(32), default="refresh", server_default="refresh")
+    values: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class BalanceSheetImportAttempt(Base):
+    """Audit record for successful, empty, and failed provider imports."""
+
+    __tablename__ = "balance_sheet_import_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    balance_sheet_id: Mapped[int | None] = mapped_column(
+        ForeignKey("balance_sheets.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    provider: Mapped[str] = mapped_column(String(64), default="yfinance", server_default="yfinance")
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 
 
 # The full set of yfinance-sourced column names above, used by

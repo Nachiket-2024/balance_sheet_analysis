@@ -2,5 +2,20 @@
     "widgetTitle": "या कंपनीच्या कामगिरीबद्दल विचारा",
     "unableToReach": "LLM पर्यंत पोहोचता आले नाही, कृपया पुन्हा प्रयत्न करा.",
     "questionPlaceholder": "उदा. गेल्या काही वर्षांत एकूण कर्ज कसे बदलले आहे?",
-    "ask": "विचारा"
+    "ask": "विचारा",
+    "helpful": "उपयुक्त",
+    "notHelpful": "उपयुक्त नाही",
+    "operationsNavLabel": "LLM ऑपरेशन्स",
+    "operationsTitle": "LLM प्रदाता ऑपरेशन्स",
+    "operationsDescription": "कॉन्फिगर केलेल्या प्रदात्याचे अलीकडील आरोग्य आणि विलंबता मेट्रिक्स.",
+    "operationsLoading": "प्रदाता ऑपरेशन्स लोड होत आहेत…",
+    "operationsUnavailable": "प्रदाता ऑपरेशन्स उपलब्ध नाहीत.",
+    "provider": "प्रदाता",
+    "probeSuccessRate": "तपासणी यश दर",
+    "probeCount": "गेल्या २४ तासांत {{count}} तपासण्या",
+    "averageLatency": "सरासरी विलंबता",
+    "failedProbes": "{{count}} अयशस्वी तपासण्या",
+    "lastChecked": "शेवटची तपासणी",
+    "noRecentError": "अलीकडील त्रुटी नाही",
+    "notAvailable": "उपलब्ध नाही"
 }

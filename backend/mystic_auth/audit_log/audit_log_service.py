@@ -9,10 +9,9 @@ from .audit_log_repository import audit_log_repository
 
 logger = get_logger(__name__)
 
-# Known event_type values written by the auth handlers/services, kept as
-# plain string constants (not an enum) since, unlike Permission, nothing else
-# in the app needs to reference these programmatically beyond passing the
-# literal string at each call site.
+# Known event_type values written by the auth handlers/services. Plain
+# string constants, not an enum, since nothing else needs to reference these
+# beyond passing the literal string at each call site.
 LOGIN_SUCCESS = "login_success"
 LOGIN_FAILURE = "login_failure"
 LOGOUT = "logout"
@@ -25,20 +24,24 @@ ACCOUNT_VERIFICATION_REQUESTED = "account_verification_requested"
 ACCOUNT_VERIFIED = "account_verified"
 ACCOUNT_LOCKED = "account_locked"
 REFRESH_TOKEN_REUSE_DETECTED = "refresh_token_reuse_detected"
+SESSION_EVENT_CONNECTION_LIMIT_EXCEEDED = "session_event_connection_limit_exceeded"
 SESSION_REVOKED = "session_revoked"           # One specific session ended via the Manage Sessions card
-ACCOUNT_DELETED = "account_deleted"           # Soft delete (reversible)
+ACCOUNT_DELETED = "account_deleted"           # Soft delete (reversible), admin-initiated
+ACCOUNT_DELETED_SELF = "account_deleted_self"  # Soft delete (reversible), self-initiated via DELETE /users/me
 ACCOUNT_PURGED = "account_purged"             # Hard delete (irreversible)
 ACCOUNT_REACTIVATED = "account_reactivated"   # Restored from soft delete
 POLICY_ASSIGNED = "policy_assigned"
 POLICY_REVOKED = "policy_revoked"
+POLICY_ACTION_REVOKED = "policy_action_revoked"  # One action carved out of a policy assignment; remaining actions kept as direct grants
+PERMISSION_GRANTED = "permission_granted"
+PERMISSION_REVOKED = "permission_revoked"
 USER_ROLE_CHANGED = "user_role_changed"
 
 # Case-insensitive substring denylist for metadata keys that must never be
-# persisted verbatim. Applied recursively so a nested dict value is covered
-# too. Every current call site only ever passes emails/counts (see call
-# sites across auth/*, user_routes/*), so this is a defense-in-depth
-# backstop against a future call site accidentally passing something
-# sensitive; not a fix for an existing leak.
+# persisted verbatim, applied recursively so nested dicts are covered too.
+# Current call sites only ever pass emails/counts, so this is a
+# defense-in-depth backstop against a future call site passing something
+# sensitive, not a fix for an existing leak.
 _SENSITIVE_METADATA_KEY_MARKERS = ("password", "hash", "token", "secret", "cookie", "jwt", "credential")
 
 
@@ -68,13 +71,12 @@ async def log_security_event(
 ) -> None:
     """
     Writes one security audit log row. A logging failure must never break the
-    actual auth action it's describing: caught and logged as a warning here,
-    never re-raised. Mirrors AuthorizationService._log_decision's reasoning.
+    auth action it's describing, so errors here are caught and logged as a
+    warning, never re-raised. Mirrors authorization_audit_logger.log_decision.
 
-    `db=None` is accepted (rather than requiring a real session) purely so
-    unit tests can call handlers/services directly without wiring a session
-    through every mocked collaborator; a real request always supplies one via
-    Depends(database.get_session).
+    `db=None` is accepted so unit tests can call handlers/services directly
+    without wiring a session through every mocked collaborator; a real
+    request always supplies one via Depends(database.get_session).
     """
     if db is None:
         return

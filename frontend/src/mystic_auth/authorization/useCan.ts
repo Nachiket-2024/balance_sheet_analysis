@@ -1,8 +1,9 @@
 import { useAuthorization } from "./useAuthorization";
 
 // See useAuthorization's `can` for the full contract (including why
-// resourceType doesn't currently narrow the check).
-export function useCan(action: string, resourceType?: string): boolean {
+// resourceType doesn't currently narrow the check, and why an array
+// argument means "any of").
+export function useCan(action: string | string[], resourceType?: string): boolean {
     return useAuthorization().can(action, resourceType);
 }
 

@@ -1,0 +1,104 @@
+{
+    "page": {
+        "title": "अनुमतियां",
+        "description": "यह ऐप जिन सभी क्रियाओं को जानता है, केवल पढ़ने के लिए।",
+        "glossaryAriaLabel": "क्रिया, संसाधन प्रकार, विनाशकारी और किसके पास है का क्या अर्थ है?",
+        "glossary": {
+            "action": {
+                "term": "क्रिया",
+                "definition": "एक विशिष्ट अनुमत कार्रवाई, जैसे \"उपयोगकर्ता हटाएं\", जो वास्तव में एक्सेस तय करती है, चाहे वह किसी नीति से आए या सीधे दी गई हो।"
+            },
+            "resourceType": {
+                "term": "संसाधन प्रकार",
+                "definition": "किसी क्रिया का असर किस तरह की चीज़ पर पड़ता है, जैसे \"users\" या \"invoices\", जिसका उपयोग इस सूची को समूहित और फ़िल्टर करने के लिए किया जाता है।"
+            },
+            "destructive": {
+                "term": "विनाशकारी",
+                "definition": "एक ऐसी क्रिया जो कुछ हटाती है, निष्क्रिय करती है, या किसी और तरह से इस तरह बदलती है कि उसे वापस लाना मुश्किल हो।"
+            },
+            "heldBy": {
+                "term": "किसके पास है",
+                "definition": "इस समय यह क्रिया किसके पास है, चाहे उनकी किसी नीति के ज़रिए हो या सीधे उनके खाते को दी गई हो।"
+            }
+        },
+        "searchPlaceholder": "क्रिया या विवरण से खोजें...",
+        "filterChipSearch": "खोज: {{value}}",
+        "filterChipResourceType": "संसाधन प्रकार: {{value}}",
+        "resultsCount_one": "{{count}} परिणाम",
+        "resultsCount_other": "{{count}} परिणाम",
+        "filterByResourceType": "संसाधन प्रकार से फ़िल्टर करें",
+        "allResourceTypes": "सभी संसाधन प्रकार",
+        "failedToLoadPermissions": "अनुमति सूची लोड करने में विफल",
+        "catalogForbidden": "आपकी अनुमति बदलने के कारण अनुमति सूची अब उपलब्ध नहीं है। पृष्ठ रीफ़्रेश करें या डैशबोर्ड पर लौटें।",
+        "holderInfoErrorTitle": "धारक की जानकारी लोड नहीं हो सकी",
+        "holderInfoErrorDescription": "नीति और सीधी अनुमति की गणनाएं अस्थायी रूप से उपलब्ध नहीं हैं।",
+        "holderInfoForbiddenTitle": "धारक की जानकारी अब उपलब्ध नहीं है",
+        "holderInfoForbiddenDescription": "धारक की जानकारी देखने की आपकी अनुमति बदल गई है। पृष्ठ रीफ़्रेश करें या यह संवाद बंद करें।",
+        "retryHolderInfo": "धारक की जानकारी फिर से लोड करें",
+        "noPermissionsMatchFilters": "इन फ़िल्टरों से कोई अनुमति मेल नहीं खाती",
+        "noPermissionsYet": "सूची में कोई अनुमति नहीं है",
+        "actionCount": "{{count}} क्रियाएं",
+        "clearFilters": "फ़िल्टर साफ़ करें",
+        "quickFilterLabel": "त्वरित फ़िल्टर",
+        "quickFilters": {
+            "all": "सभी",
+            "destructive": "विनाशकारी",
+            "policy": "किसी नीति में",
+            "direct": "सीधी अनुमति",
+            "unused": "अप्रयुक्त"
+        },
+        "heldByNone": "कोई नहीं",
+        "heldByCount_one": "{{count}} उपयोगकर्ता",
+        "heldByCount_other": "{{count}} उपयोगकर्ता",
+        "heldBySources": "{{direct}} सीधे · {{policies}} नीति से",
+        "groupDestructiveCount_one": "{{count}} विनाशकारी",
+        "groupDestructiveCount_other": "{{count}} विनाशकारी",
+        "groupInPolicyCount_one": "{{count}} नीति में",
+        "groupInPolicyCount_other": "{{count}} नीतियों में"
+    },
+    "howItWorks": {
+        "actionsTitle": "क्रियाएं",
+        "actionsDescription": "जो काम लोगों को करने दिए जा सकते हैं, जैसे “उपयोगकर्ता देखें”।",
+        "policiesTitle": "नीतियां",
+        "policiesDescription": "क्रियाओं के नामित समूह।",
+        "peopleTitle": "लोग",
+        "peopleDescription": "असल में किसे पहुंच मिलती है।"
+    },
+    "columns": {
+        "action": "क्रिया",
+        "resourceType": "संसाधन प्रकार",
+        "description": "विवरण",
+        "view": "विवरण देखें",
+        "source": "स्रोत",
+        "heldBy": "किसके पास है"
+    },
+    "statsCard": {
+        "resourceTypes": "संसाधन प्रकार",
+        "totalActions": "क्रियाएं",
+        "destructive": "विनाशकारी",
+        "unused": "अप्रयुक्त"
+    },
+    "detailsDialog": {
+        "title": "अनुमति विवरण",
+        "action": "क्रिया",
+        "resourceType": "संसाधन प्रकार",
+        "description": "विवरण",
+        "heldBy": "किसके पास है",
+        "loadingHolderInfo": "धारक की जानकारी लोड हो रही है...",
+        "holderInfoUnavailable": "धारक की जानकारी लोड नहीं हो सकी।",
+        "holderInfoErrorTitle": "यह नहीं लोड हो सका कि यह क्रिया अभी किसके पास है",
+        "holderInfoErrorDescription": "नीति और सीधी अनुमति का विवरण अस्थायी रूप से उपलब्ध नहीं है।",
+        "openPolicy": "{{name}} नीति का विवरण खोलें",
+        "heldByNobody": "फ़िलहाल किसी के पास यह क्रिया नहीं है।",
+        "viaPolicy": "नीति के माध्यम से",
+        "directGrants": "सीधी अनुमतियां",
+        "openUsers": "{{label}} एक्सेस वाले उपयोगकर्ता देखें",
+        "heldBySummary_one": "{{count}} उपयोगकर्ता ({{direct}} सीधे)",
+        "heldBySummary_other": "{{count}} उपयोगकर्ता ({{direct}} सीधे)",
+        "policies": "इसे शामिल करने वाली नीतियां",
+        "noPolicies": "कोई सक्रिय नीति यह क्रिया प्रदान नहीं करती।",
+        "policyUserCount_one": "{{count}} उपयोगकर्ता",
+        "policyUserCount_other": "{{count}} उपयोगकर्ता",
+        "destructiveWarning": "यह क्रिया कुछ बदलती या हटाती है और आसानी से पूर्ववत नहीं की जा सकती - इसे सावधानी से प्रदान करें।"
+    }
+}

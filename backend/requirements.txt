@@ -6,18 +6,25 @@
 # before committing an update), not incidentally as a side effect of an
 # unrelated change.
 
-fastapi==0.141.1
-uvicorn[standard]==0.52.0
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
 
-SQLAlchemy==2.0.51
-asyncpg==0.31.0
-alembic==1.18.5
+# [asyncio] is required as of 2.1: SQLAlchemy used to pull in greenlet
+# unconditionally on supported platforms, but 2.1 made it extra-gated, and
+# this project's entire DB layer is async (asyncpg/psycopg async engines).
+SQLAlchemy[asyncio]==2.1.4
+asyncpg==0.32.0
+alembic==1.20.0
+# Transitive dep of alembic/procrastinate, pinned explicitly with [binary]:
+# plain psycopg's libpq loader doesn't work on musl/Alpine, [binary] bundles
+# its own libpq so it works on both glibc and musl.
+psycopg[binary]==3.3.6
 
-python-dotenv==1.2.2
-pydantic-settings==2.14.2
-pydantic[email]==2.13.4
+python-dotenv==1.2.4
+pydantic-settings==2.15.0
+pydantic[email]==2.14.0
 
-pyjwt==2.13.0
+pyjwt==2.15.1
 argon2_cffi==25.1.0
 
 httpx==0.28.1
@@ -25,33 +32,32 @@ httpx==0.28.1
 # starlette.testclient (used by tests/backend/mystic_auth/unit/test_correlation_id_middleware_unit.py)
 # now prefers httpx2 over httpx and warns on every import if it's absent —
 # not a runtime dependency, only pulled in so that one test file stays quiet.
-httpx2==2.9.1
+httpx2==2.13.1
 
-redis==8.1.0
+valkey==6.1.1
 
-taskiq[reload]==0.12.4
-taskiq-redis==1.2.3
+# Local MaxMind GeoLite2-City .mmdb reader for Manage Sessions' Location
+# column (see user_session/session_geolocation.py). Offline/no-network lookup, so it adds
+# no latency or third-party dependency to the login/refresh path.
+geoip2==5.3.0
 
-aiosmtplib==5.1.2
+procrastinate==3.10.0
 
-python-json-logger==4.1.0
+aiosmtplib==5.1.3
+
+python-json-logger==4.2.0
 
 # Speaks the same wire protocol against Sentry itself or any self-hosted
 # Sentry-SDK-compatible server (e.g. Bugsink, see docs/mystic_auth/error-monitoring/overview.md).
 # The [fastapi] extra pulls in the FastAPI/Starlette integration; a no-op
 # import-time cost when SENTRY_DSN is unset (see error_monitoring/sentry_service.py).
-sentry-sdk[fastapi]==2.66.1
-
-pytest==9.1.1
-pytest-asyncio==1.4.0
-pytest-cov==7.1.0
-pytest-mock==3.15.1
+sentry-sdk[fastapi]==2.71.0
 
 # ---------------------------- This app's own domain dependencies ----------------------------
 # Not part of the upstream mystic-auth template, see backend/app/ (companies,
 # balance_sheets, llm). Kept in this same file (rather than a separate
 # app/requirements.txt) since backend/ is built as a single Docker image
-# (docker/backend.Dockerfile) either way.
+# (docker/dockerfiles/backend.Dockerfile) either way.
 
 # Fetches public balance-sheet data (backend/app/balance_sheets/balance_sheet_crud.py).
 yfinance==1.5.2

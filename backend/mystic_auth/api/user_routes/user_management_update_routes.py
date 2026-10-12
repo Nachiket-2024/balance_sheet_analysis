@@ -8,8 +8,9 @@ from ...auth.password_logic.password_service import password_service
 # uses, reused here so a soft-deleted/purged account's existing refresh tokens
 # can't be used to mint a fresh access token even though
 # refresh_token_service.refresh_tokens() itself doesn't check the database
-# (it's Redis/JWT-only by design, see its own docstring).
+# (it's Valkey/JWT-only by design, see its own docstring).
 from ...auth.refresh_token_logic.refresh_token_service import refresh_token_service
+from ...auth.token_logic.token_version_store import TokenVersionUnavailableError
 
 # Every real authorization check must build context from the actual request
 # the same way, see authorization_dependency.py.
@@ -23,28 +24,29 @@ from ...authorization.services.authorization_service import authorization_servic
 from ...core.errors import AppError
 from ...database.connection import database
 from ...emails.email_normalization import normalize_email
-from ...user_crud.user_crud_collector import user_crud
-from ...user_crud.user_crud_modules.user_update_payload_preparation import prepare_update_data
+from ...logging.logging_config import get_logger
+from ...user.user_crud_collector import user_crud
+from ...user.user_crud_modules.user_update_payload_preparation import prepare_update_data
 
 # UserRole is only used for target-account guards such as protecting the
 # reserved system account from generic endpoints. It is resource metadata, not
 # caller authorization; PBAC policies still decide access.
-from ...user_table.user_model import UserRole
-from ...user_table.user_schema import UserRead, UserRoleUpdate, UserUpdate
+from ...user.user_model import UserRole
+from ...user.user_schema import UserAdminUpdateResponse, UserRoleUpdate, UserUpdate
 from ..get_or_404.get_or_404 import get_or_404
 
-# Management field updates on another user's account. Split out of the
-# former user_management_routes.py alongside user_management_query_routes.py
-# (read-only views) and user_lifecycle_routes.py (account state transitions),
-# mirroring api/pbac_routes/'s existing split-by-operation-type precedent.
-# main.py registers this router after self-service routes so /{user_email}
-# cannot shadow /users/me or /users/stats.
+# Management field updates on another user's account, split out from
+# user_management_query_routes.py (read-only) and user_lifecycle_routes.py
+# (account state transitions). main.py registers this router after
+# self-service routes so /{user_email} cannot shadow /users/me or /users/stats.
 router = APIRouter(prefix="/users", tags=["Users"])
+
+logger = get_logger(__name__)
 
 _RESOURCE_TYPE = "users"
 
 
-@router.put("/{user_email}", response_model=UserRead)
+@router.put("/{user_email}", response_model=UserAdminUpdateResponse)
 async def update_any_user(
     user_email: str,
     update_data: UserUpdate,
@@ -78,12 +80,21 @@ async def update_any_user(
     prepared_data = await prepare_update_data(update_data)
     updated_user = await user_crud.update(db_obj=user, update_data=prepared_data, db=db)
 
-    # See update_my_profile's identical comment: an admin-driven password
-    # change must revoke the target account's existing sessions too.
+    # An admin-driven password change must revoke the target's existing
+    # sessions too. sessions_revoked stays None unless a revoke was
+    # attempted: the password write always succeeds regardless.
+    sessions_revoked = None
     if "hashed_password" in prepared_data:
-        await refresh_token_service.revoke_all_tokens_for_user(user_email, db)
+        sessions_revoked = True
+        try:
+            await refresh_token_service.revoke_all_tokens_for_user(user_email, db)
+        except TokenVersionUnavailableError:
+            sessions_revoked = False
+            logger.error("Could not confirm session revocation on admin password change for %s", user_email)
 
-    return updated_user
+    response_payload = UserAdminUpdateResponse.model_validate(updated_user)
+    response_payload.sessions_revoked = sessions_revoked
+    return response_payload
 
 
 @router.patch("/{user_email}/role")
@@ -102,6 +113,19 @@ async def update_user_role(
             status_code=status.HTTP_403_FORBIDDEN,
             code="SYSTEM_USER_ROLE_CANNOT_BE_CHANGED",
             detail="System user role cannot be changed"
+        )
+
+    # users:assign_role only proves "may relabel accounts", not "may relabel
+    # itself" - without this, its holder could self-promote to "admin" with
+    # no further check. Harmless while role stays display-only, but becomes
+    # real the moment any downstream code adds an `if role == "admin"`
+    # shortcut. Blocks every target role, not just "system" (that case has
+    # its own guard below).
+    if user_email == current_user["email"]:
+        raise AppError(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="CANNOT_CHANGE_OWN_ROLE",
+            detail="You cannot change your own role",
         )
 
     # Assigning the system role requires the separate, more sensitive
